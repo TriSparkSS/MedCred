@@ -49,14 +49,14 @@ new class extends Component {
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.providers') ? 'active' : '' }}">
+                <a href="{{ route('admin.providers') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-first-aid-kit"></i>
                     <div>Providers</div>
                 </a>
             </li>
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.practices') ? 'active' : '' }}">
+                <a href="{{ route('admin.practices') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-building"></i>
                     <div>Practices</div>
                 </a>
@@ -83,7 +83,7 @@ new class extends Component {
                 </a>
             </li>
 
-            
+
             <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
                 <a href="#" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-list-check"></i>
@@ -91,7 +91,7 @@ new class extends Component {
                 </a>
             </li>
 
-            
+
             <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
                 <a href="#" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-chart-bar"></i>
@@ -99,7 +99,7 @@ new class extends Component {
                 </a>
             </li>
 
-            
+
             <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
                 <a href="#" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
