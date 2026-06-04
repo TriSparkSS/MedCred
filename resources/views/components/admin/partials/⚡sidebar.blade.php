@@ -62,8 +62,8 @@ new class extends Component {
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.credentials') ? 'active' : '' }}">
+                <a href="{{ route('admin.credentials') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-clipboard-check"></i>
                     <div>Credentialing Tracker</div>
                 </a>
