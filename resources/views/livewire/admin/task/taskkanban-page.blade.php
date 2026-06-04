@@ -7,10 +7,12 @@
         </div>
         <div class="col-md-4 text-md-end">
             <div class="btn-group btn-group-sm shadow-sm" role="group" aria-label="View toggle">
-                <button type="button" class="btn btn-outline-secondary active">Kanban</button>
-                <button type="button" class="btn btn-outline-secondary">List</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm active view-toggle-btn"
+                    data-view="kanban">Kanban</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm view-toggle-btn"
+                    data-view="list">List</button>
             </div>
-            <button class="btn btn-primary btn-sm ms-2">
+            <button class="btn btn-primary btn-sm ms-2" id="newTaskBtn">
                 <i class="ti tabler-plus me-1"></i>
                 New Task
             </button>
@@ -36,12 +38,17 @@
                 Linked Provider
             </button>
         </div>
-        <div class="col text-end text-muted">Showing 14 active tasks</div>
+        <div class="col text-end text-muted">Showing <span id="taskCount">14</span> active tasks</div>
     </div>
 
     <div class="card shadow-sm border-0">
         <div class="card-body p-3">
-            <div id="myKanban" class="d-flex overflow-auto"></div>
+            <div id="kanbanView">
+                <div id="myKanban" class="d-flex overflow-auto"></div>
+            </div>
+            <div id="listView" class="d-none">
+                <div class="row gy-4" id="taskListRows"></div>
+            </div>
         </div>
     </div>
 
@@ -153,9 +160,11 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            var boards = [{
+            var kanbanBoards = [{
                     id: 'overdue',
-                    title: '<div class="kanban-board-title"><div class="d-flex align-items-center justify-content-between"><span>Overdue</span><span class="badge bg-danger bg-opacity-10 text-danger">3</span></div><div class="board-count">High urgency tasks</div></div>',
+                    name: 'Overdue',
+                    description: 'High urgency tasks',
+                    badgeColor: 'danger',
                     class: 'bg-light',
                     dragTo: ['due_today', 'upcoming'],
                     item: [{
@@ -174,7 +183,9 @@
                 },
                 {
                     id: 'due_today',
-                    title: '<div class="kanban-board-title"><div class="d-flex align-items-center justify-content-between"><span>Due Today</span><span class="badge bg-info bg-opacity-10 text-info">2</span></div><div class="board-count">Today&apos;s priorities</div></div>',
+                    name: 'Due Today',
+                    description: 'Today\'s priorities',
+                    badgeColor: 'info',
                     class: 'bg-light',
                     dragTo: ['overdue', 'upcoming'],
                     item: [{
@@ -189,7 +200,9 @@
                 },
                 {
                     id: 'upcoming',
-                    title: '<div class="kanban-board-title"><div class="d-flex align-items-center justify-content-between"><span>Upcoming</span><span class="badge bg-secondary bg-opacity-10 text-secondary">5</span></div><div class="board-count">Planned work ahead</div></div>',
+                    name: 'Upcoming',
+                    description: 'Planned work ahead',
+                    badgeColor: 'secondary',
                     class: 'bg-light',
                     dragTo: ['overdue', 'due_today'],
                     item: [{
@@ -216,18 +229,95 @@
                 }
             ];
 
-            new jKanban({
+            function renderTaskList() {
+                var taskListRows = document.getElementById('taskListRows');
+                taskListRows.innerHTML = kanbanBoards.map(function(board) {
+                    return '<div class="col-12"><div class="card shadow-sm border-0"><div class="card-body"><div class="d-flex align-items-center justify-content-between mb-3"><div><h6 class="mb-1">' +
+                        board.name + '</h6><small class="text-muted">' + board.description +
+                        '</small></div><span class="badge bg-' + board.badgeColor + ' bg-opacity-10 text-' +
+                        board.badgeColor + '">' + board.item.length + '</span></div>' + board.item.map(
+                            function(task) {
+                                return '<div class="mb-3">' + task.title + '</div>';
+                            }).join('') + '</div></div></div>';
+                }).join('');
+            }
+
+            function updateTaskCount() {
+                var totalTasks = kanbanBoards.reduce(function(count, board) {
+                    return count + board.item.length;
+                }, 0);
+                document.getElementById('taskCount').textContent = totalTasks;
+            }
+
+            function updateBoardBadges() {
+                kanbanBoards.forEach(function(board) {
+                    var boardElement = document.querySelector('#myKanban .kanban-board[data-id="' + board
+                        .id + '"]');
+                    if (boardElement) {
+                        var badge = boardElement.querySelector('.kanban-board-title .badge');
+                        if (badge) {
+                            badge.textContent = board.item.length;
+                        }
+                    }
+                });
+            }
+
+            function setActiveView(view) {
+                document.getElementById('kanbanView').classList.toggle('d-none', view !== 'kanban');
+                document.getElementById('listView').classList.toggle('d-none', view !== 'list');
+                document.querySelectorAll('.view-toggle-btn').forEach(function(button) {
+                    button.classList.toggle('active', button.dataset.view === view);
+                });
+            }
+
+            var kanban = new jKanban({
                 element: '#myKanban',
                 gutter: '24px',
                 widthBoard: '320px',
-                boards: boards,
+                boards: kanbanBoards,
                 dragBoards: false,
                 buttonContent: '+',
                 itemHandleOptions: {
                     enabled: false
                 }
             });
+
+            document.querySelectorAll('.view-toggle-btn').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    setActiveView(this.dataset.view);
+                });
+            });
+
+            document.getElementById('newTaskBtn').addEventListener('click', function() {
+                var title = prompt('New task title', 'New credentialing task');
+                if (!title) {
+                    return;
+                }
+
+                var newTask = {
+                    id: 'task_' + Date.now(),
+                    title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label medium">Medium</span><span class="task-badge bg-info"></span></div><div class="task-card-title">' +
+                        title +
+                        '</div><div class="task-card-meta">New task | Assigned</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">NT</span>Due Soon</div><i class="ti tabler-dots"></i></div></div>'
+                };
+
+                var dueTodayBoard = kanbanBoards.find(function(board) {
+                    return board.id === 'due_today';
+                });
+
+                if (dueTodayBoard) {
+                    dueTodayBoard.item.push(newTask);
+                    kanban.addElement('due_today', newTask);
+                    renderTaskList();
+                    updateTaskCount();
+                    updateBoardBadges();
+                }
+            });
+
+            renderTaskList();
+            updateTaskCount();
+            updateBoardBadges();
+            setActiveView('kanban');
         });
     </script>
-
 </div>
