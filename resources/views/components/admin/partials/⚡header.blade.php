@@ -14,40 +14,14 @@ new class extends Component
     public function mount()
     {
         $this->admin = auth()->guard('admin')->user();
-        $manager = app(LocaleManager::class);
-        $this->locales = $manager->supportedLocales();
-        $this->currentLocale = $manager->resolve(session('locale'), app()->getLocale());
     }
 
-    public function setLocale(string $locale)
-    {
-        $manager = app(LocaleManager::class);
-
-        if (! $manager->isSupported($locale)) {
-            return;
-        }
-
-        session(['locale' => $locale]);
-        $this->currentLocale = $locale;
-        app()->setLocale($locale);
-
-        return $this->redirect(url()->previous() ?: route('admin.dashboard'), navigate: false);
-    }
 
     public function logout()
     {
         $admin = auth()->guard('admin')->user();
 
         if ($admin) {
-            LoginLog::markCurrentSessionLoggedOut($admin, 'admin', request());
-
-            Log::info('Admin logged out.', [
-                'admin_id' => $admin->id,
-                'username' => $admin->username,
-                'email' => $admin->email,
-                'ip' => request()->ip(),
-                'session_id' => request()->hasSession() ? request()->session()->getId() : session()->getId(),
-            ]);
         }
 
         auth()->guard('admin')->logout();
@@ -100,7 +74,7 @@ new class extends Component
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                        <a class="dropdown-item" href="{{ route('admin.profile') }}">
+                        <a class="dropdown-item" href="#">
                             <div class="d-flex">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="avatar avatar-online">
@@ -118,7 +92,7 @@ new class extends Component
                         <div class="dropdown-divider my-1 mx-n2"></div>
                     </li>
                     <li>
-                        <a class="dropdown-item" href="{{ route('admin.profile') }}">
+                        <a class="dropdown-item" href="#">
                             <i class="icon-base ti tabler-user icon-md me-3"></i><span>{{ __('admin.my_profile') }}</span>
                         </a>
                     </li>

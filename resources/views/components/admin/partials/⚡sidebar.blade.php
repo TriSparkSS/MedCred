@@ -12,7 +12,7 @@ new class extends Component {
     <aside id="layout-menu" class="layout-menu menu-vertical menu">
         <div class="app-brand demo ">
             <a href="{{ route('admin.dashboard') }}" class="app-brand-link">
-                <span class="app-brand-logo demo">
+                {{-- <span class="app-brand-logo demo">
                     <span class="text-primary">
                         <svg width="32" height="22" viewBox="0 0 32 22" fill="none"
                             xmlns="http://www.w3.org/2000/svg">
@@ -28,8 +28,8 @@ new class extends Component {
                                 fill="currentColor" />
                         </svg>
                     </span>
-                </span>
-                <span class="app-brand-text demo menu-text fw-bold ms-3">FDB</span>
+                </span> --}}
+                <span class="app-brand-text demo menu-text fw-bold ms-3">Ranatage</span>
             </a>
 
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
@@ -45,73 +45,66 @@ new class extends Component {
             <li class="menu-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
                 <a href="{{ route('admin.dashboard') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-smart-home"></i>
-                    <div>{{ __('admin.dashboard') }}</div>
+                    <div>Dashboard</div>
                 </a>
             </li>
 
             <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="{{ route('admin.profile') }}" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-user"></i>
-                    <div>{{ __('admin.profile') }}</div>
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-first-aid-kit"></i>
+                    <div>Providers</div>
+                </a>
+            </li>
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-building"></i>
+                    <div>Practices</div>
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.cuisines.index') || request()->routeIs('admin.cuisines.create') || request()->routeIs('admin.cuisines.edit') ? 'active' : '' }}">
-                <a href="{{ route('admin.cuisines.index') }}" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-tools-kitchen-3"></i>
-                    <div>{{ __('admin.cuisines') }}</div>
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-clipboard-check"></i>
+                    <div>Credentialing Tracker</div>
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.categories.index') || request()->routeIs('admin.categories.create') || request()->routeIs('admin.categories.edit') ? 'active' : '' }}">
-                <a href="{{ route('admin.categories.index') }}" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-tag"></i>
-                    <div>{{ __('admin.categories') }}</div>
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-file-type-doc"></i>
+                    <div>Documents</div>
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
-                <a href="{{ route('admin.products.index') }}" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-basket"></i>
-                    <div>{{ __('admin.products') }}</div>
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-mail"></i>
+                    <div>Email Center</div>
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.sellers.*') ? 'open active' : '' }}">
-                <a href="javascript:void(0);" class="menu-link menu-toggle">
-                    <i class="menu-icon icon-base ti tabler-building-store"></i>
-                    <div>{{ __('admin.sellers') }}</div>
+            
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-list-check"></i>
+                    <div>Task & Follow-ups</div>
                 </a>
-                <ul class="menu-sub">
-                    <li class="menu-item {{ request()->routeIs('admin.sellers.index') || request()->routeIs('admin.sellers.restaurant') || request()->routeIs('admin.sellers.show') ? 'active' : '' }}">
-                        <a href="{{ route('admin.sellers.index') }}" class="menu-link">
-                            <div>{{ __('admin.seller_list') }}</div>
-                        </a>
-                    </li>
-                </ul>
             </li>
-            <li class="menu-item {{ request()->routeIs('admin.settings.*') ? 'open active' : '' }}">
-                <a href="javascript:void(0);" class="menu-link menu-toggle">
+
+            
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-chart-bar"></i>
+                    <div>Reports</div>
+                </a>
+            </li>
+
+            
+            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
+                <a href="#" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
-                    <div>{{ __('admin.settings') }}</div>
+                    <div>Admin Settings</div>
                 </a>
-                <ul class="menu-sub">
-                    <li class="menu-item {{ request()->routeIs('admin.settings.privacy-terms') ? 'active' : '' }}">
-                        <a href="{{ route('admin.settings.privacy-terms') }}" class="menu-link">
-                            <div>{{ __('admin.privacy_terms') }}</div>
-                        </a>
-                    </li>
-                    {{-- <li class="menu-item {{ request()->routeIs('admin.settings.file-manager') ? 'active' : '' }}">
-                        <a href="{{ route('admin.settings.file-manager') }}" class="menu-link">
-                            <div>{{ __('admin.file_manager') }}</div>
-                        </a>
-                    </li>
-                    <li class="menu-item {{ request()->routeIs('admin.settings.didit') ? 'active' : '' }}">
-                        <a href="{{ route('admin.settings.didit') }}" class="menu-link">
-                            <div>{{ __('admin.didit_settings') }}</div>
-                        </a>
-                    </li> --}}
-                </ul>
             </li>
         </ul>
     </aside>
