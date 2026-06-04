@@ -1,6 +1,6 @@
 ﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
 
-     <div class="row g-4 mb-5">
+    <div class="row g-4 mb-5">
         <div class="col-12">
             <div class="card shadow-sm border-0">
                 <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
@@ -94,7 +94,7 @@
                         </div>
                     </div>
                     <div class="chart-container" style="min-height: 320px;">
-                        <canvas id="emailEngagementChart"></canvas>
+                        <div id="emailEngagementChart"></div>
                     </div>
                 </div>
             </div>
@@ -111,8 +111,10 @@
                     </div>
                     <div class="d-flex justify-content-center mb-4">
                         <div class="position-relative" style="width:220px; height:220px;">
-                            <div class="rounded-circle border border-3 border-light" style="width:220px; height:220px; position:absolute; top:0; left:0;"></div>
-                            <div class="rounded-circle bg-white position-absolute" style="width:170px; height:170px; top:25px; left:25px;"></div>
+                            <div class="rounded-circle border border-3 border-light"
+                                style="width:220px; height:220px; position:absolute; top:0; left:0;"></div>
+                            <div class="rounded-circle bg-white position-absolute"
+                                style="width:170px; height:170px; top:25px; left:25px;"></div>
                             <div class="position-absolute top-50 start-50 translate-middle text-center">
                                 <div class="fs-2 fw-bold">98.4%</div>
                                 <div class="small text-muted">DELIVERY</div>
@@ -122,21 +124,24 @@
                     <div class="pt-2">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background:#22c55e"></span>
+                                <span class="rounded-circle d-inline-block"
+                                    style="width:10px; height:10px; background:#22c55e"></span>
                                 <span class="text-muted">Delivered</span>
                             </div>
                             <span class="fw-semibold">12,250</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background:#f59e0b"></span>
+                                <span class="rounded-circle d-inline-block"
+                                    style="width:10px; height:10px; background:#f59e0b"></span>
                                 <span class="text-muted">Pending</span>
                             </div>
                             <span class="fw-semibold">102</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="rounded-circle d-inline-block" style="width:10px; height:10px; background:#ef4444"></span>
+                                <span class="rounded-circle d-inline-block"
+                                    style="width:10px; height:10px; background:#ef4444"></span>
                                 <span class="text-muted">Failed</span>
                             </div>
                             <span class="fw-semibold">98</span>
@@ -206,5 +211,88 @@
             </div>
         </div>
     </div>
+
+    <script src="{{ asset('assets/vendor/libs/apex-charts/apexcharts.js') }}"></script>
+    <script>
+        (function() {
+            if (typeof window.ApexCharts === 'undefined') {
+                return;
+            }
+
+            var chartElement = document.querySelector('#emailEngagementChart');
+            if (!chartElement) {
+                return;
+            }
+
+            var options = {
+                chart: {
+                    type: 'line',
+                    height: 320,
+                    toolbar: {
+                        show: false
+                    },
+                    zoom: {
+                        enabled: false
+                    }
+                },
+                stroke: {
+                    curve: 'smooth',
+                    width: 3
+                },
+                markers: {
+                    size: 4,
+                    hover: {
+                        sizeOffset: 2
+                    }
+                },
+                series: [{
+                        name: 'Sent',
+                        data: [420, 530, 480, 620, 700, 650, 780, 860, 900, 920, 980, 1020]
+                    },
+                    {
+                        name: 'Opened',
+                        data: [310, 420, 390, 520, 600, 580, 680, 720, 770, 820, 860, 900]
+                    },
+                    {
+                        name: 'Actions',
+                        data: [180, 250, 220, 320, 360, 340, 410, 450, 480, 520, 560, 590]
+                    }
+                ],
+                xaxis: {
+                    categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov',
+                        'Dec'
+                    ],
+                    labels: {
+                        style: {
+                            colors: '#64748b'
+                        }
+                    },
+                    axisBorder: {
+                        show: false
+                    },
+                    axisTicks: {
+                        show: false
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        style: {
+                            colors: '#64748b'
+                        }
+                    }
+                },
+                legend: {
+                    show: false
+                },
+                colors: ['#0f172a', '#0b86ff', '#22c55e'],
+                tooltip: {
+                    theme: 'light'
+                }
+            };
+
+            var chart = new ApexCharts(chartElement, options);
+            chart.render();
+        })();
+    </script>
 
 </div>
