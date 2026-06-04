@@ -7,6 +7,7 @@ use App\Livewire\Admin\Provider\ProviderListPage;
 use App\Livewire\Admin\Practices\PracticeListPage;
 use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\Email\EmailDashboardPage;
+use App\Livewire\Admin\Documents\DocumentListPage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -22,5 +23,6 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('practices', PracticeListPage::class)->name('practices');
     Route::get('credentials', CredentialListPage::class)->name('credentials');
     Route::get('emails', EmailDashboardPage::class)->name('email.dashboard');
+    Route::get('documents', DocumentListPage::class)->name('documents');
 
 });

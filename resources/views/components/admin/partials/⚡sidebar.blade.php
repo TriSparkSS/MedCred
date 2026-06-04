@@ -74,8 +74,8 @@ new class extends Component {
                     <div>Email Center</div>
                 </a>
             </li>
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.documents') ? 'active' : '' }}">
+                <a href="{{ route('admin.documents') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-file-type-doc"></i>
                     <div>Documents</div>
                 </a>
