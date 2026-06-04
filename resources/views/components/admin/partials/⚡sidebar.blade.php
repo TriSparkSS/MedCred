@@ -29,7 +29,7 @@ new class extends Component {
                         </svg>
                     </span>
                 </span> --}}
-                <span class="app-brand-text demo menu-text fw-bold font-playfair text-uppercase">Ranatage</span>
+                <span class="app-brand-text demo menu-text fw-bold font-playfair text-uppercase">REVANTAGE</span>
             </a>
 
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">

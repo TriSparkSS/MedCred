@@ -24,7 +24,7 @@
                                     </svg>
                                 </span>
                             </span> --}}
-                            <span class="app-brand-text demo text-heading fw-bold">Ranatage CRM</span>
+                            <span class="app-brand-text demo text-heading fw-bold">REVANTAGE CRM</span>
                         </a>
                     </div>
 
