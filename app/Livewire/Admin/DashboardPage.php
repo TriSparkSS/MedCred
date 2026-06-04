@@ -10,7 +10,6 @@ class DashboardPage extends Component
 {
     public function render()
     {
-        return view('livewire.admin.dashboard-page')
-            ->title(__('admin.dashboard'));
+        return view('livewire.admin.dashboard-page');
     }
 }
