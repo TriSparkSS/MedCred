@@ -82,8 +82,8 @@ new class extends Component {
             </li>
 
 
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.tasks.kanban') ? 'active' : '' }}">
+                <a href="{{ route('admin.tasks.kanban') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-list-check"></i>
                     <div>Task & Follow-ups</div>
                 </a>
