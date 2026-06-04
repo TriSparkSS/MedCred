@@ -11,7 +11,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('login', LoginPage::class)->name('login');
+Route::get('sp/login', LoginPage::class)->name('login');
 
 
 Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(function () {
