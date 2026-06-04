@@ -37,7 +37,11 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/"
-        }
+        },
+        "files": [
+            "app/Helpers/constants/Constants.php",
+            "app/Helpers/CommonHelper.php"
+        ]
     },
     "scripts": {
         "setup": [
