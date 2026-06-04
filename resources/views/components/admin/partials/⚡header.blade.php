@@ -5,8 +5,7 @@ use App\Support\LocaleManager;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
-new class extends Component
-{
+new class extends Component {
     public $admin;
     public array $locales = [];
     public string $currentLocale = 'en';
@@ -15,7 +14,6 @@ new class extends Component
     {
         $this->admin = auth()->guard('admin')->user();
     }
-
 
     public function logout()
     {
@@ -36,7 +34,7 @@ new class extends Component
 };
 ?>
 
-<nav class="layout-navbar container-xxl navbar-detached navbar navbar-expand-xl align-items-center bg-navbar-theme"
+<nav class="layout-navbar container-fluid navbar-detached navbar navbar-expand-xl align-items-center bg-navbar-theme"
     id="layout-navbar">
     <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
         <a class="nav-item nav-link px-0 me-xl-6" href="javascript:void(0)">
@@ -78,7 +76,8 @@ new class extends Component
                             <div class="d-flex">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="avatar avatar-online">
-                                        <img src="{{ $admin->avatar ?? '' }}" alt="Admin avatar" class="w-px-40 h-auto rounded-circle" />
+                                        <img src="{{ $admin->avatar ?? '' }}" alt="Admin avatar"
+                                            class="w-px-40 h-auto rounded-circle" />
                                     </div>
                                 </div>
                                 <div class="flex-grow-1">
@@ -93,7 +92,8 @@ new class extends Component
                     </li>
                     <li>
                         <a class="dropdown-item" href="#">
-                            <i class="icon-base ti tabler-user icon-md me-3"></i><span>{{ __('admin.my_profile') }}</span>
+                            <i
+                                class="icon-base ti tabler-user icon-md me-3"></i><span>{{ __('admin.my_profile') }}</span>
                         </a>
                     </li>
                     <li>

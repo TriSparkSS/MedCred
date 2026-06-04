@@ -1,6 +1,6 @@
-<div class="container-xxl flex-grow-1 container-p-y">
+<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
 
-    <div class="row g-4 mb-4">
+    <div class="row g-4 mb-5">
         <div class="col-12">
             <div class="card shadow-sm border-0">
                 <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
@@ -21,7 +21,7 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-5">
         <div class="col-sm-6 col-md-4 col-xl-2">
             <div class="card h-100 shadow-sm border-0">
                 <div class="card-body">
@@ -113,7 +113,7 @@
         </div>
     </div>
 
-    <div class="row g-4 mb-4">
+    <div class="row g-4 mb-5">
         <div class="col-lg-7">
             <div class="card h-100 shadow-sm border-0">
                 <div
