@@ -1,17 +1,23 @@
 ﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
 
-    <div class="row g-4 mb-4 align-items-center">
-        <div class="col-md-8">
-            <div>
-                <h2 class="fw-bold mb-1">Practice Management</h2>
-                <p class="text-muted mb-0">Oversee and maintain credentialing compliance across your network.</p>
+     <div class="row g-4 mb-5">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-2">Practice Management</h3>
+                        <p class="text-muted mb-0">Oversee and maintain credentialing compliance across your network.</p>
+                    </div>
+                    <div class="d-flex flex-column flex-sm-row gap-2">
+                        <a href="#" class="btn btn-primary">
+                            <i class="ti tabler-file-plus me-1"></i> Add New Practice
+                        </a>
+                        {{-- <a href="#" class="btn btn-outline-secondary">
+                            Export Report
+                        </a> --}}
+                    </div>
+                </div>
             </div>
-        </div>
-        <div class="col-md-4 text-md-end">
-            <a href="#" class="btn btn-primary btn-sm">
-                <i class="ti tabler-building-warehouse me-2"></i>
-                Add New Practice
-            </a>
         </div>
     </div>
 

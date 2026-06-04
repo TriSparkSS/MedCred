@@ -1,19 +1,24 @@
 ﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
 
-    <div class="row g-4 mb-4 align-items-center">
-        <div class="col-md-8">
-            <h2 class="fw-bold mb-1">Email Analytics</h2>
-            <p class="text-muted mb-0">Real-time engagement metrics for clinical correspondence.</p>
-        </div>
-        <div class="col-md-4 text-md-end">
-            <button class="btn btn-outline-secondary btn-sm me-2">
-                <i class="ti tabler-calendar me-1"></i>
-                Last 30 Days
-            </button>
-            <button class="btn btn-primary btn-sm">
-                <i class="ti tabler-download me-1"></i>
-                Export report
-            </button>
+     <div class="row g-4 mb-5">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-2">Email Analytics</h3>
+                        <p class="text-muted mb-0">Real-time engagement metrics for clinical correspondence.</p>
+                    </div>
+                    <div class="d-flex flex-column flex-sm-row gap-2">
+                        <a href="#" class="btn btn-primary">
+                            <i class="ti tabler-calendar me-1"></i>Last 30 Days
+                        </a>
+                        <a href="#" class="btn btn-outline-secondary">
+                            <i class="ti tabler-download me-1"></i>
+                            Export report
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

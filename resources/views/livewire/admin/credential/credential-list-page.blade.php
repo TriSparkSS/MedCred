@@ -1,19 +1,24 @@
 ﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
 
-    <div class="row g-4 mb-4 align-items-center">
-        <div class="col-md-8">
-            <h2 class="fw-bold mb-1">Credentialing Tracker</h2>
-            <p class="text-muted mb-0">Monitoring 142 active provider enrollment applications across 12 payers.</p>
-        </div>
-        <div class="col-md-4 text-md-end">
-            <button class="btn btn-outline-secondary btn-sm me-2">
-                <i class="ti tabler-adjustments-horizontal me-1"></i>
-                Filters
-            </button>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#credentialApplicationModal">
-                <i class="ti tabler-plus me-1"></i>
-                New App
-            </button>
+    <div class="row g-4 mb-5">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-2">Credentialing Tracker</h3>
+                        <p class="text-muted mb-0">Monitoring 142 active provider enrollment applications across 12 payers.</p>
+                    </div>
+                    <div class="d-flex flex-column flex-sm-row gap-2">
+                        <a href="#" class="btn btn-primary">
+                            <i class="ti tabler-adjustments-horizontal me-1"></i>  Filters
+                        </a>
+                        <a href="#" class="btn btn-outline-secondary">
+                            <i class="ti tabler-plus me-1"></i>
+                            New App
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
