@@ -68,18 +68,16 @@ new class extends Component {
                     <div>Credentialing Tracker</div>
                 </a>
             </li>
-
+            <li class="menu-item {{ request()->routeIs('admin.email.dashboard') ? 'active' : '' }}">
+                <a href="{{ route('admin.email.dashboard') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-mail"></i>
+                    <div>Email Center</div>
+                </a>
+            </li>
             <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
                 <a href="#" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-file-type-doc"></i>
                     <div>Documents</div>
-                </a>
-            </li>
-
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-mail"></i>
-                    <div>Email Center</div>
                 </a>
             </li>
 
