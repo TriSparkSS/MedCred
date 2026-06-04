@@ -57,7 +57,7 @@ class LoginPage extends Component
 
         flash()->success('Welcome back, ' . $admin->name . '.');
 
-        return $this->redirectRoute('admin.dashboard', navigate: true);
+        return $this->redirectRoute('admin.dashboard');
     }
 
     public function render()
