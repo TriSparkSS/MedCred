@@ -90,16 +90,16 @@ new class extends Component {
             </li>
 
 
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.reports') ? 'active' : '' }}">
+                <a href="{{ route('admin.reports') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-chart-bar"></i>
                     <div>Reports</div>
                 </a>
             </li>
 
 
-            <li class="menu-item {{ request()->routeIs('admin.profile') ? 'active' : '' }}">
-                <a href="#" class="menu-link">
+            <li class="menu-item {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
+                <a href="{{ route('admin.settings') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
                     <div>Admin Settings</div>
                 </a>

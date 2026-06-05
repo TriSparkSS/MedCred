@@ -9,6 +9,8 @@ use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\Email\EmailDashboardPage;
 use App\Livewire\Admin\Documents\DocumentListPage;
 use App\Livewire\Admin\Task\TaskkanbanPage;
+use App\Livewire\Admin\Setting\SettingPage;
+use App\Livewire\Admin\Reports\ReportListPage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -26,5 +28,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('emails', EmailDashboardPage::class)->name('email.dashboard');
     Route::get('documents', DocumentListPage::class)->name('documents');
     Route::get('tasks/kanban', TaskkanbanPage::class)->name('tasks.kanban');
+    Route::get('settings', SettingPage::class)->name('settings');
+    Route::get('reports', ReportListPage::class)->name('reports');
 
 });
