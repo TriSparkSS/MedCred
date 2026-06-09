@@ -10,6 +10,7 @@ class ProviderListPage extends Component
 {
     public function render()
     {
-        return view('livewire.admin.provider.provider-list-page');
+        $specialties = \App\Models\Specialty::all();
+        return view('livewire.admin.provider.provider-list-page', compact('specialties'));
     }
 }
