@@ -98,11 +98,26 @@ new class extends Component {
             </li>
 
 
-            <li class="menu-item {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
-                <a href="{{ route('admin.settings') }}" class="menu-link">
+            <li
+                class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.settings.specialties*') ? 'active open' : '' }}">
+                <a href="javascript:void(0);" class="menu-link menu-toggle">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
                     <div>Admin Settings</div>
                 </a>
+
+                <ul class="menu-sub">
+                    {{-- <li class="menu-item {{ request()->routeIs('admin.settings*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.settings') }}" class="menu-link">
+                            <div>Profile</div>
+                        </a>
+                    </li> --}}
+
+                    <li class="menu-item {{ request()->routeIs('admin.settings.specialties*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.settings.specialties') }}" class="menu-link">
+                            <div>Specialty</div>
+                        </a>
+                    </li>
+                </ul>
             </li>
         </ul>
     </aside>

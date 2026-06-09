@@ -11,6 +11,7 @@ use App\Livewire\Admin\Documents\DocumentListPage;
 use App\Livewire\Admin\Task\TaskkanbanPage;
 use App\Livewire\Admin\Setting\SettingPage;
 use App\Livewire\Admin\Reports\ReportListPage;
+use App\Livewire\Admin\Setting\Specialty\SpecialtyListPage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -30,5 +31,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('tasks/kanban', TaskkanbanPage::class)->name('tasks.kanban');
     Route::get('settings', SettingPage::class)->name('settings');
     Route::get('reports', ReportListPage::class)->name('reports');
+
+    Route::get('settings/specialties', SpecialtyListPage::class)->name('settings.specialties');
 
 });
