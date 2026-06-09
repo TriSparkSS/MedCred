@@ -13,4 +13,9 @@ class ProviderDetails extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function specialty()
+    {
+        return $this->belongsTo(Specialty::class);
+    }
 }

@@ -4,7 +4,9 @@ use Illuminate\Support\Facades\Route;
 use App\Livewire\Authenticate\LoginPage;
 use App\Livewire\Admin\DashboardPage;
 use App\Livewire\Admin\Provider\ProviderListPage;
+use App\Livewire\Admin\Provider\ProviderCreatePage;
 use App\Livewire\Admin\Practices\PracticeListPage;
+use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\Email\EmailDashboardPage;
 use App\Livewire\Admin\Documents\DocumentListPage;
@@ -24,6 +26,8 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
 
     Route::get('dashboard', DashboardPage::class)->name('dashboard');
     Route::get('providers', ProviderListPage::class)->name('providers');
+    Route::get('providers/create', ProviderCreatePage::class)->name('providers.create');
+    Route::get('providers/{provider}/edit', ProviderEditPage::class)->name('providers.edit');
     Route::get('practices', PracticeListPage::class)->name('practices');
     Route::get('credentials', CredentialListPage::class)->name('credentials');
     Route::get('emails', EmailDashboardPage::class)->name('email.dashboard');
@@ -33,5 +37,4 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('reports', ReportListPage::class)->name('reports');
 
     Route::get('settings/specialties', SpecialtyListPage::class)->name('settings.specialties');
-
 });

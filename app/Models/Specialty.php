@@ -11,4 +11,9 @@ class Specialty extends Model
         'name',
         'description',
     ];
+
+    public function providerDetails()
+    {
+        return $this->hasMany(ProviderDetails::class);
+    }
 }
