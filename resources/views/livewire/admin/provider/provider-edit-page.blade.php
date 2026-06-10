@@ -12,6 +12,7 @@
             </div>
 
             <form wire:submit.prevent="save">
+                @php use App\Enums\ProviderStatus; @endphp
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Name</label>

@@ -9,6 +9,7 @@ use Livewire\Attributes\On;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
+use App\Enums\ProviderStatus;
 
 #[Layout('layouts::admin', ['title' => 'Providers'])]
 class ProviderListPage extends Component
@@ -19,6 +20,8 @@ class ProviderListPage extends Component
     public $formData = [];
     public $providerId = null;
     public $specialties = [];
+    public $filterSpecialty = '';
+    public $filterStatus = '';
 
     protected $rules = [
         'formData.user_id' => 'required|exists:users,id',
@@ -39,7 +42,7 @@ class ProviderListPage extends Component
 
     public function updated($propertyName)
     {
-        if ($propertyName === 'search') {
+        if (in_array($propertyName, ['search', 'filterSpecialty', 'filterStatus'])) {
             $this->resetPage();
         }
     }
@@ -97,10 +100,21 @@ class ProviderListPage extends Component
     {
         $query = ProviderDetails::with('user', 'specialty');
 
+        if ($this->filterSpecialty) {
+            $query->where('specialty_id', $this->filterSpecialty);
+        }
+
+        if ($this->filterStatus) {
+            $query->where('status', $this->filterStatus);
+        }
+
         if ($this->search) {
             $query->whereHas('user', function ($q) {
                 $q->where('name', 'like', '%' . $this->search . '%');
-            })->orWhere('practice', 'like', '%' . $this->search . '%')
+            })->whereHas('specialty', function ($q) {
+                $q->where('name', 'like', '%' . $this->search . '%');
+            })->orWhere('npi', 'like', '%' . $this->search . '%')
+                ->orWhere('practice', 'like', '%' . $this->search . '%')
                 ->orWhere('npi', 'like', '%' . $this->search . '%')
                 ->orWhere('city', 'like', '%' . $this->search . '%');
         }
@@ -110,10 +124,11 @@ class ProviderListPage extends Component
 
         $stats = [
             'total' => ProviderDetails::count(),
-            'active' => ProviderDetails::where('status', 'approved')->count(),
-            'pending' => ProviderDetails::where('status', 'pending')->count(),
+            'active' => ProviderDetails::where('status', ProviderStatus::APPROVED->value)->count(),
+            'pending' => ProviderDetails::where('status', ProviderStatus::PENDING->value)->count(),
         ];
 
-        return view('livewire.admin.provider.provider-list-page', compact('providers', 'stats'));
+        $specialties = Specialty::orderBy('name')->get();
+        return view('livewire.admin.provider.provider-list-page', compact('providers', 'stats', 'specialties'));
     }
 }

@@ -11,6 +11,7 @@
                 </div>
             </div>
 
+            @php use App\Enums\ProviderStatus; @endphp
             <form wire:submit.prevent="save">
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -70,9 +71,9 @@
                         <label class="form-label">Status</label>
                         <select wire:model="formData.status" class="form-select">
                             <option value="">Select status</option>
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
+                            <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
+                            <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
+                            <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
                         </select>
                         @error('formData.status')
                             <span class="text-danger">{{ $message }}</span>
@@ -105,7 +106,7 @@
 
                     <div class="col-md-3">
                         <label class="form-label">State</label>
-                        <input type="text" wire:model="formData.state" class="form-control" >
+                        <input type="text" wire:model="formData.state" class="form-control">
                         @error('formData.state')
                             <span class="text-danger">{{ $message }}</span>
                         @enderror

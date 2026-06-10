@@ -32,7 +32,7 @@ class ProviderCreatePage extends Component
         'formData.city' => 'required|string|max:100',
         'formData.state' => 'required|string|max:50',
         'formData.zip' => 'required|string|max:20',
-        'formData.status' => 'required|string|max:50',
+        'formData.status' => 'required|in:pending,approved,rejected',
     ];
 
     public function mount()

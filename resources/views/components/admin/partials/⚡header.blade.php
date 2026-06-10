@@ -90,19 +90,18 @@ new class extends Component {
                     <li>
                         <div class="dropdown-divider my-1 mx-n2"></div>
                     </li>
-                    <li>
+                    {{-- <li>
                         <a class="dropdown-item" href="#">
-                            <i
-                                class="icon-base ti tabler-user icon-md me-3"></i><span>{{ __('admin.my_profile') }}</span>
+                            <i class="icon-base ti tabler-user icon-md me-3"></i><span>My Profile</span>
                         </a>
-                    </li>
+                    </li> --}}
                     <li>
                         <div class="dropdown-divider my-1 mx-n2"></div>
                     </li>
                     <li>
                         <a class="dropdown-item" href="#" wire:click.prevent="logout">
                             <i class="icon-base ti tabler-power icon-md me-3"></i>
-                            <span>{{ __('admin.log_out') }}</span>
+                            <span>Logout</span>
                         </a>
                     </li>
                 </ul>

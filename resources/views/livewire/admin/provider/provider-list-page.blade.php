@@ -1,4 +1,7 @@
 <div>
+    @php
+        use App\Enums\ProviderStatus;
+    @endphp
     <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
         <!-- Header Section -->
         <div class="row g-4 mb-5">
@@ -68,16 +71,34 @@
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body">
                 <div class="row g-3 align-items-center">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                             <input type="search" wire:model.live="search" class="form-control border-start-0"
                                 placeholder="Search by provider name, NPI, practice or city...">
                         </div>
                     </div>
-                    <div class="col-md-4 d-flex gap-2 justify-content-end">
-                        @if ($search)
-                            <button wire:click="$set('search', '')" class="btn btn-outline-secondary btn-sm">
+
+                    <div class="col-md-3">
+                        <select wire:model.live="filterSpecialty" class="form-select">
+                            <option value="">All Specialties</option>
+                            @foreach ($specialties as $spec)
+                                <option value="{{ $spec->id }}">{{ $spec->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 d-flex gap-2 justify-content-end">
+                        <select wire:model.live="filterStatus" class="form-select me-2">
+                            <option value="">All Statuses</option>
+                            <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
+                            <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
+                            <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
+                        </select>
+
+                        @if ($search || $filterSpecialty || $filterStatus)
+                            <button wire:click="$set('search',''); $set('filterSpecialty',''); $set('filterStatus','');"
+                                class="btn btn-outline-secondary btn-sm">
                                 <i class="ti tabler-x me-1"></i> Clear
                             </button>
                         @endif
@@ -125,35 +146,28 @@
                                         </span>
                                         <div>
                                             <div class="fw-semibold">{{ $provider->user->name ?? 'N/A' }}</div>
-                                            <small
-                                                class="text-muted">{{ $provider->specialty->name ?? 'No Specialty' }}</small>
+                                            <small class="text-muted">{{ $provider->specialty->name ?? 'No Specialty' }}</small>
                                         </div>
                                     </div>
                                 </td>
-                                <td>
-                                    <small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small>
-                                </td>
-                                <td>
-                                    <small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small>
-                                </td>
-                                <td>
-                                    <small
-                                        class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small>
-                                </td>
-                                <td>
-                                    <small class="text-muted">{{ $provider->city ?? 'N/A' }}</small>
-                                </td>
+                                <td> <small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small> </td>
+                                <td> <small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small> </td>
+                                <td> <small class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small> </td>
+                                <td> <small class="text-muted">{{ $provider->city ?? 'N/A' }}</small> </td>
                                 <td>
                                     @php
-                                        $statusBadge = match ($provider->status) {
-                                            'approved' => 'success',
-                                            'pending' => 'warning',
-                                            'rejected' => 'danger',
+                                        $statusKey = is_object($provider->status)
+                                            ? $provider->status->value
+                                            : $provider->status;
+                                        $statusBadge = match ($statusKey) {
+                                            ProviderStatus::APPROVED->value => 'success',
+                                            ProviderStatus::PENDING->value => 'warning',
+                                            ProviderStatus::REJECTED->value => 'danger',
                                             default => 'secondary',
                                         };
                                     @endphp
                                     <span
-                                        class="badge bg-label-{{ $statusBadge }} text-uppercase">{{ $provider->status ?? 'N/A' }}</span>
+                                        class="badge bg-label-{{ $statusBadge }} text-uppercase">{{ strtoupper($provider->status?->value ?? 'N/A') }}</span>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">
@@ -181,12 +195,10 @@
                     </tbody>
                 </table>
             </div>
-
             <!-- Pagination -->
             <div class="card-body border-top">
-                {{ $providers->links() }}
+                {{ $providers->links('livewire::bootstrap') }}
             </div>
         </div>
     </div>
-
 </div>

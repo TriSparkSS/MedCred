@@ -33,4 +33,20 @@ class User extends Authenticatable
     {
         return $this->hasOne(ProviderDetails::class);
     }
+
+    /**
+     * Scope a query to only provider users.
+     *
+     * This includes users who have provider details or are assigned the
+     * 'provider' role via Spatie permissions.
+     *
+     * Usage: User::providers()->get();
+     */
+    public function scopeProviders($query)
+    {
+        return $query->whereHas('providerDetails')
+            ->orWhereHas('roles', function ($q) {
+                $q->where('name', 'provider');
+            });
+    }
 }
