@@ -38,7 +38,7 @@ new class extends Component {
                     <div>Providers</div>
                 </a>
             </li>
-            <li class="menu-item {{ request()->routeIs('admin.practices') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('admin.practices*') ? 'active' : '' }}">
                 <a href="{{ route('admin.practices') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-building"></i>
                     <div>Practices</div>

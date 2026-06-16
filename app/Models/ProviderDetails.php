@@ -23,4 +23,9 @@ class ProviderDetails extends Model
     {
         return $this->belongsTo(Specialty::class);
     }
+
+    public function addresses()
+    {
+        return $this->morphMany(Address::class, 'addressable');
+    }
 }

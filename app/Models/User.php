@@ -34,6 +34,11 @@ class User extends Authenticatable
         return $this->hasOne(ProviderDetails::class);
     }
 
+    public function practice()
+    {
+        return $this->hasOne(Practice::class);
+    }
+
     /**
      * Scope a query to only provider users.
      *
@@ -47,6 +52,14 @@ class User extends Authenticatable
         return $query->whereHas('providerDetails')
             ->orWhereHas('roles', function ($q) {
                 $q->where('name', 'provider');
+            });
+    }
+
+    public function scopePractices($query)
+    {
+        return $query->whereHas('practice')
+            ->orWhereHas('roles', function ($q) {
+                $q->where('name', 'practice');
             });
     }
 }

@@ -17,6 +17,7 @@ class RoleSeeder extends Seeder
             'executive',
             'billing',
             'provider',
+            'practice'
         ];
 
         foreach ($roles as $role) {
@@ -27,3 +28,4 @@ class RoleSeeder extends Seeder
         }
     }
 }
+
