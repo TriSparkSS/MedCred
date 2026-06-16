@@ -46,4 +46,12 @@ class Practice extends Model
     {
         return $this->morphOne(Address::class, 'addressable')->oldestOfMany();
     }
+
+    public function providers()
+    {
+        return $this->belongsToMany(ProviderDetails::class, 'provider_practice', 'practice_id', 'provider_id')
+            ->using(ProviderPractice::class)
+            ->withPivot('id', 'primary_flag', 'start_date', 'end_date')
+            ->withTimestamps();
+    }
 }

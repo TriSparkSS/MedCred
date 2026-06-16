@@ -28,4 +28,12 @@ class ProviderDetails extends Model
     {
         return $this->morphMany(Address::class, 'addressable');
     }
+
+    public function practices()
+    {
+        return $this->belongsToMany(Practice::class, 'provider_practice', 'provider_id', 'practice_id')
+            ->using(ProviderPractice::class)
+            ->withPivot('id', 'primary_flag', 'start_date', 'end_date')
+            ->withTimestamps();
+    }
 }

@@ -171,6 +171,10 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">
+                                        <a href="{{ route('admin.providers.show', $provider->id) }}"
+                                            class="btn btn-sm btn-outline-info" title="View">
+                                            <i class="ti tabler-eye"></i>
+                                        </a>
                                         <a href="{{ route('admin.providers.edit', $provider->id) }}"
                                             class="btn btn-sm btn-outline-primary" title="Edit">
                                             <i class="ti tabler-edit"></i>

@@ -114,4 +114,64 @@
             </div>
         </div>
     </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-body pb-0">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4">
+                <div>
+                    <h5 class="mb-1">Assigned Providers</h5>
+                    <p class="text-muted mb-0">All providers linked to this practice.</p>
+                </div>
+                <a href="{{ route('admin.provider-practices') }}" class="btn btn-outline-primary">
+                    <i class="ti tabler-link me-1"></i> Manage Assignments
+                </a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Provider</th>
+                        <th>NPI</th>
+                        <th>Specialty</th>
+                        <th>Primary</th>
+                        <th>Dates</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($practice->providers as $provider)
+                        <tr>
+                            <td>
+                                <a href="{{ route('admin.providers.show', $provider->id) }}" class="fw-semibold">
+                                    {{ $provider->user->name ?? 'N/A' }}
+                                </a>
+                                <small class="text-muted d-block">{{ $provider->user->email ?? 'No email' }}</small>
+                            </td>
+                            <td><small class="text-muted">{{ $provider->npi ?: 'N/A' }}</small></td>
+                            <td><small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small></td>
+                            <td>
+                                <span class="badge bg-label-{{ $provider->pivot->primary_flag ? 'success' : 'secondary' }}">
+                                    {{ $provider->pivot->primary_flag ? 'Primary' : 'Secondary' }}
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    {{ $provider->pivot->start_date ? \Illuminate\Support\Carbon::parse($provider->pivot->start_date)->format('m/d/Y') : 'N/A' }}
+                                    -
+                                    {{ $provider->pivot->end_date ? \Illuminate\Support\Carbon::parse($provider->pivot->end_date)->format('m/d/Y') : 'Present' }}
+                                </small>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <i class="ti tabler-user-off d-block mb-2" style="font-size: 2rem; color: #ccc;"></i>
+                                <p class="text-muted mb-0">No providers assigned</p>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>

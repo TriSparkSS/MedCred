@@ -13,7 +13,7 @@ class PracticeDetailsPage extends Component
 
     public function mount($practice)
     {
-        $this->practice = Practice::with('user', 'addresses')->findOrFail($practice);
+        $this->practice = Practice::with('user', 'addresses', 'providers.user', 'providers.specialty')->findOrFail($practice);
     }
 
     public function render()

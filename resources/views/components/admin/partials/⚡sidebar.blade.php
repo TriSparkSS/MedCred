@@ -32,7 +32,7 @@ new class extends Component {
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.providers') || request()->routeIs('admin.providers.create') || request()->routeIs('admin.providers.edit') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('admin.providers*') ? 'active' : '' }}">
                 <a href="{{ route('admin.providers') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-first-aid-kit"></i>
                     <div>Providers</div>
@@ -42,6 +42,12 @@ new class extends Component {
                 <a href="{{ route('admin.practices') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-building"></i>
                     <div>Practices</div>
+                </a>
+            </li>
+            <li class="menu-item {{ request()->routeIs('admin.provider-practices') ? 'active' : '' }}">
+                <a href="{{ route('admin.provider-practices') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-link"></i>
+                    <div>Assignments</div>
                 </a>
             </li>
 
