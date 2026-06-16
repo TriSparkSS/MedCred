@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Support\Facades\Route;
 use App\Livewire\Authenticate\LoginPage;
@@ -14,13 +14,17 @@ use App\Livewire\Admin\Task\TaskkanbanPage;
 use App\Livewire\Admin\Setting\SettingPage;
 use App\Livewire\Admin\Reports\ReportListPage;
 use App\Livewire\Admin\Setting\Specialty\SpecialtyListPage;
+use App\Livewire\Admin\Master\StatusManager;
+use App\Livewire\Admin\Master\CaseTypeManager;
+use App\Livewire\Admin\Master\DelayOwnerManager;
+use App\Livewire\Admin\Master\PriorityManager;
+use App\Livewire\Admin\Master\DocumentTypeManager;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
 Route::get('sp/login', LoginPage::class)->name('login');
-
 
 Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(function () {
 
@@ -35,6 +39,14 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('tasks/kanban', TaskkanbanPage::class)->name('tasks.kanban');
     Route::get('settings', SettingPage::class)->name('settings');
     Route::get('reports', ReportListPage::class)->name('reports');
-
     Route::get('settings/specialties', SpecialtyListPage::class)->name('settings.specialties');
+
+    // Master Data Management
+    Route::prefix('master')->group(function () {
+        Route::get('statuses', StatusManager::class)->name('master.statuses');
+        Route::get('case-types', CaseTypeManager::class)->name('master.case-types');
+        Route::get('delay-owners', DelayOwnerManager::class)->name('master.delay-owners');
+        Route::get('priorities', PriorityManager::class)->name('master.priorities');
+        Route::get('document-types', DocumentTypeManager::class)->name('master.document-types');
+    });
 });

@@ -12,7 +12,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
-        "livewire/livewire": "*",
+        "livewire/livewire": "^4.3",
         "php-flasher/flasher-laravel": "*",
         "php-flasher/flasher-sweetalert-laravel": "*",
         "spatie/laravel-permission": "^8.0"
