@@ -12,7 +12,11 @@ new class extends Component {
     <aside id="layout-menu" class="layout-menu menu-vertical menu">
         <div class="app-brand demo ">
             <a href="{{ route('admin.dashboard') }}" class="app-brand-link">
-                <span class="app-brand-text demo menu-text fw-bold font-playfair text-uppercase">REVANTAGE</span>
+                {{-- <img src="{{ asset('assets/logo/login-logo.jpeg') }}" class="app-brand-logo" alt="Logo" height="32" width="32"> --}}
+                <span class="app-brand-logo demo">
+                    <img src="{{ asset('assets/logo/login-logo.jpeg') }}" height="75" width="200" alt=""
+                        srcset="">
+                </span>
             </a>
 
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
@@ -84,7 +88,8 @@ new class extends Component {
                 </a>
             </li>
 
-            <li class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.settings.specialties*') || request()->routeIs('admin.master*') ? 'active open' : '' }}">
+            <li
+                class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.settings.specialties*') || request()->routeIs('admin.master*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="menu-link menu-toggle">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
                     <div>Admin Settings</div>
@@ -96,7 +101,7 @@ new class extends Component {
                             <div>Specialty</div>
                         </a>
                     </li>
-                    
+
                     <li class="menu-item {{ request()->routeIs('admin.master.statuses') ? 'active' : '' }}">
                         <a href="{{ route('admin.master.statuses') }}" class="menu-link">
                             <div>Statuses</div>
@@ -117,7 +122,7 @@ new class extends Component {
                             <div>Priorities</div>
                         </a>
                     </li>
-                    <li class="menu-item {{ request()->routeIs('admin.master.document-types') ? 'active' : ''}}">
+                    <li class="menu-item {{ request()->routeIs('admin.master.document-types') ? 'active' : '' }}">
                         <a href="{{ route('admin.master.document-types') }}" class="menu-link">
                             <div>Document Types</div>
                         </a>
