@@ -1,5 +1,4 @@
-﻿<div>
-    <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
+﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
         {{-- Header --}}
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
@@ -52,11 +51,17 @@
         {{-- Filters --}}
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body">
-                <div class="row g-3 align-items-center">
+                <div class="row g-3 align-items-end">
                     <div class="col-md-4">
-                        <input type="search" wire:model.live.debounce.300ms="search" class="form-control" placeholder="Search case #, provider, NPI, payer...">
+                        <label class="form-label small text-muted mb-1">Search</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="ti tabler-search"></i></span>
+                            <input type="search" wire:model.live.debounce.300ms="search" class="form-control"
+                                placeholder="Case #, provider, practice, NPI, payer...">
+                        </div>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Payer</label>
                         <select wire:model.live="filterPayerId" class="form-select">
                             <option value="">All Payers</option>
                             @foreach ($payers as $payer)
@@ -65,6 +70,7 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Status</label>
                         <select wire:model.live="filterStatusId" class="form-select">
                             <option value="">All Statuses</option>
                             @foreach ($statuses as $status)
@@ -73,21 +79,28 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        @if ($search || $filterCategory || $filterPayerId || $filterStatusId)
-                            <button type="button" wire:click="$set('search',''); $set('filterCategory',''); $set('filterPayerId',''); $set('filterStatusId','');" class="btn btn-outline-secondary w-100">Clear</button>
-                        @endif
+                        <button type="button" wire:click="clearFilters"
+                            class="btn btn-outline-secondary w-100"
+                            @disabled(! ($search || $filterCategory || $filterPayerId || $filterStatusId))>
+                            Clear
+                        </button>
                     </div>
                 </div>
-                <div class="d-flex flex-wrap gap-2 mt-3">
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
                     <button type="button" wire:click="setFilterCategory('escalated')" class="btn btn-sm {{ $filterCategory === 'escalated' ? 'btn-danger' : 'btn-outline-danger' }}">Escalated</button>
                     <button type="button" wire:click="setFilterCategory('internal')" class="btn btn-sm {{ $filterCategory === 'internal' ? 'btn-primary' : 'btn-outline-primary' }}">Internal</button>
                     <button type="button" wire:click="setFilterCategory('approved')" class="btn btn-sm {{ $filterCategory === 'approved' ? 'btn-success' : 'btn-outline-success' }}">Approved</button>
+                    @if ($search || $filterCategory || $filterPayerId || $filterStatusId)
+                        <span class="text-muted small ms-auto">
+                            {{ $cases->total() }} result{{ $cases->total() !== 1 ? 's' : '' }}
+                        </span>
+                    @endif
                 </div>
             </div>
         </div>
 
         {{-- Applications Table --}}
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="search,filterPayerId,filterStatusId,filterCategory,clearFilters,setFilterCategory">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
@@ -174,7 +187,9 @@
                     </tbody>
                 </table>
             </div>
-            <div class="card-footer bg-white">{{ $cases->links() }}</div>
+            @if ($cases->hasPages())
+                <div class="card-footer bg-white py-2">{{ $cases->withQueryString()->links() }}</div>
+            @endif
         </div>
 
         {{-- Detail Drawer --}}
@@ -372,5 +387,4 @@
             </div>
             <div class="offcanvas-backdrop fade show" wire:click="closeDrawer" style="z-index: 1080;"></div>
         @endif
-    </div>
 </div>

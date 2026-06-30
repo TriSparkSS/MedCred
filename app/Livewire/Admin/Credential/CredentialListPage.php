@@ -62,8 +62,23 @@ class CredentialListPage extends Component
     public function updated($propertyName): void
     {
         if (in_array($propertyName, ['search', 'filterCategory', 'filterPayerId', 'filterStatusId'])) {
+            $this->search = is_string($this->search) ? trim($this->search) : $this->search;
             $this->resetPage();
         }
+    }
+
+    public function clearFilters(): void
+    {
+        $this->search = '';
+        $this->filterCategory = '';
+        $this->filterPayerId = '';
+        $this->filterStatusId = '';
+        $this->resetPage();
+    }
+
+    public function hasActiveFilters(): bool
+    {
+        return (bool) ($this->search || $this->filterCategory || $this->filterPayerId || $this->filterStatusId);
     }
 
     public function setFilterCategory(?string $category): void
@@ -214,22 +229,23 @@ class CredentialListPage extends Component
         ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
 
         if ($this->search) {
-            $search = '%' . $this->search . '%';
+            $search = '%' . trim($this->search) . '%';
             $query->where(function ($q) use ($search) {
                 $q->where('case_number', 'like', $search)
                     ->orWhere('state', 'like', $search)
                     ->orWhereHas('provider.user', fn ($q) => $q->where('name', 'like', $search))
+                    ->orWhereHas('practice', fn ($q) => $q->where('legal_name', 'like', $search)->orWhere('dba_name', 'like', $search))
                     ->orWhereHas('payer', fn ($q) => $q->where('name', 'like', $search))
                     ->orWhereHas('provider', fn ($q) => $q->where('npi', 'like', $search));
             });
         }
 
         if ($this->filterPayerId) {
-            $query->where('payer_id', $this->filterPayerId);
+            $query->where('payer_id', (int) $this->filterPayerId);
         }
 
         if ($this->filterStatusId) {
-            $query->where('status_id', $this->filterStatusId);
+            $query->where('status_id', (int) $this->filterStatusId);
         }
 
         $query->filterCategory($this->filterCategory ?: null);

@@ -29,6 +29,11 @@
   z-index: auto;
 }
 
+/* Keep page content top-aligned when Livewire filters shorten the page */
+.content-wrapper {
+  justify-content: flex-start !important;
+}
+
 /*
 * Content
 ******************************************************************************/

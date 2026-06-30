@@ -34,6 +34,10 @@
             --bs-link-hover-color: #685dd8;
 
         }
+
+        .content-wrapper {
+            justify-content: flex-start !important;
+        }
     </style>
 
     <title>{{ $title ?? __('admin.dashboard') }}</title>
