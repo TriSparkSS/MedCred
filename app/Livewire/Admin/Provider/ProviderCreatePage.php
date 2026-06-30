@@ -20,6 +20,8 @@ class ProviderCreatePage extends Component
     ];
     public $specialties = [];
 
+    public $licensedStatesInput = '';
+
     protected $rules = [
         'userData.name' => 'required|string|max:255',
         'userData.email' => 'required|email|unique:users,email',
@@ -31,6 +33,18 @@ class ProviderCreatePage extends Component
         'formData.license_number' => 'nullable|string|max:50|regex:/^[A-Za-z0-9\-]+$/',
         'formData.license_state' => 'nullable|string|max:50',
         'formData.dea' => 'nullable|string|max:20|regex:/^[A-Za-z0-9]+$/',
+        'formData.taxonomy_code' => 'nullable|string|max:50',
+        'formData.pecos_id' => 'nullable|string|max:50',
+        'formData.pecos_enrolled' => 'boolean',
+        'formData.malpractice_carrier' => 'nullable|string|max:255',
+        'formData.malpractice_policy_number' => 'nullable|string|max:100',
+        'formData.malpractice_expiry' => 'nullable|date',
+        'formData.board_certification' => 'nullable|string|max:255',
+        'formData.board_cert_expiry' => 'nullable|date',
+        'formData.cds_number' => 'nullable|string|max:50',
+        'formData.cds_state' => 'nullable|string|max:50',
+        'formData.work_history' => 'nullable|string|max:5000',
+        'licensedStatesInput' => 'nullable|string|max:500',
         'formData.practice' => 'required|string|max:255',
         'formData.address' => 'required|string|max:500',
         'formData.city' => 'required|string|max:100',
@@ -64,11 +78,21 @@ class ProviderCreatePage extends Component
         // Create provider details
         $providerData = $this->formData;
         $providerData['user_id'] = $user->id;
+        $providerData['licensed_states'] = $this->parseLicensedStates();
         ProviderDetails::create($providerData);
 
         flash()->success('Provider and user created successfully!');
 
         return redirect()->route('admin.providers');
+    }
+
+    protected function parseLicensedStates(): ?array
+    {
+        if (blank($this->licensedStatesInput)) {
+            return null;
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $this->licensedStatesInput))));
     }
 
     public function render()

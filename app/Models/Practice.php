@@ -37,6 +37,8 @@ class Practice extends Model
     {
         static::deleting(function (Practice $practice) {
             $practice->addresses()->delete();
+            $practice->contacts()->delete();
+            $practice->locations()->delete();
         });
     }
 
@@ -76,5 +78,30 @@ class Practice extends Model
             ->using(ProviderPractice::class)
             ->withPivot('id', 'primary_flag', 'start_date', 'end_date')
             ->withTimestamps();
+    }
+
+    public function contacts()
+    {
+        return $this->hasMany(PracticeContact::class);
+    }
+
+    public function locations()
+    {
+        return $this->hasMany(Location::class);
+    }
+
+    public function primaryLocation()
+    {
+        return $this->hasOne(Location::class)->where('is_primary', true);
+    }
+
+    public function credentialingCases()
+    {
+        return $this->hasMany(CredentialingCase::class, 'practice_id');
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(Document::class, 'practice_id');
     }
 }

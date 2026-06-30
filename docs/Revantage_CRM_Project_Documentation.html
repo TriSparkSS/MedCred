@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Revantage CRM — Project Documentation</title>
+    <style>
+        @page { margin: 2cm 2.2cm; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11pt;
+            line-height: 1.55;
+            color: #1a1a2e;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px 30px;
+        }
+        .cover {
+            text-align: center;
+            page-break-after: always;
+            padding-top: 120px;
+        }
+        .cover h1 {
+            font-size: 28pt;
+            color: #091572;
+            margin-bottom: 8px;
+        }
+        .cover .subtitle {
+            font-size: 14pt;
+            color: #555;
+            margin-bottom: 40px;
+        }
+        .cover .meta {
+            font-size: 11pt;
+            color: #666;
+            line-height: 2;
+        }
+        .cover .badge {
+            display: inline-block;
+            background: #091572;
+            color: #fff;
+            padding: 6px 18px;
+            border-radius: 4px;
+            margin-top: 30px;
+            font-size: 10pt;
+        }
+        h1 { font-size: 22pt; color: #091572; border-bottom: 2px solid #091572; padding-bottom: 6px; margin-top: 36px; page-break-before: always; }
+        h1:first-of-type { page-break-before: avoid; }
+        h2 { font-size: 15pt; color: #16213e; margin-top: 28px; border-left: 4px solid #091572; padding-left: 10px; }
+        h3 { font-size: 12pt; color: #333; margin-top: 20px; }
+        h4 { font-size: 11pt; color: #444; margin-top: 16px; }
+        p { margin: 8px 0; }
+        ul, ol { margin: 8px 0 8px 20px; }
+        li { margin: 4px 0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            font-size: 10pt;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 7px 10px;
+            text-align: left;
+        }
+        th { background: #091572; color: #fff; font-weight: 600; }
+        tr:nth-child(even) { background: #f5f7fb; }
+        code, pre {
+            font-family: Consolas, 'Courier New', monospace;
+            background: #f0f2f8;
+            font-size: 9.5pt;
+        }
+        code { padding: 1px 5px; border-radius: 3px; }
+        pre {
+            padding: 12px 14px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+            line-height: 1.4;
+        }
+        .toc { page-break-after: always; }
+        .toc h1 { page-break-before: avoid; }
+        .toc ol { line-height: 1.9; }
+        .toc a { color: #091572; text-decoration: none; }
+        .note {
+            background: #eef2ff;
+            border-left: 4px solid #091572;
+            padding: 10px 14px;
+            margin: 14px 0;
+            font-size: 10pt;
+        }
+        .diagram {
+            background: #f8f9fc;
+            border: 1px solid #ddd;
+            padding: 16px;
+            font-family: Consolas, monospace;
+            font-size: 9pt;
+            white-space: pre;
+            line-height: 1.4;
+            margin: 14px 0;
+        }
+        hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+        .footer {
+            text-align: center;
+            font-size: 9pt;
+            color: #888;
+            margin-top: 40px;
+            page-break-before: always;
+        }
+        @media print {
+            body { padding: 0; }
+            a { color: inherit; text-decoration: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="cover">
+    <h1>Revantage CRM</h1>
+    <div class="subtitle">Complete Project Documentation Guide</div>
+    <div class="meta">
+        <strong>Version:</strong> 1.0<br>
+        <strong>Date:</strong> June 2026<br>
+        <strong>Product:</strong> Healthcare Credentialing Management System<br>
+        <strong>Organization:</strong> Revantage HBS
+    </div>
+    <div class="badge">For Developers · Testers · Project Managers · Clients</div>
+</div>
+
+<div class="toc">
+    <h1>Table of Contents</h1>
+    <ol>
+        <li><a href="#s1">Introduction</a></li>
+        <li><a href="#s2">Who Uses This System</a></li>
+        <li><a href="#s3">Technology Overview</a></li>
+        <li><a href="#s4">Getting Started (Installation)</a></li>
+        <li><a href="#s5">Login and Access</a></li>
+        <li><a href="#s6">System Architecture</a></li>
+        <li><a href="#s7">Admin Portal — Complete Module Guide</a></li>
+        <li><a href="#s8">Provider Portal</a></li>
+        <li><a href="#s9">Practice Portal</a></li>
+        <li><a href="#s10">Credentialing Case Workflow</a></li>
+        <li><a href="#s11">Documents and Checklists</a></li>
+        <li><a href="#s12">Tasks and Kanban Board</a></li>
+        <li><a href="#s13">Email Center and Templates</a></li>
+        <li><a href="#s14">SLA, Reminders, and Delay Ownership</a></li>
+        <li><a href="#s15">Reports and Analytics</a></li>
+        <li><a href="#s16">Bulk Import</a></li>
+        <li><a href="#s17">API Access</a></li>
+        <li><a href="#s18">Roles and Permissions</a></li>
+        <li><a href="#s19">Database Overview</a></li>
+        <li><a href="#s20">File Uploads and Storage</a></li>
+        <li><a href="#s21">Scheduled Jobs and Automation</a></li>
+        <li><a href="#s22">Testing Guide</a></li>
+        <li><a href="#s23">Deployment Checklist</a></li>
+        <li><a href="#s24">Glossary</a></li>
+        <li><a href="#s25">Support and Maintenance</a></li>
+    </ol>
+</div>
+
+<h1 id="s1">1. Introduction</h1>
+
+<h2>1.1 What Is Revantage CRM?</h2>
+<p>Revantage CRM is a <strong>healthcare credentialing management system</strong>. It helps a credentialing team track when doctors (providers) and medical groups (practices) get approved to work with insurance companies (payers).</p>
+<p>The system replaces spreadsheets and email chains with one central place to:</p>
+<ul>
+    <li>Store provider and practice information</li>
+    <li>Track each credentialing application from start to finish</li>
+    <li>Collect and store required documents</li>
+    <li>Assign tasks and send reminders</li>
+    <li>Report on delays, productivity, and compliance</li>
+</ul>
+
+<h2>1.2 Business Goal</h2>
+<p>When a provider joins a practice or a practice wants to bill a new payer, a <strong>credentialing application</strong> must be submitted. This process can take weeks or months. Revantage CRM makes that process visible, measurable, and auditable.</p>
+
+<h2>1.3 What This Document Covers</h2>
+<p>This guide walks through <strong>every module</strong> of the system in simple, step-by-step language. Developers, testers, project managers, and clients can all use this document to understand how the product works.</p>
+
+<h1 id="s2">2. Who Uses This System</h1>
+<table>
+    <tr><th>User Type</th><th>Portal</th><th>What They Do</th></tr>
+    <tr><td>Admin / Credentialing Staff</td><td>Admin portal (<code>/sp/login</code>)</td><td>Manage all data, cases, documents, emails, reports</td></tr>
+    <tr><td>Provider (Doctor)</td><td>Provider portal (<code>/portal/login</code>)</td><td>View application status, upload requested documents</td></tr>
+    <tr><td>Practice (Medical Group)</td><td>Practice portal (<code>/portal/login</code>)</td><td>View practice applications, upload docs, see linked providers</td></tr>
+    <tr><td>Billing Staff</td><td>Admin (future view)</td><td>Read-only provider readiness</td></tr>
+    <tr><td>API Consumer</td><td>REST API</td><td>Mobile apps or integrations for provider data</td></tr>
+</table>
+
+<h1 id="s3">3. Technology Overview</h1>
+<table>
+    <tr><th>Layer</th><th>Technology</th></tr>
+    <tr><td>Backend</td><td>PHP 8.3, Laravel 13</td></tr>
+    <tr><td>Frontend</td><td>Livewire 4, Blade templates, Bootstrap admin theme</td></tr>
+    <tr><td>CSS Build</td><td>Tailwind CSS 4, Vite</td></tr>
+    <tr><td>Database</td><td>SQLite (development) or MySQL (production)</td></tr>
+    <tr><td>Authentication</td><td>Session-based (Admin + User guards), Laravel Sanctum for API</td></tr>
+    <tr><td>Permissions</td><td>Spatie Laravel Permission (portal users)</td></tr>
+    <tr><td>Notifications</td><td>PHP Flasher (toast alerts)</td></tr>
+    <tr><td>Email</td><td>Laravel Mail</td></tr>
+</table>
+
+<h2>3.1 Project Folder Structure</h2>
+<pre>app/Livewire/     → All UI pages (Admin, Provider, Practice, Auth)
+app/Models/       → Database entities
+app/Services/     → Business logic (dashboard, SLA, email, reports)
+database/         → Migrations and seeders
+resources/views/  → Blade templates
+routes/           → web.php, api.php, console.php
+docs/             → Project documentation
+public/           → Web assets and uploaded files</pre>
+
+<h1 id="s4">4. Getting Started (Installation)</h1>
+
+<h2>4.1 Requirements</h2>
+<ul>
+    <li>PHP 8.3 or higher</li>
+    <li>Composer</li>
+    <li>Node.js and npm</li>
+    <li>SQLite or MySQL database</li>
+</ul>
+
+<h2>4.2 Step-by-Step Setup</h2>
+<p><strong>Step 1</strong> — Install PHP dependencies:</p>
+<pre>composer install</pre>
+
+<p><strong>Step 2</strong> — Environment file:</p>
+<pre>cp .env.example .env
+php artisan key:generate</pre>
+
+<p><strong>Step 3</strong> — Database migration:</p>
+<pre>php artisan migrate</pre>
+
+<p><strong>Step 4</strong> — Seed default data:</p>
+<pre>php artisan db:seed</pre>
+
+<p><strong>Step 5</strong> — Optional email templates and SLA rules:</p>
+<pre>php artisan db:seed --class=Phase2Seeder</pre>
+
+<p><strong>Step 6</strong> — File storage link:</p>
+<pre>php artisan storage:link</pre>
+
+<p><strong>Step 7</strong> — Frontend assets:</p>
+<pre>npm install
+npm run build</pre>
+
+<p><strong>Step 8</strong> — Run the application:</p>
+<pre>php artisan serve</pre>
+
+<h2>4.3 Default Admin Login After Seeding</h2>
+<table>
+    <tr><th>Portal</th><th>URL</th><th>Username / Email</th><th>Password</th></tr>
+    <tr><td>Admin</td><td>/sp/login</td><td>superadmin or admin@hrm.com</td><td>112233</td></tr>
+</table>
+<div class="note">Portal users (provider/practice) are created through the Admin UI or CSV bulk import.</div>
+
+<h1 id="s5">5. Login and Access</h1>
+
+<h2>5.1 Admin Login</h2>
+<ol>
+    <li>Open <code>/sp/login</code></li>
+    <li>Enter admin email or username and password</li>
+    <li>You are redirected to <code>/admin/dashboard</code></li>
+</ol>
+
+<h2>5.2 Provider and Practice Login</h2>
+<ol>
+    <li>Open <code>/portal/login</code></li>
+    <li>Enter email and password</li>
+    <li>Provider role → <code>/provider/dashboard</code></li>
+    <li>Practice role → <code>/practice/dashboard</code></li>
+</ol>
+
+<h2>5.3 Security</h2>
+<ul>
+    <li>Sessions stored in database</li>
+    <li>CSRF protection on all forms</li>
+    <li>Authentication middleware on all protected routes</li>
+</ul>
+
+<h1 id="s6">6. System Architecture</h1>
+
+<h2>6.1 Three Portals, One Database</h2>
+<div class="diagram">                    ┌─────────────────┐
+                    │   Admin Portal   │
+                    │  (Full Control)  │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+        ┌──────────┐   ┌──────────┐   ┌──────────┐
+        │ Provider │   │ Practice │   │ REST API │
+        │  Portal  │   │  Portal  │   │ (Sanctum)│
+        └──────────┘   └──────────┘   └──────────┘
+              │              │              │
+              └──────────────┴──────────────┘
+                             │
+                    ┌────────▼────────┐
+                    │    Database     │
+                    └─────────────────┘</div>
+
+<h2>6.2 Key Relationships</h2>
+<ul>
+    <li>A <strong>User</strong> links to one <strong>Provider</strong> OR one <strong>Practice</strong></li>
+    <li>A <strong>Provider</strong> can belong to many <strong>Practices</strong></li>
+    <li>A <strong>Credentialing Case</strong> links Provider + Practice + Payer + Status</li>
+    <li>Each case has a checklist, tasks, emails, and SLA timers</li>
+</ul>
+
+<h2>6.3 Case Number Format</h2>
+<p>Auto-generated: <strong>APP-2026-0001</strong></p>
+
+<h1 id="s7">7. Admin Portal — Complete Module Guide</h1>
+
+<h2>7.1 Dashboard (<code>/admin/dashboard</code>)</h2>
+<p>High-level KPIs: active cases, delay breakdown, overdue follow-ups, expiring documents, recent activity.</p>
+
+<h2>7.2 Providers Module</h2>
+<table>
+    <tr><th>Page</th><th>URL</th><th>Purpose</th></tr>
+    <tr><td>List</td><td>/admin/providers</td><td>Search and filter providers</td></tr>
+    <tr><td>Create</td><td>/admin/providers/create</td><td>Add provider + portal login</td></tr>
+    <tr><td>Details</td><td>/admin/providers/{id}/show</td><td>Full profile, cases, documents</td></tr>
+    <tr><td>Edit</td><td>/admin/providers/{id}/edit</td><td>Update credentials</td></tr>
+</table>
+<p><strong>Key fields:</strong> NPI, CAQH, specialty, license, DEA, PECOS, malpractice, board certification.</p>
+
+<h2>7.3 Practices Module</h2>
+<table>
+    <tr><th>Page</th><th>URL</th><th>Purpose</th></tr>
+    <tr><td>List</td><td>/admin/practices</td><td>All medical groups</td></tr>
+    <tr><td>Create</td><td>/admin/practices/create</td><td>New practice + portal login</td></tr>
+    <tr><td>Details</td><td>/admin/practices/{id}/show</td><td>Profile, contacts, locations</td></tr>
+    <tr><td>Edit</td><td>/admin/practices/{id}/edit</td><td>Update practice info</td></tr>
+</table>
+
+<h2>7.4 Provider–Practice Assignment (<code>/admin/provider-practices</code>)</h2>
+<p>Link doctors to practices. Required before creating cases for that combination.</p>
+
+<h2>7.5 Payers Module</h2>
+<p>Manage insurance companies and their per-state document requirements. Requirements auto-build case checklists.</p>
+
+<h2>7.6 Credentialing Cases (<code>/admin/credentials</code>)</h2>
+<p><strong>Create a case — step by step:</strong></p>
+<ol>
+    <li>Go to Credentials → Create</li>
+    <li>Select Provider, Practice, Payer, Location</li>
+    <li>Choose Case Type, Priority, Assigned Admin</li>
+    <li>Save — case number and checklist are auto-created</li>
+    <li>SLA timers start based on status category</li>
+</ol>
+<p><strong>Download Packet:</strong> ZIP of all case documents from case detail page.</p>
+
+<h2>7.7 Documents Library (<code>/admin/documents</code>)</h2>
+<p>Central file repository with versioning, expiry tracking, and filters.</p>
+
+<h2>7.8 Tasks — Kanban (<code>/admin/tasks/kanban</code>)</h2>
+<p>Columns: Overdue, Due Today, Upcoming, Completed. Manual and SLA-generated tasks.</p>
+
+<h2>7.9 Email Center (<code>/admin/emails</code>)</h2>
+<p>Send templated emails, log inbound mail, import attachments as documents.</p>
+
+<h2>7.10 Reports (<code>/admin/reports</code>)</h2>
+<table>
+    <tr><th>Report</th><th>Description</th></tr>
+    <tr><td>Open Applications</td><td>All active credentialing cases</td></tr>
+    <tr><td>Document Compliance</td><td>Checklist completion status</td></tr>
+    <tr><td>Case Aging</td><td>How long cases have been open</td></tr>
+    <tr><td>Expiring Documents</td><td>Documents nearing expiry</td></tr>
+    <tr><td>Productivity by Executive</td><td>Cases per assigned admin</td></tr>
+    <tr><td>Turnaround by Payer</td><td>Average time per payer</td></tr>
+    <tr><td>Upcoming Recredentialing</td><td>Cases due for renewal</td></tr>
+</table>
+
+<h2>7.11 Analytics (<code>/admin/analytics/productivity</code>)</h2>
+<p>Management dashboard: executive metrics, payer turnaround, recredentialing pipeline.</p>
+
+<h2>7.12 Bulk Import (<code>/admin/imports/bulk</code>)</h2>
+<p>CSV import for multiple providers with per-row error reporting.</p>
+
+<h2>7.13 Master Data</h2>
+<table>
+    <tr><th>Page</th><th>Controls</th></tr>
+    <tr><td>/admin/master/statuses</td><td>Case workflow stages</td></tr>
+    <tr><td>/admin/master/case-types</td><td>New Application, Renewal, etc.</td></tr>
+    <tr><td>/admin/master/delay-owners</td><td>Delay responsibility categories</td></tr>
+    <tr><td>/admin/master/priorities</td><td>Critical through Low</td></tr>
+    <tr><td>/admin/master/document-types</td><td>W-9, License, DEA, etc.</td></tr>
+    <tr><td>/admin/master/email-templates</td><td>Merge-field email templates</td></tr>
+</table>
+
+<h1 id="s8">8. Provider Portal</h1>
+<p><strong>URL:</strong> /provider/* &nbsp;|&nbsp; <strong>Login:</strong> /portal/login</p>
+
+<h2>8.1 Pages</h2>
+<table>
+    <tr><th>Page</th><th>URL</th><th>Description</th></tr>
+    <tr><td>Dashboard</td><td>/provider/dashboard</td><td>Stats, outstanding documents</td></tr>
+    <tr><td>My Applications</td><td>/provider/cases</td><td>Case status (read-only)</td></tr>
+    <tr><td>Upload Center</td><td>/provider/documents</td><td>View and upload documents</td></tr>
+    <tr><td>My Profile</td><td>/provider/profile</td><td>Profile view (read-only)</td></tr>
+</table>
+
+<h2>8.2 Upload Steps</h2>
+<ol>
+    <li>Select application (case)</li>
+    <li>Choose document type</li>
+    <li>Enter title and select file (PDF/DOC/JPG, max 10MB)</li>
+    <li>Click Upload — checklist auto-updates</li>
+</ol>
+
+<h1 id="s9">9. Practice Portal</h1>
+<p><strong>URL:</strong> /practice/* &nbsp;|&nbsp; <strong>Login:</strong> /portal/login</p>
+
+<h2>9.1 Pages</h2>
+<table>
+    <tr><th>Page</th><th>URL</th><th>Description</th></tr>
+    <tr><td>Dashboard</td><td>/practice/dashboard</td><td>Practice-wide stats</td></tr>
+    <tr><td>Applications</td><td>/practice/cases</td><td>All practice cases</td></tr>
+    <tr><td>Upload Center</td><td>/practice/documents</td><td>Upload for practice cases</td></tr>
+    <tr><td>Linked Providers</td><td>/practice/providers</td><td>Providers at this practice</td></tr>
+    <tr><td>Practice Profile</td><td>/practice/profile</td><td>Locations and contacts</td></tr>
+</table>
+
+<h1 id="s10">10. Credentialing Case Workflow</h1>
+
+<h2>10.1 Typical Lifecycle</h2>
+<p>Intake → Document Collection → Internal Review → Submitted to Payer → Payer Review → Approved (or Denied)</p>
+
+<h2>10.2 Common Statuses</h2>
+<table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td>Not Started</td><td>Case created, work not begun</td></tr>
+    <tr><td>In Progress</td><td>Active work by Revantage team</td></tr>
+    <tr><td>Waiting on Provider</td><td>Provider must submit documents</td></tr>
+    <tr><td>Waiting on Practice</td><td>Practice must submit documents</td></tr>
+    <tr><td>Submitted to Payer</td><td>Sent to insurance company</td></tr>
+    <tr><td>Payer Review</td><td>Payer is processing</td></tr>
+    <tr><td>Approved</td><td>Credentialing complete</td></tr>
+</table>
+
+<h2>10.3 On Status Change</h2>
+<ol>
+    <li>Status history saved</li>
+    <li>Activity log updated</li>
+    <li>Delay owner may auto-update</li>
+    <li>SLA timers synced</li>
+</ol>
+
+<h1 id="s11">11. Documents and Checklists</h1>
+<ol>
+    <li>Case created → checklist seeded from payer requirements</li>
+    <li>Document uploaded → matching checklist item marked received</li>
+    <li>Version history kept for all re-uploads</li>
+    <li>Expiry dates tracked — dashboard alerts at 30 days</li>
+    <li>Credentialing packet ZIP available from admin</li>
+</ol>
+
+<h1 id="s12">12. Tasks and Kanban Board</h1>
+<p>Tasks link to cases and assigned admins. Kanban columns: Overdue, Due Today, Upcoming, Completed. SLA engine can auto-create payer follow-up tasks.</p>
+
+<h1 id="s13">13. Email Center and Templates</h1>
+<p>Send templated outbound emails with merge fields (e.g. {{case_number}}). Log inbound emails and import attachments as documents. Templates managed at /admin/master/email-templates.</p>
+
+<h1 id="s14">14. SLA, Reminders, and Delay Ownership</h1>
+
+<h2>14.1 Default SLA Rules</h2>
+<table>
+    <tr><th>Rule</th><th>Days</th><th>Action</th></tr>
+    <tr><td>Internal review</td><td>2 business days</td><td>Reminder</td></tr>
+    <tr><td>Provider document request</td><td>3 days</td><td>Reminder email</td></tr>
+    <tr><td>Provider document request</td><td>7 days</td><td>Second reminder</td></tr>
+    <tr><td>Escalation</td><td>10 days</td><td>Escalate to manager</td></tr>
+    <tr><td>Payer follow-up</td><td>7 days</td><td>Create follow-up task</td></tr>
+</table>
+
+<h2>14.2 Daily Command</h2>
+<pre>php artisan credentialing:run-sla-checks</pre>
+<p>Scheduled daily at 8:00 AM. Business days skip weekends and configured holidays.</p>
+
+<h1 id="s15">15. Reports and Analytics</h1>
+<p>Seven CSV export reports plus live productivity dashboard. Global search in admin header finds providers (NPI/name), cases, and payers.</p>
+
+<h1 id="s16">16. Bulk Import</h1>
+<p>Upload CSV with name, email, NPI, specialty. Default password if omitted: ChangeMe123!. Per-row success/error report stored for audit.</p>
+
+<h1 id="s17">17. API Access</h1>
+<p><strong>Base URL:</strong> /api/v1</p>
+<table>
+    <tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr>
+    <tr><td>POST</td><td>/api/v1/auth/token</td><td>Web session</td><td>Create Sanctum bearer token</td></tr>
+    <tr><td>GET</td><td>/api/v1/provider/cases</td><td>Bearer token</td><td>Provider case list (JSON)</td></tr>
+    <tr><td>GET</td><td>/api/v1/provider/documents</td><td>Bearer token</td><td>Provider documents (JSON)</td></tr>
+</table>
+
+<h1 id="s18">18. Roles and Permissions</h1>
+<table>
+    <tr><th>Permission</th><th>Provider</th><th>Practice</th></tr>
+    <tr><td>portal.dashboard.view</td><td>✓</td><td>✓</td></tr>
+    <tr><td>portal.cases.view</td><td>✓</td><td>✓</td></tr>
+    <tr><td>portal.documents.view</td><td>✓</td><td>✓</td></tr>
+    <tr><td>portal.documents.upload</td><td>✓</td><td>✓</td></tr>
+    <tr><td>portal.profile.view</td><td>✓</td><td>✓</td></tr>
+    <tr><td>portal.providers.view</td><td></td><td>✓</td></tr>
+    <tr><td>portal.locations.view</td><td></td><td>✓</td></tr>
+</table>
+<p>Seed: <code>php artisan db:seed --class=PermissionSeeder</code></p>
+
+<h1 id="s19">19. Database Overview</h1>
+<table>
+    <tr><th>Table</th><th>Purpose</th></tr>
+    <tr><td>admins</td><td>Admin users</td></tr>
+    <tr><td>users</td><td>Portal users</td></tr>
+    <tr><td>provider_details</td><td>Provider profiles</td></tr>
+    <tr><td>practices</td><td>Practice profiles</td></tr>
+    <tr><td>credentialing_cases</td><td>Application records</td></tr>
+    <tr><td>case_document_items</td><td>Per-case checklist</td></tr>
+    <tr><td>documents / document_versions</td><td>File metadata</td></tr>
+    <tr><td>tasks</td><td>Follow-up tasks</td></tr>
+    <tr><td>email_messages</td><td>Email log</td></tr>
+    <tr><td>sla_rules / case_sla_timers</td><td>Automation</td></tr>
+</table>
+
+<h1 id="s20">20. File Uploads and Storage</h1>
+<table>
+    <tr><th>Type</th><th>Location</th></tr>
+    <tr><td>Documents</td><td>storage/app/public/documents/{id}/</td></tr>
+    <tr><td>Practice files</td><td>storage/app/public/practice-documents/</td></tr>
+    <tr><td>Portal limits</td><td>10 MB — PDF, DOC, DOCX, JPG, PNG</td></tr>
+</table>
+<pre>php artisan storage:link</pre>
+
+<h1 id="s21">21. Scheduled Jobs and Automation</h1>
+<p>Production crontab: <code>* * * * * php artisan schedule:run</code></p>
+<p>Daily at 8:00 AM: <code>credentialing:run-sla-checks</code></p>
+
+<h1 id="s22">22. Testing Guide</h1>
+<h2>22.1 Admin Test Flow</h2>
+<ol>
+    <li>Login as admin → Create payer with document requirements</li>
+    <li>Create provider and practice → Link them</li>
+    <li>Create credentialing case → Upload document</li>
+    <li>Verify checklist updates → Change status → Export report</li>
+</ol>
+<h2>22.2 Portal Test Flow</h2>
+<ol>
+    <li>Login as provider → Upload document → Verify in admin</li>
+    <li>Login as practice → View linked providers → Upload document</li>
+</ol>
+<pre>php artisan test</pre>
+
+<h1 id="s23">23. Deployment Checklist</h1>
+<ul>
+    <li>Set APP_ENV=production and APP_DEBUG=false</li>
+    <li>Configure MySQL and mail settings in .env</li>
+    <li>Run migrate, seed, storage:link, npm run build</li>
+    <li>Set up cron for schedule:run</li>
+    <li>Change default admin password</li>
+    <li>Enable HTTPS</li>
+</ul>
+
+<h1 id="s24">24. Glossary</h1>
+<table>
+    <tr><th>Term</th><th>Definition</th></tr>
+    <tr><td>Credentialing</td><td>Verifying provider qualifications with a payer</td></tr>
+    <tr><td>Payer</td><td>Insurance company or health plan</td></tr>
+    <tr><td>NPI</td><td>National Provider Identifier</td></tr>
+    <tr><td>CAQH</td><td>Provider data registry used by many payers</td></tr>
+    <tr><td>PECOS</td><td>Medicare enrollment system</td></tr>
+    <tr><td>Recredentialing</td><td>Periodic re-verification by payers</td></tr>
+    <tr><td>SLA</td><td>Timed follow-up rules for case processing</td></tr>
+    <tr><td>Delay Owner</td><td>Party currently blocking case progress</td></tr>
+</table>
+
+<h1 id="s25">25. Support and Maintenance</h1>
+<table>
+    <tr><th>Command</th><th>Purpose</th></tr>
+    <tr><td>php artisan migrate</td><td>Apply database changes</td></tr>
+    <tr><td>php artisan db:seed</td><td>Load default data</td></tr>
+    <tr><td>php artisan credentialing:run-sla-checks</td><td>Run SLA manually</td></tr>
+    <tr><td>php artisan route:list</td><td>View all routes</td></tr>
+</table>
+<p>Business Requirements: <code>docs/Credentialing_Portal_Requirements_Revantage_v2.pdf</code></p>
+
+<div class="footer">
+    <strong>Revantage CRM — Healthcare Credentialing Management System</strong><br>
+    Version 1.0 · June 2026 · Revantage HBS<br><br>
+    <em>End of Document</em>
+</div>
+
+</body>
+</html>

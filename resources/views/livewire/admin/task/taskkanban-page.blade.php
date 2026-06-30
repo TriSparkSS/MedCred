@@ -2,322 +2,223 @@
 
     <div class="row g-4 mb-3 align-items-center">
         <div class="col-md-8">
-            <h2 class="fw-bold mb-1">Credentialing Pipeline</h2>
-            <p class="text-muted mb-0">Manage and track provider task statuses.</p>
+            <h4 class="fw-bold mb-1"><i class="ti tabler-layout-kanban me-2 text-primary"></i>Tasks & Follow-ups</h4>
+            <p class="text-muted mb-0">Track credentialing tasks by due date and assignment.</p>
         </div>
         <div class="col-md-4 text-md-end">
-            <div class="btn-group btn-group-sm shadow-sm" role="group" aria-label="View toggle">
-                <button type="button" class="btn btn-outline-secondary btn-sm active view-toggle-btn"
-                    data-view="kanban">Kanban</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm view-toggle-btn"
-                    data-view="list">List</button>
-            </div>
-            <button class="btn btn-primary btn-sm ms-2" id="newTaskBtn">
-                <i class="ti tabler-plus me-1"></i>
-                New Task
+            <button wire:click="openCreateModal" class="btn btn-primary btn-sm">
+                <i class="ti tabler-plus me-1"></i>New Task
             </button>
         </div>
     </div>
 
     <div class="row g-2 align-items-center mb-4">
         <div class="col-auto">
-            <button class="btn btn-secondary btn-sm px-3">
-                <i class="ti tabler-checks me-1"></i>
-                My Tasks
+            <button wire:click="$toggle('filterMyTasks')"
+                class="btn btn-sm px-3 {{ $filterMyTasks ? 'btn-secondary' : 'btn-outline-secondary' }}">
+                <i class="ti tabler-checks me-1"></i>My Tasks
             </button>
         </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary btn-sm px-3">
-                <i class="ti tabler-alert-circle me-1"></i>
-                High Priority
-            </button>
+        <div class="col-md-2">
+            <select wire:model.live="filterAssignee" class="form-select form-select-sm">
+                <option value="">All Assignees</option>
+                @foreach ($admins as $admin)
+                    <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                @endforeach
+            </select>
         </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary btn-sm px-3">
-                <i class="ti tabler-link me-1"></i>
-                Linked Provider
-            </button>
+        <div class="col-md-2">
+            <select wire:model.live="filterCaseId" class="form-select form-select-sm">
+                <option value="">All Cases</option>
+                @foreach ($cases as $case)
+                    <option value="{{ $case->id }}">{{ $case->case_number }}</option>
+                @endforeach
+            </select>
         </div>
-        <div class="col text-end text-muted">Showing <span id="taskCount">14</span> active tasks</div>
+        <div class="col-md-2">
+            <select wire:model.live="filterProviderId" class="form-select form-select-sm">
+                <option value="">All Providers</option>
+                @foreach ($providers as $provider)
+                    <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select wire:model.live="filterTaskType" class="form-select form-select-sm">
+                <option value="">All Types</option>
+                <option value="document">Document Request</option>
+                <option value="follow_up">Follow-up</option>
+                <option value="sla">Payer Follow-up</option>
+                <option value="escalation">Escalation</option>
+                <option value="expiry">Expiry</option>
+                <option value="manual">Manual</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="search" wire:model.live.debounce.300ms="filterCaseSearch" class="form-control form-control-sm"
+                placeholder="Search tasks or case #...">
+        </div>
+        <div class="col text-end text-muted small">
+            {{ $openCount }} open task{{ $openCount !== 1 ? 's' : '' }}
+        </div>
     </div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-3">
-            <div id="kanbanView">
-                <div id="myKanban" class="d-flex overflow-auto"></div>
+    <div class="row g-3">
+        @foreach ($board as $columnKey => $column)
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 fw-bold">{{ $column['meta']['label'] }}</h6>
+                            <span class="badge bg-label-{{ $column['meta']['color'] }}">{{ $column['tasks']->count() }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-3" style="min-height: 200px; max-height: 70vh; overflow-y: auto;">
+                        @forelse($column['tasks'] as $task)
+                            <div class="border rounded-3 p-3 mb-3 bg-white shadow-sm" wire:key="task-{{ $task->id }}">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    @if ($task->priority)
+                                        <span class="badge bg-label-primary">{{ $task->priority->name }}</span>
+                                    @else
+                                        <span class="badge bg-label-secondary">{{ $taskTypeLabels($task->task_type) }}</span>
+                                    @endif
+                                    <span class="rounded-circle d-inline-block bg-{{ $column['meta']['color'] }}"
+                                        style="width:8px; height:8px;"></span>
+                                </div>
+                                <div class="fw-semibold mb-1">{{ $task->title }}</div>
+                                @if ($task->description)
+                                    <p class="small text-muted mb-2">{{ Str::limit($task->description, 80) }}</p>
+                                @endif
+                                <div class="small text-muted mb-2">
+                                    @if ($task->provider)
+                                        <div><i class="ti tabler-user me-1"></i>{{ $task->provider->user->name ?? 'Provider' }}</div>
+                                    @endif
+                                    @if ($task->credentialingCase)
+                                        <div>
+                                            <i class="ti tabler-briefcase me-1"></i>
+                                            <a href="{{ route('admin.tasks.kanban', ['case_id' => $task->credentialing_case_id]) }}"
+                                                class="text-decoration-none">{{ $task->credentialingCase->case_number }}</a>
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                    <small class="text-muted">
+                                        <i class="ti tabler-calendar me-1"></i>
+                                        {{ $task->due_date?->format('m/d/Y') ?: 'No due date' }}
+                                    </small>
+                                    <select wire:change="reassignTask({{ $task->id }}, $event.target.value)"
+                                        class="form-select form-select-sm" style="width: auto; max-width: 120px;">
+                                        <option value="">Unassigned</option>
+                                        @foreach ($admins as $admin)
+                                            <option value="{{ $admin->id }}" @selected($task->assigned_admin_id == $admin->id)>
+                                                {{ Str::limit($admin->name, 12) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="d-flex gap-1 mt-2 pt-2 border-top">
+                                    @if ($columnKey === 'completed')
+                                        <button wire:click="reopenTask({{ $task->id }})" class="btn btn-sm btn-outline-secondary flex-grow-1">
+                                            Reopen
+                                        </button>
+                                    @else
+                                        <button wire:click="completeTask({{ $task->id }})" class="btn btn-sm btn-outline-success flex-grow-1">
+                                            Complete
+                                        </button>
+                                    @endif
+                                    <button wire:click="deleteTask({{ $task->id }})" wire:confirm="Delete this task?"
+                                        class="btn btn-sm btn-outline-danger">
+                                        <i class="ti tabler-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        @empty
+                            <p class="text-muted small text-center py-4 mb-0">No tasks</p>
+                        @endforelse
+                    </div>
+                </div>
             </div>
-            <div id="listView" class="d-none">
-                <div class="row gy-4" id="taskListRows"></div>
-            </div>
-        </div>
+        @endforeach
     </div>
 
-    <link rel="stylesheet" href="{{ asset('assets/vendor/libs/jkanban/jkanban.css') }}">
-    <script src="{{ asset('assets/vendor/libs/jkanban/jkanban.js') }}"></script>
-
-    <style>
-        .kanban-board {
-            min-width: 320px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-            border-radius: 16px;
-            border: 1px solid rgba(148, 163, 184, 0.16);
-        }
-
-        .kanban-board-title .kanban-title-board {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 0.5rem;
-        }
-
-        .kanban-board-title .board-count {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-
-        .kanban-item {
-            background: #fff;
-            border-radius: 14px;
-            border: 1px solid rgba(148, 163, 184, 0.16);
-            margin-bottom: 1rem;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-            padding: 1rem;
-        }
-
-        .task-card-title {
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #0f172a;
-        }
-
-        .task-card-meta {
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-bottom: 0.75rem;
-        }
-
-        .task-card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .task-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-            padding: 0.35rem 0.6rem;
-            border-radius: 999px;
-        }
-
-        .task-label.high {
-            color: #b91c1c;
-            background: rgba(244, 63, 94, 0.12);
-        }
-
-        .task-label.medium {
-            color: #cd9b1c;
-            background: rgba(251, 191, 36, 0.12);
-        }
-
-        .task-label.low {
-            color: #0f766e;
-            background: rgba(20, 184, 166, 0.12);
-        }
-
-        .task-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            font-size: 0.8rem;
-            color: #475569;
-        }
-
-        .task-chip .avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            color: #fff;
-            background: #2563eb;
-        }
-
-        .kanban-item .task-badge {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-    </style>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var kanbanBoards = [{
-                    id: 'overdue',
-                    name: 'Overdue',
-                    description: 'High urgency tasks',
-                    badgeColor: 'danger',
-                    class: 'bg-light',
-                    dragTo: ['due_today', 'upcoming'],
-                    item: [{
-                            id: 'task1',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label high">High</span><span class="task-badge bg-danger"></span></div><div class="task-card-title">Follow-up with Aetna</div><div class="task-card-meta">Dr. Robert Wright | Aetna</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">RW</span>Oct 12, 2023</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task2',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label high">High</span><span class="task-badge bg-danger"></span></div><div class="task-card-title">Upload NJ License</div><div class="task-card-meta">Dr. Emily Chen | UnitedHealth</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">EC</span>Oct 15, 2023</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task10',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label high">High</span><span class="task-badge bg-danger"></span></div><div class="task-card-title">Confirm contract terms</div><div class="task-card-meta">Dr. Allison Moore | Humana</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">AM</span>Oct 17, 2023</div><i class="ti tabler-dots"></i></div></div>'
-                        }
-                    ]
-                },
-                {
-                    id: 'due_today',
-                    name: 'Due Today',
-                    description: 'Today\'s priorities',
-                    badgeColor: 'info',
-                    class: 'bg-light',
-                    dragTo: ['overdue', 'upcoming'],
-                    item: [{
-                            id: 'task3',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label medium">Medium</span><span class="task-badge bg-info"></span></div><div class="task-card-title">CAQH Re-attestation</div><div class="task-card-meta">Dr. James Wilson | Medicare</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">JW</span>5:00 PM Today</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task6',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label medium">Medium</span><span class="task-badge bg-info"></span></div><div class="task-card-title">Submit credential packet</div><div class="task-card-meta">Dr. Olivia Parker | Anthem</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">OP</span>Today</div><i class="ti tabler-dots"></i></div></div>'
-                        }
-                    ]
-                },
-                {
-                    id: 'upcoming',
-                    name: 'Upcoming',
-                    description: 'Planned work ahead',
-                    badgeColor: 'secondary',
-                    class: 'bg-light',
-                    dragTo: ['overdue', 'due_today'],
-                    item: [{
-                            id: 'task4',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label low">Low</span><span class="task-badge bg-success"></span></div><div class="task-card-title">Verify DEA Registration</div><div class="task-card-meta">Dr. Robert Wright | BCBS</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">RW</span>Oct 28</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task5',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label medium">Medium</span><span class="task-badge bg-success"></span></div><div class="task-card-title">Contract Renewal Signature</div><div class="task-card-meta">Dr. Sarah Lopez | Cigna</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">SL</span>Oct 30</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task7',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label low">Low</span><span class="task-badge bg-success"></span></div><div class="task-card-title">Review Medicaid enrollment</div><div class="task-card-meta">Dr. Paul Benson | Medicaid</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">PB</span>Nov 02</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task8',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label low">Low</span><span class="task-badge bg-success"></span></div><div class="task-card-title">Update provider bio</div><div class="task-card-meta">Dr. Leslie Kim | BCBS</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">LK</span>Nov 05</div><i class="ti tabler-dots"></i></div></div>'
-                        },
-                        {
-                            id: 'task9',
-                            title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label low">Low</span><span class="task-badge bg-success"></span></div><div class="task-card-title">Schedule background check</div><div class="task-card-meta">Dr. Maya Patel | Aetna</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">MP</span>Nov 08</div><i class="ti tabler-dots"></i></div></div>'
-                        }
-                    ]
-                }
-            ];
-
-            function renderTaskList() {
-                var taskListRows = document.getElementById('taskListRows');
-                taskListRows.innerHTML = kanbanBoards.map(function(board) {
-                    return '<div class="col-12"><div class="card shadow-sm border-0"><div class="card-body"><div class="d-flex align-items-center justify-content-between mb-3"><div><h6 class="mb-1">' +
-                        board.name + '</h6><small class="text-muted">' + board.description +
-                        '</small></div><span class="badge bg-' + board.badgeColor + ' bg-opacity-10 text-' +
-                        board.badgeColor + '">' + board.item.length + '</span></div>' + board.item.map(
-                            function(task) {
-                                return '<div class="mb-3">' + task.title + '</div>';
-                            }).join('') + '</div></div></div>';
-                }).join('');
-            }
-
-            function updateTaskCount() {
-                var totalTasks = kanbanBoards.reduce(function(count, board) {
-                    return count + board.item.length;
-                }, 0);
-                document.getElementById('taskCount').textContent = totalTasks;
-            }
-
-            function updateBoardBadges() {
-                kanbanBoards.forEach(function(board) {
-                    var boardElement = document.querySelector('#myKanban .kanban-board[data-id="' + board
-                        .id + '"]');
-                    if (boardElement) {
-                        var badge = boardElement.querySelector('.kanban-board-title .badge');
-                        if (badge) {
-                            badge.textContent = board.item.length;
-                        }
-                    }
-                });
-            }
-
-            function setActiveView(view) {
-                document.getElementById('kanbanView').classList.toggle('d-none', view !== 'kanban');
-                document.getElementById('listView').classList.toggle('d-none', view !== 'list');
-                document.querySelectorAll('.view-toggle-btn').forEach(function(button) {
-                    button.classList.toggle('active', button.dataset.view === view);
-                });
-            }
-
-            var kanban = new jKanban({
-                element: '#myKanban',
-                gutter: '24px',
-                widthBoard: '320px',
-                boards: kanbanBoards,
-                dragBoards: false,
-                buttonContent: '+',
-                itemHandleOptions: {
-                    enabled: false
-                }
-            });
-
-            document.querySelectorAll('.view-toggle-btn').forEach(function(button) {
-                button.addEventListener('click', function() {
-                    setActiveView(this.dataset.view);
-                });
-            });
-
-            document.getElementById('newTaskBtn').addEventListener('click', function() {
-                var title = prompt('New task title', 'New credentialing task');
-                if (!title) {
-                    return;
-                }
-
-                var newTask = {
-                    id: 'task_' + Date.now(),
-                    title: '<div class="task-card"><div class="d-flex justify-content-between align-items-start mb-2"><span class="task-label medium">Medium</span><span class="task-badge bg-info"></span></div><div class="task-card-title">' +
-                        title +
-                        '</div><div class="task-card-meta">New task | Assigned</div><div class="task-card-footer"><div class="task-chip"><span class="avatar">NT</span>Due Soon</div><i class="ti tabler-dots"></i></div></div>'
-                };
-
-                var dueTodayBoard = kanbanBoards.find(function(board) {
-                    return board.id === 'due_today';
-                });
-
-                if (dueTodayBoard) {
-                    dueTodayBoard.item.push(newTask);
-                    kanban.addElement('due_today', newTask);
-                    renderTaskList();
-                    updateTaskCount();
-                    updateBoardBadges();
-                }
-            });
-
-            renderTaskList();
-            updateTaskCount();
-            updateBoardBadges();
-            setActiveView('kanban');
-        });
-    </script>
+    @if ($showModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">New Task</h5>
+                        <button type="button" class="btn-close" wire:click="$set('showModal', false)"></button>
+                    </div>
+                    <form wire:submit.prevent="saveTask">
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                                    <input type="text" wire:model="formData.title" class="form-control @error('formData.title') is-invalid @enderror">
+                                    @error('formData.title')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Description</label>
+                                    <textarea wire:model="formData.description" rows="2" class="form-control"></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Assign To</label>
+                                    <select wire:model="formData.assigned_admin_id" class="form-select">
+                                        <option value="">Unassigned</option>
+                                        @foreach ($admins as $admin)
+                                            <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Due Date</label>
+                                    <input type="date" wire:model="formData.due_date" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Provider</label>
+                                    <select wire:model="formData.provider_id" class="form-select">
+                                        <option value="">None</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Credentialing Case</label>
+                                    <select wire:model="formData.credentialing_case_id" class="form-select">
+                                        <option value="">None</option>
+                                        @foreach ($cases as $case)
+                                            <option value="{{ $case->id }}">{{ $case->case_number }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Priority</label>
+                                    <select wire:model="formData.priority_id" class="form-select">
+                                        <option value="">None</option>
+                                        @foreach ($priorities as $priority)
+                                            <option value="{{ $priority->id }}">{{ $priority->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Task Type</label>
+                                    <select wire:model="formData.task_type" class="form-select">
+                                        <option value="manual">Manual</option>
+                                        <option value="follow_up">Follow-up</option>
+                                        <option value="document">Document</option>
+                                        <option value="expiry">Expiry</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="$set('showModal', false)">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Task</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

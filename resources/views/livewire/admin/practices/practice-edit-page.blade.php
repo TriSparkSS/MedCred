@@ -109,6 +109,32 @@
                     </div>
                 </div>
 
+                {{-- Portal Account --}}
+                <div class="mb-3 pb-3 border-bottom">
+                    <h6 class="text-primary fw-semibold mb-1">
+                        <i class="ti tabler-lock me-2"></i>Portal Account
+                    </h6>
+                    <p class="text-muted small mb-0">Credentialing portal login for this practice.</p>
+                </div>
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Portal Login Email</label>
+                        <input type="email" class="form-control bg-light" value="{{ $formData['email'] ?? '' }}" readonly>
+                        <small class="text-muted">Same as practice email above. Used to sign in at the portal.</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">New Password</label>
+                        <input type="password" wire:model="userData.password"
+                            class="form-control @error('userData.password') is-invalid @enderror"
+                            placeholder="Leave blank to keep current">
+                        @error('userData.password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <small class="text-muted">Leave blank to keep the current password. Minimum 6 characters.</small>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-center">
+                        <small class="text-muted mb-0">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
+                    </div>
+                </div>
+
                 {{-- Primary Location --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
@@ -245,6 +271,11 @@
                         @endif
                     </div>
                 </div>
+
+                @if ($practiceId)
+                    <livewire:admin.practices.practice-contacts-section :practice-id="$practiceId" :key="'contacts-'.$practiceId" />
+                    <livewire:admin.practices.practice-locations-section :practice-id="$practiceId" :key="'locations-'.$practiceId" />
+                @endif
 
                 {{-- Actions --}}
                 <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pt-3 border-top">

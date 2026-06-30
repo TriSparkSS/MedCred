@@ -35,6 +35,10 @@ class PracticeEditPage extends Component
 
     public $existingDocumentName;
 
+    public $userData = [
+        'password' => '',
+    ];
+
     public function mount($practice): void
     {
         $practiceModel = Practice::with('addresses')->findOrFail($practice);
@@ -87,6 +91,7 @@ class PracticeEditPage extends Component
                 'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin,' . $this->practiceId,
                 'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi,' . $this->practiceId,
                 'formData.email' => 'required|email|max:255|unique:practices,email,' . $this->practiceId . '|unique:users,email,' . $practice->user_id,
+                'userData.password' => 'nullable|string|min:6',
             ],
             $this->addressRules('addressData', true),
             $this->addressRules('alternativeAddressData'),
@@ -114,11 +119,18 @@ class PracticeEditPage extends Component
             ]);
 
             $user = User::findOrFail($practice->user_id);
-            $user->update([
+            $userPayload = [
                 'name' => $this->formData['legal_name'],
                 'email' => $this->formData['email'],
                 'phone' => $this->formData['phone'] ?? null,
-            ]);
+            ];
+
+            if (filled($this->userData['password'])) {
+                $userPayload['password'] = $this->userData['password'];
+            }
+
+            $user->update($userPayload);
+            $this->userData['password'] = '';
 
             $this->syncPracticeAddress($practice, 'primary', $this->addressData, $this->addressIds['primary']);
             $this->syncPracticeAddress($practice, 'alternative', $this->alternativeAddressData, $this->addressIds['alternative']);

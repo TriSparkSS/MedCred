@@ -169,6 +169,8 @@
                     </div>
                 </div>
 
+                @include('livewire.admin.provider.partials.provider-extended-fields')
+
                 {{-- Practice & Location --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">

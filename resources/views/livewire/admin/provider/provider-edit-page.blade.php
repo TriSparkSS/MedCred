@@ -63,6 +63,21 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">New Password</label>
+                        <input type="password" wire:model="userData.password"
+                            class="form-control @error('userData.password') is-invalid @enderror"
+                            placeholder="Leave blank to keep current">
+                        @error('userData.password')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Leave blank to keep the current password. Minimum 6 characters.</small>
+                    </div>
+
+                    <div class="col-12">
+                        <small class="text-muted">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
+                    </div>
                 </div>
 
                 {{-- Professional Details --}}
@@ -163,6 +178,8 @@
                         @enderror
                     </div>
                 </div>
+
+                @include('livewire.admin.provider.partials.provider-extended-fields')
 
                 {{-- Practice & Location --}}
                 <div class="mb-3 pb-3 border-bottom">

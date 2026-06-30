@@ -10,5 +10,10 @@ class Status extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ["name", "is_active"];
+    protected $fillable = ['name', 'is_active', 'sort_order', 'dashboard_category', 'delay_owner_id'];
+
+    public function delayOwner()
+    {
+        return $this->belongsTo(DelayOwner::class);
+    }
 }

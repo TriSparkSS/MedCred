@@ -87,6 +87,18 @@ new class extends Component {
                     <div>Reports</div>
                 </a>
             </li>
+            <li class="menu-item {{ request()->routeIs('admin.analytics.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.analytics.productivity') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-chart-dots"></i>
+                    <div>Analytics</div>
+                </a>
+            </li>
+            <li class="menu-item {{ request()->routeIs('admin.imports.*') ? 'active' : '' }}">
+                <a href="{{ route('admin.imports.bulk') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-file-import"></i>
+                    <div>Bulk Import</div>
+                </a>
+            </li>
 
             <li
                 class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.settings.specialties*') || request()->routeIs('admin.master*') ? 'active open' : '' }}">
@@ -99,6 +111,11 @@ new class extends Component {
                     <li class="menu-item {{ request()->routeIs('admin.settings.specialties*') ? 'active' : '' }}">
                         <a href="{{ route('admin.settings.specialties') }}" class="menu-link">
                             <div>Specialty</div>
+                        </a>
+                    </li>
+                    <li class="menu-item {{ request()->routeIs('admin.payers*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.payers') }}" class="menu-link">
+                            <div>Payers</div>
                         </a>
                     </li>
 
@@ -125,6 +142,11 @@ new class extends Component {
                     <li class="menu-item {{ request()->routeIs('admin.master.document-types') ? 'active' : '' }}">
                         <a href="{{ route('admin.master.document-types') }}" class="menu-link">
                             <div>Document Types</div>
+                        </a>
+                    </li>
+                    <li class="menu-item {{ request()->routeIs('admin.master.email-templates') ? 'active' : '' }}">
+                        <a href="{{ route('admin.master.email-templates') }}" class="menu-link">
+                            <div>Email Templates</div>
                         </a>
                     </li>
                 </ul>

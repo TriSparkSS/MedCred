@@ -9,15 +9,41 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Provider Details'])]
 class ProviderDetailsPage extends Component
 {
-    public ProviderDetails $provider;
+    public $provider;
 
-    public function mount($provider)
+    public $activeTab = 'overview';
+
+    public function setTab(string $tab): void
     {
-        $this->provider = ProviderDetails::with('user', 'specialty', 'practices.primaryAddress')->findOrFail($provider);
+        $this->activeTab = $tab;
+    }
+
+    public function mount($provider): void
+    {
+        $this->provider = ProviderDetails::with([
+            'user', 'specialty', 'practices.primaryAddress',
+            'credentialingCases.payer',
+            'credentialingCases.status',
+            'credentialingCases.delayOwner',
+            'credentialingCases.assignedAdmin',
+            'credentialingCases.practice',
+            'credentialingCases.activities.admin',
+            'credentialingCases.activities.user',
+            'credentialingCases.activities.credentialingCase',
+            'documents.documentType',
+            'documents.versions' => fn ($q) => $q->where('is_current', true),
+        ])->findOrFail($provider);
     }
 
     public function render()
     {
-        return view('livewire.admin.provider.provider-details-page');
+        $timelineActivities = $this->provider->credentialingCases
+            ->flatMap(fn ($case) => $case->activities)
+            ->sortByDesc('created_at')
+            ->take(50);
+
+        return view('livewire.admin.provider.provider-details-page', [
+            'timelineActivities' => $timelineActivities,
+        ]);
     }
 }
