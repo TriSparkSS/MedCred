@@ -23,5 +23,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             MasterDataSeeder::class,
         ]);
+
+        // Optional demo data: php artisan db:seed --class=DummyContentSeeder
     }
 }
