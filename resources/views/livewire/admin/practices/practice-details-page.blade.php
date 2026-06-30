@@ -81,28 +81,82 @@
                                 <span class="fw-semibold">N/A</span>
                             @endif
                         </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">License Number</small>
+                            <span class="fw-semibold">{{ $practice->license_number ?: 'N/A' }}</span>
+                        </div>
+                        @if ($practice->document_path)
+                            <div class="col-md-6">
+                                <small class="text-muted d-block">Document</small>
+                                <a href="{{ asset('storage/' . $practice->document_path) }}" target="_blank" class="fw-semibold">
+                                    {{ $practice->document_original_name ?: 'View document' }}
+                                </a>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100 mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3">Bank Details</h5>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Bank Name</small>
+                        <span class="fw-semibold">{{ $practice->bank_name ?: 'N/A' }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Account Number</small>
+                        <span class="fw-semibold">{{ $practice->bank_account ?: 'N/A' }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Routing Number</small>
+                        <span class="fw-semibold">{{ $practice->bank_routing_number ?: 'N/A' }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Bank Phone</small>
+                        <span class="fw-semibold">{{ $practice->bank_phone ?: 'N/A' }}</span>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Bank Address</small>
+                        <span class="fw-semibold">{{ $practice->bank_address ?: 'N/A' }}</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
                     <h5 class="mb-3">Addresses</h5>
+                    @php
+                        $addressLabels = [
+                            'primary' => 'Primary Location',
+                            'alternative' => 'Alternative Location',
+                            'mailing' => 'Mailing Address',
+                            'billing' => 'Billing Address',
+                        ];
+                    @endphp
                     @forelse($practice->addresses as $address)
                         <div class="border-bottom pb-3 mb-3">
                             <div class="d-flex justify-content-between gap-2 mb-2">
-                                <div class="fw-semibold">{{ $address->location_name ?: 'Primary Location' }}</div>
-                                <span class="badge bg-label-{{ $address->status === 'active' ? 'success' : 'secondary' }} text-uppercase">
-                                    {{ strtoupper($address->status) }}
-                                </span>
+                                <div class="fw-semibold">{{ $addressLabels[$address->type] ?? ($address->location_name ?: 'Address') }}</div>
+                                @if ($address->type === 'primary')
+                                    <span class="badge bg-label-{{ $address->status === 'active' ? 'success' : 'secondary' }} text-uppercase">
+                                        {{ strtoupper($address->status) }}
+                                    </span>
+                                @endif
                             </div>
+                            @if ($address->location_name)
+                                <p class="text-muted mb-1">{{ $address->location_name }}</p>
+                            @endif
                             <p class="text-muted mb-1">{{ $address->address1 }}</p>
                             @if ($address->address2)
                                 <p class="text-muted mb-1">{{ $address->address2 }}</p>
                             @endif
-                            <p class="text-muted mb-1">{{ $address->city }}, {{ $address->state }} {{ $address->zip_code }}</p>
+                            <p class="text-muted mb-1">
+                                {{ $address->city }}, {{ $address->state }} {{ $address->zip_code }}
+                                @if ($address->county) ({{ $address->county }} County) @endif
+                            </p>
                             <p class="text-muted mb-2">{{ $address->country }}</p>
                             <small class="text-muted d-block">Phone: {{ $address->phone ?: 'N/A' }}</small>
                             <small class="text-muted d-block">Fax: {{ $address->fax ?: 'N/A' }}</small>

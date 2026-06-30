@@ -2,15 +2,19 @@
 
 namespace App\Livewire\Admin\Practices;
 
+use App\Livewire\Admin\Practices\Concerns\ManagesPracticeForm;
 use App\Models\Practice;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('layouts::admin', ['title' => 'Add Practice'])]
 class PracticeCreatePage extends Component
 {
+    use ManagesPracticeForm, WithFileUploads;
+
     public $formData = [
         'status' => 'pending',
     ];
@@ -24,29 +28,37 @@ class PracticeCreatePage extends Component
         'status' => 'active',
     ];
 
-    protected $rules = [
-        'formData.legal_name' => 'required|string|max:255',
-        'formData.dba_name' => 'nullable|string|max:255',
-        'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin',
-        'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi',
-        'formData.taxonomy_code' => 'nullable|string|max:50',
-        'formData.phone' => 'nullable|string|max:30',
-        'formData.fax' => 'nullable|string|max:30',
-        'formData.email' => 'required|email|max:255|unique:practices,email|unique:users,email',
-        'formData.website' => 'nullable|max:255',
-        'formData.status' => 'required|in:pending,active,inactive',
-        'userData.password' => 'required|string|min:6',
-        'addressData.location_name' => 'nullable|string|max:255',
-        'addressData.address1' => 'required|string|max:255',
-        'addressData.address2' => 'nullable|string|max:255',
-        'addressData.city' => 'required|string|max:100',
-        'addressData.state' => 'required|string|max:100',
-        'addressData.zip_code' => 'required|string|max:20',
-        'addressData.country' => 'required|string|max:100',
-        'addressData.phone' => 'nullable|string|max:30',
-        'addressData.fax' => 'nullable|string|max:30',
-        'addressData.status' => 'required|in:active,inactive',
-    ];
+    public $alternativeAddressData = [];
+
+    public $mailingAddressData = [];
+
+    public $billingAddressData = [];
+
+    public $document;
+
+    public function mount(): void
+    {
+        $this->alternativeAddressData = $this->emptyAddressDefaults();
+        $this->mailingAddressData = $this->emptyAddressDefaults();
+        $this->billingAddressData = $this->emptyAddressDefaults();
+    }
+
+    protected function rules(): array
+    {
+        return array_merge(
+            $this->basePracticeRules(),
+            [
+                'userData.password' => 'required|string|min:6',
+                'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin',
+                'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi',
+                'formData.email' => 'required|email|max:255|unique:practices,email|unique:users,email',
+            ],
+            $this->addressRules('addressData', true),
+            $this->addressRules('alternativeAddressData'),
+            $this->addressRules('mailingAddressData'),
+            $this->addressRules('billingAddressData'),
+        );
+    }
 
     public function save()
     {
@@ -64,12 +76,18 @@ class PracticeCreatePage extends Component
                 $user->assignRole('practice');
             }
 
+            $documentData = $this->storePracticeDocument($this->document);
+
             $practice = Practice::create([
                 ...$this->formData,
+                ...$documentData,
                 'user_id' => $user->id,
             ]);
 
-            $practice->addresses()->create($this->addressData);
+            $this->syncPracticeAddress($practice, 'primary', $this->addressData);
+            $this->syncPracticeAddress($practice, 'alternative', $this->alternativeAddressData);
+            $this->syncPracticeAddress($practice, 'mailing', $this->mailingAddressData);
+            $this->syncPracticeAddress($practice, 'billing', $this->billingAddressData);
         });
 
         flash()->success('Practice and user created successfully!');

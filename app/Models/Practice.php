@@ -18,6 +18,14 @@ use Illuminate\Database\Eloquent\Model;
     'email',
     'website',
     'status',
+    'license_number',
+    'bank_name',
+    'bank_account',
+    'bank_routing_number',
+    'bank_address',
+    'bank_phone',
+    'document_path',
+    'document_original_name',
 ])]
 class Practice extends Model
 {
@@ -44,7 +52,22 @@ class Practice extends Model
 
     public function primaryAddress()
     {
-        return $this->morphOne(Address::class, 'addressable')->oldestOfMany();
+        return $this->morphOne(Address::class, 'addressable')->where('type', 'primary');
+    }
+
+    public function alternativeAddress()
+    {
+        return $this->morphOne(Address::class, 'addressable')->where('type', 'alternative');
+    }
+
+    public function mailingAddress()
+    {
+        return $this->morphOne(Address::class, 'addressable')->where('type', 'mailing');
+    }
+
+    public function billingAddress()
+    {
+        return $this->morphOne(Address::class, 'addressable')->where('type', 'billing');
     }
 
     public function providers()

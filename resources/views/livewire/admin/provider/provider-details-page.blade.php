@@ -60,6 +60,24 @@
                         <span class="fw-semibold">{{ $provider->npi ?: 'N/A' }}</span>
                     </div>
                     <div class="mb-3">
+                        <small class="text-muted d-block">CAQH ID</small>
+                        <span class="fw-semibold">{{ $provider->caqh_id ?: 'N/A' }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">License</small>
+                        <span class="fw-semibold">
+                            @if($provider->license_number)
+                                {{ $provider->license_number }}{{ $provider->license_state ? ' (' . $provider->license_state . ')' : '' }}
+                            @else
+                                N/A
+                            @endif
+                        </span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">DEA Number</small>
+                        <span class="fw-semibold">{{ $provider->dea ?: 'N/A' }}</span>
+                    </div>
+                    <div class="mb-3">
                         <small class="text-muted d-block">Practice Text</small>
                         <span class="fw-semibold">{{ $provider->practice ?: 'N/A' }}</span>
                     </div>

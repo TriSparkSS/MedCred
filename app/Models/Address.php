@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
+    'type',
     'location_name',
     'address1',
     'address2',
     'city',
     'state',
     'zip_code',
+    'county',
     'country',
     'phone',
     'fax',

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use App\Enums\ProviderStatus;
 
-#[Fillable(['user_id', 'specialty_id', 'status', 'npi', 'practice', 'address', 'city', 'state', 'zip'])]
+#[Fillable(['user_id', 'specialty_id', 'status', 'npi', 'caqh_id', 'license_number', 'license_state', 'dea', 'practice', 'address', 'city', 'state', 'zip'])]
 class ProviderDetails extends Model
 {
 
