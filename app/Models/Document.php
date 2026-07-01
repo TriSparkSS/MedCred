@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Document extends Model
@@ -22,6 +23,10 @@ class Document extends Model
         'expiry_date',
         'state',
         'status',
+        'verification_status',
+        'rejection_reason',
+        'verified_by_admin_id',
+        'verified_at',
         'uploaded_by_admin_id',
         'uploaded_by_user_id',
     ];
@@ -29,6 +34,7 @@ class Document extends Model
     protected $casts = [
         'effective_date' => 'date',
         'expiry_date' => 'date',
+        'verified_at' => 'datetime',
     ];
 
     public function documentType(): BelongsTo
@@ -66,9 +72,14 @@ class Document extends Model
         return $this->hasMany(DocumentVersion::class)->orderByDesc('version_number');
     }
 
+    public function currentVersion(): HasOne
+    {
+        return $this->hasOne(DocumentVersion::class)->where('is_current', true);
+    }
+
     public function getCurrentVersionAttribute(): ?DocumentVersion
     {
-        return $this->versions()->where('is_current', true)->first();
+        return $this->getRelationValue('currentVersion');
     }
 
     public function isExpiringSoon(int $days = 30): bool

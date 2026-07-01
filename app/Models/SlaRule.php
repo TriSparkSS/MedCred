@@ -7,21 +7,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SlaRule extends Model
 {
+    protected $table = 'sla_rules_admin';
+
     protected $fillable = [
-        'rule_key',
         'name',
-        'days',
-        'business_days_only',
-        'applies_to',
+        'rule_key',
+        'dashboard_category',
+        'business_days',
         'action',
         'notification_template_id',
         'is_active',
     ];
 
     protected $casts = [
-        'business_days_only' => 'boolean',
+        'business_days' => 'integer',
         'is_active' => 'boolean',
-        'days' => 'integer',
     ];
 
     public function notificationTemplate(): BelongsTo

@@ -21,7 +21,9 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             RoleSeeder::class,
             PermissionSeeder::class,
+            AdminPermissionSeeder::class,
             MasterDataSeeder::class,
+            PdfRefactorSeeder::class,
         ]);
 
         // Optional demo data: php artisan db:seed --class=DummyContentSeeder

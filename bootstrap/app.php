@@ -18,8 +18,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->web(append: [
+            \App\Http\Middleware\UseAdminGuardWhenAuthenticated::class,
+        ]);
+
         $middleware->alias([
             'is_auth' => AdminAuthMiddleware::class,
+            'admin.permission' => \App\Http\Middleware\EnsureAdminPermission::class,
             'provider_auth' => ProviderAuthMiddleware::class,
             'practice_auth' => PracticeAuthMiddleware::class,
             'portal.permission' => EnsurePortalPermission::class,

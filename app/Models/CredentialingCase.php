@@ -17,23 +17,35 @@ class CredentialingCase extends Model
         'provider_id',
         'practice_id',
         'location_id',
+        'provider_practice_location_id',
         'payer_id',
         'case_type_id',
         'status_id',
         'delay_owner_id',
         'priority_id',
         'assigned_admin_id',
+        'assigned_manager_id',
         'state',
         'intake_date',
         'submission_date',
+        'acknowledgement_date',
         'payer_follow_up_date',
         'expected_completion_date',
+        'approval_date',
         'effective_date',
+        'payer_provider_id',
+        'payer_group_id',
+        'eft_status',
+        'era_status',
+        'billing_notified',
+        'billing_notes',
+        'ready_to_bill',
         'termination_date',
         'revalidation_due_date',
         'next_follow_up_date',
         'notes',
         'is_escalated',
+        'do_not_automate',
         'last_action_at',
     ];
 
@@ -43,6 +55,11 @@ class CredentialingCase extends Model
         'payer_follow_up_date' => 'date',
         'expected_completion_date' => 'date',
         'effective_date' => 'date',
+        'approval_date' => 'date',
+        'acknowledgement_date' => 'date',
+        'billing_notified' => 'boolean',
+        'ready_to_bill' => 'boolean',
+        'do_not_automate' => 'boolean',
         'termination_date' => 'date',
         'revalidation_due_date' => 'date',
         'next_follow_up_date' => 'date',
@@ -124,6 +141,26 @@ class CredentialingCase extends Model
     public function assignedAdmin(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'assigned_admin_id');
+    }
+
+    public function assignedManager(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'assigned_manager_id');
+    }
+
+    public function providerPracticeLocation(): BelongsTo
+    {
+        return $this->belongsTo(ProviderPracticeLocation::class);
+    }
+
+    public function delayOwnerHistories(): HasMany
+    {
+        return $this->hasMany(DelayOwnerHistory::class);
+    }
+
+    public function packetGenerations(): HasMany
+    {
+        return $this->hasMany(PacketGeneration::class);
     }
 
     public function statusHistories(): HasMany

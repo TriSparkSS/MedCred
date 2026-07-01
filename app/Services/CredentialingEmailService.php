@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\CredentialingTemplateMail;
+use App\Events\ProviderResponseReceived;
 use App\Models\AuditLog;
 use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
@@ -101,6 +102,13 @@ class CredentialingEmailService
                 'Inbound email received: ' . $message->subject,
                 $adminId
             );
+
+            $category = app(EmailMatchingService::class)->categorizeQueue($message);
+            $message->update(['queue_category' => $category]);
+
+            if ($category === 'provider_responses' && $message->credentialingCase) {
+                ProviderResponseReceived::dispatch($message->fresh(), $message->credentialingCase, $adminId);
+            }
         }
 
         return $message;

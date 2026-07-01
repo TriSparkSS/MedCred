@@ -153,19 +153,28 @@ class EmailDashboardPage extends Component
         flash()->success('Attachment saved to document repository.');
     }
 
+    public function syncMailbox(): void
+    {
+        \App\Jobs\SyncCredentialingMailboxJob::dispatch();
+        flash()->success('Mailbox sync queued.');
+    }
+
     public function render(CredentialingEmailService $emailService)
     {
         $query = EmailMessage::with(['credentialingCase.provider.user', 'notificationTemplate', 'sentByAdmin', 'attachments'])
             ->latest();
 
-        if ($this->filter === 'outbound') {
-            $query->outbound();
-        } elseif ($this->filter === 'inbound') {
-            $query->inbound();
-        } elseif ($this->filter === 'unlinked') {
-            $query->unlinked();
-        } elseif ($this->filter === 'failed') {
-            $query->whereIn('status', ['failed', 'bounced']);
+        $queueFilters = [
+            'all', 'inbox', 'sent', 'unlinked', 'provider_responses', 'payer_responses',
+            'attachments_pending', 'replies_awaited', 'escalation', 'failed',
+        ];
+
+        if (in_array($this->filter, $queueFilters, true) && $this->filter !== 'all') {
+            if ($this->filter === 'sent') {
+                $query->outbound();
+            } else {
+                $query->forQueue($this->filter);
+            }
         }
 
         if ($this->search) {

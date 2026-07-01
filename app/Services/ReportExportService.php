@@ -45,6 +45,19 @@ class ReportExportService
                 'name' => 'Upcoming Recredentialing',
                 'description' => 'Cases with revalidation due within 90 days.',
                 'type' => 'Compliance',
+                'link' => route('admin.credentials', ['revalidation' => '90']),
+            ],
+            'email_operations' => [
+                'name' => 'Email Operations',
+                'description' => 'Unlinked messages, pending attachments, and failed deliveries.',
+                'type' => 'Operational',
+                'link' => route('admin.email.dashboard', ['filter' => 'unlinked']),
+            ],
+            'delay_ownership' => [
+                'name' => 'Delay Ownership',
+                'description' => 'Active cases grouped by delay owner and executive.',
+                'type' => 'Operational',
+                'link' => route('admin.credentials'),
             ],
         ];
     }

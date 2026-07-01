@@ -134,10 +134,16 @@ class DashboardService
 
     public function notificationCounts(): array
     {
+        $adminId = auth()->guard('admin')->id();
+        $taskNotifications = $adminId
+            ? app(\App\Services\TaskNotificationService::class)->unreadAssignmentCountForAdmin($adminId)
+            : 0;
+
         return [
             'expiring_documents' => Document::expiringSoon(30)->count(),
             'overdue_tasks' => Task::open()->forColumn('overdue')->count(),
             'overdue_cases' => CredentialingCase::filterCategory('overdue')->count(),
+            'task_assignments' => $taskNotifications,
         ];
     }
 
@@ -145,6 +151,6 @@ class DashboardService
     {
         $counts = $this->notificationCounts();
 
-        return $counts['expiring_documents'] + $counts['overdue_tasks'] + $counts['overdue_cases'];
+        return $counts['expiring_documents'] + $counts['overdue_tasks'] + $counts['overdue_cases'] + $counts['task_assignments'];
     }
 }

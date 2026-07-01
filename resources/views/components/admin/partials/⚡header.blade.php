@@ -159,6 +159,12 @@ new class extends Component {
                     </li>
                     <li>
                         <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.tasks.kanban') }}">
+                            <span><i class="ti tabler-user-check me-2"></i>New task assignments</span>
+                            <span class="badge bg-label-primary">{{ $this->notifications['task_assignments'] }}</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.tasks.kanban') }}">
                             <span><i class="ti tabler-checklist me-2"></i>Overdue tasks</span>
                             <span class="badge bg-label-danger">{{ $this->notifications['overdue_tasks'] }}</span>
                         </a>

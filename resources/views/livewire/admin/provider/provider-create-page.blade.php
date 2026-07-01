@@ -94,12 +94,15 @@
 
                     <div class="col-md-4">
                         <label class="form-label fw-medium">NPI Number <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.npi"
+                        <input type="text" wire:model.live="formData.npi"
                             class="form-control @error('formData.npi') is-invalid @enderror"
                             placeholder="10-digit NPI">
                         @error('formData.npi')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        @if ($npiDuplicateWarning)
+                            <div class="text-warning small mt-1">{{ $npiDuplicateWarning }}</div>
+                        @endif
                     </div>
 
                     <div class="col-md-4">

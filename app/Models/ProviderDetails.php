@@ -51,6 +51,11 @@ class ProviderDetails extends Model
         return $this->hasMany(Document::class, 'provider_id');
     }
 
+    public function providerPracticeLocations()
+    {
+        return $this->hasMany(ProviderPracticeLocation::class, 'provider_id');
+    }
+
     public function tasks()
     {
         return $this->hasMany(Task::class, 'provider_id');

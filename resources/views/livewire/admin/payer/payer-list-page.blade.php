@@ -80,18 +80,23 @@
                                 <small class="text-muted">{{ $payer->email ?: 'No email' }}</small>
                             </td>
                             <td><small>{{ $payer->states_applicable ?: 'All' }}</small></td>
-                            <td><span class="badge bg-label-primary text-uppercase">{{ $payer->submission_channel ?: 'N/A' }}</span></td>
-                            <td><small>{{ $payer->turnaround_days ? $payer->turnaround_days . ' days' : 'N/A' }}</small></td>
+                            <td><span
+                                    class="badge bg-label-primary text-uppercase">{{ $payer->submission_channel ?: 'N/A' }}</span>
+                            </td>
+                            <td><small>{{ $payer->turnaround_days ? $payer->turnaround_days . ' days' : 'N/A' }}</small>
+                            </td>
                             <td>
                                 <span class="badge {{ $payer->is_active ? 'bg-success' : 'bg-secondary' }}">
                                     {{ $payer->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
                             <td class="text-end">
-                                <a href="{{ route('admin.payers.edit', $payer->id) }}" class="btn btn-sm btn-icon btn-outline-primary">
+                                <a href="{{ route('admin.payers.edit', $payer->id) }}"
+                                    class="btn btn-sm btn-icon btn-outline-primary">
                                     <i class="ti tabler-edit"></i>
                                 </a>
-                                <button wire:click="delete({{ $payer->id }})" class="btn btn-sm btn-icon btn-outline-danger">
+                                <button wire:click="delete({{ $payer->id }})"
+                                    class="btn btn-sm btn-icon btn-outline-danger">
                                     <i class="ti tabler-trash"></i>
                                 </button>
                             </td>
@@ -104,6 +109,6 @@
                 </tbody>
             </table>
         </div>
-        <div class="card-footer bg-white">{{ $payers->links() }}</div>
+        <div class="card-footer bg-white">{{ $payers->links('livewire::bootstrap') }}</div>
     </div>
 </div>

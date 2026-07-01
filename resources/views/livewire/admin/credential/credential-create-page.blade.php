@@ -147,6 +147,12 @@
                 </div>
 
                 <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                    @if ($duplicateWarning)
+                        <div class="alert alert-warning py-2 px-3 me-auto mb-0 small flex-grow-1">
+                            {{ $duplicateWarning }}
+                            <button type="button" wire:click="saveAnyway" class="btn btn-sm btn-warning ms-2">Create Anyway</button>
+                        </div>
+                    @endif
                     <a href="{{ route('admin.credentials') }}" class="btn btn-outline-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary"><i class="ti tabler-check me-1"></i>Create Application</button>
                 </div>

@@ -135,16 +135,28 @@
                                 {{ $document->expiry_date?->format('m/d/Y') ?: '—' }}
                             </td>
                             <td>
+                                @php $vStatus = $document->verification_status ?? 'uploaded'; @endphp
+                                <span class="badge bg-label-{{ match($vStatus) { 'verified' => 'success', 'rejected' => 'danger', 'expired' => 'warning', default => 'secondary' } }}">
+                                    {{ ucfirst(str_replace('_', ' ', $vStatus)) }}
+                                </span>
                                 @if ($expired)
-                                    <span class="badge bg-label-danger">Expired</span>
+                                    <span class="badge bg-label-danger ms-1">Expired</span>
                                 @elseif ($expiring)
-                                    <span class="badge bg-label-warning text-dark">Expiring Soon</span>
-                                @else
-                                    <span class="badge bg-label-success">Active</span>
+                                    <span class="badge bg-label-warning text-dark ms-1">Expiring</span>
                                 @endif
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
+                                    @if ($vStatus !== 'verified')
+                                        <button wire:click="verifyDocument({{ $document->id }})" class="btn btn-outline-success" title="Verify">
+                                            <i class="ti tabler-check"></i>
+                                        </button>
+                                    @endif
+                                    @if ($vStatus !== 'rejected')
+                                        <button wire:click="openRejectModal({{ $document->id }})" class="btn btn-outline-danger" title="Reject">
+                                            <i class="ti tabler-x"></i>
+                                        </button>
+                                    @endif
                                     @if ($version)
                                         <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank"
                                             class="btn btn-outline-secondary" title="Download">
@@ -291,6 +303,29 @@
                             <button type="submit" class="btn btn-primary">Upload Version</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Reject Modal --}}
+    @if ($rejectDocumentId)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Document</h5>
+                        <button type="button" class="btn-close" wire:click="$set('rejectDocumentId', null)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">Rejection reason <span class="text-danger">*</span></label>
+                        <textarea wire:model="rejectionReason" rows="3" class="form-control @error('rejectionReason') is-invalid @enderror"></textarea>
+                        @error('rejectionReason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" wire:click="$set('rejectDocumentId', null)">Cancel</button>
+                        <button type="button" wire:click="rejectDocument" class="btn btn-danger">Reject</button>
+                    </div>
                 </div>
             </div>
         </div>

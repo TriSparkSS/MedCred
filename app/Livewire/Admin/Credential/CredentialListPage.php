@@ -2,35 +2,60 @@
 
 namespace App\Livewire\Admin\Credential;
 
+use App\Events\DocumentRequestSent;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\NotificationTemplate;
 use App\Models\Status;
 use App\Models\Task;
+use App\Services\BillingReadinessService;
+use App\Services\CredentialingCaseService;
 use App\Services\CredentialingEmailService;
 use App\Services\DelayOwnershipService;
+use App\Services\TaskService;
 use App\Services\TaskSyncService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts::admin', ['title' => 'Credentialing Tracker'])]
 class CredentialListPage extends Component
 {
+    use AuthorizesRequests;
     use WithPagination;
 
-    public $search = '';
+    #[Url(as: 'search', history: true)]
+    public string $caseSearch = '';
 
-    public $filterCategory = '';
+    #[Url(as: 'category', history: true)]
+    public string $filterCategory = '';
 
-    public $filterPayerId = '';
+    #[Url(as: 'payer', history: true)]
+    public string $filterPayerId = '';
 
-    public $filterStatusId = '';
+    #[Url(as: 'status', history: true)]
+    public string $filterStatusId = '';
+
+    #[Url(as: 'owner', history: true)]
+    public string $filterOwnerId = '';
+
+    #[Url(as: 'state', history: true)]
+    public string $filterState = '';
+
+    #[Url(as: 'revalidation', history: true)]
+    public string $filterRevalidation = '';
+
+    #[Url(as: 'recent', history: true)]
+    public bool $filterRecentlySubmitted = false;
 
     public $selectedCaseId = null;
 
     public $showDrawer = false;
+
+    public string $drawerTab = 'details';
 
     public $newNote = '';
 
@@ -48,37 +73,34 @@ class CredentialListPage extends Component
 
     public $newTaskAssigneeId = '';
 
-    public function mount(): void
-    {
-        if ($category = request()->query('category')) {
-            $this->filterCategory = $category;
-        }
-
-        if ($search = request()->query('search')) {
-            $this->search = $search;
-        }
-    }
-
     public function updated($propertyName): void
     {
-        if (in_array($propertyName, ['search', 'filterCategory', 'filterPayerId', 'filterStatusId'])) {
-            $this->search = is_string($this->search) ? trim($this->search) : $this->search;
+        if (in_array($propertyName, [
+            'caseSearch', 'filterCategory', 'filterPayerId', 'filterStatusId',
+            'filterOwnerId', 'filterState', 'filterRevalidation', 'filterRecentlySubmitted',
+        ])) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->search = '';
+        $this->caseSearch = '';
         $this->filterCategory = '';
         $this->filterPayerId = '';
         $this->filterStatusId = '';
+        $this->filterOwnerId = '';
+        $this->filterState = '';
+        $this->filterRevalidation = '';
+        $this->filterRecentlySubmitted = false;
         $this->resetPage();
     }
 
     public function hasActiveFilters(): bool
     {
-        return (bool) ($this->search || $this->filterCategory || $this->filterPayerId || $this->filterStatusId);
+        return (bool) (trim($this->caseSearch) || $this->filterCategory || $this->filterPayerId
+            || $this->filterStatusId || $this->filterOwnerId || $this->filterState
+            || $this->filterRevalidation || $this->filterRecentlySubmitted);
     }
 
     public function setFilterCategory(?string $category): void
@@ -90,6 +112,7 @@ class CredentialListPage extends Component
     public function openDrawer(int $caseId): void
     {
         $this->selectedCaseId = $caseId;
+        $this->drawerTab = 'details';
         $case = CredentialingCase::findOrFail($caseId);
         $this->drawerStatusId = $case->status_id;
         $this->drawerDelayOwnerId = $case->delay_owner_id ?? '';
@@ -99,6 +122,7 @@ class CredentialListPage extends Component
         $this->newTaskTitle = '';
         $this->newTaskDueDate = now()->addDays(3)->toDateString();
         $this->newTaskAssigneeId = $case->assigned_admin_id ?? Auth::guard('admin')->id();
+        $this->billingForm = [];
         $this->showDrawer = true;
     }
 
@@ -109,16 +133,103 @@ class CredentialListPage extends Component
         $this->newNote = '';
     }
 
-    public function updateCaseStatus(int $caseId, int $statusId): void
+    public function setDrawerTab(string $tab): void
     {
+        $this->drawerTab = $tab;
+        if ($tab === 'billing') {
+            $this->loadBillingForm();
+        }
+    }
+
+    public function updateCaseStatus(int $caseId, $statusId): void
+    {
+        $statusId = (int) $statusId;
+        if ($statusId <= 0) {
+            return;
+        }
+
         $case = CredentialingCase::findOrFail($caseId);
         if ($case->status_id !== $statusId) {
-            $case->recordStatusChange($statusId, Auth::guard('admin')->id());
+            app(CredentialingCaseService::class)->changeStatus($case, $statusId, Auth::guard('admin')->id());
             flash()->success('Status updated.');
         }
     }
 
-    public function saveDrawerStatus(): void
+    public function inlineUpdate(int $caseId, string $field, $value): void
+    {
+        $allowed = ['assigned_admin_id', 'delay_owner_id'];
+        if (! in_array($field, $allowed, true)) {
+            return;
+        }
+
+        $case = CredentialingCase::findOrFail($caseId);
+        app(CredentialingCaseService::class)->updateInline(
+            $case,
+            [$field => $value !== '' && $value !== null ? (int) $value : null],
+            Auth::guard('admin')->id()
+        );
+    }
+
+    public function saveBillingFields(BillingReadinessService $billing): void
+    {
+        if (! $this->selectedCaseId) {
+            return;
+        }
+
+        $this->validate([
+            'billingForm.approval_date' => 'nullable|date',
+            'billingForm.effective_date' => 'nullable|date',
+            'billingForm.payer_provider_id' => 'nullable|string|max:100',
+            'billingForm.payer_group_id' => 'nullable|string|max:100',
+            'billingForm.eft_status' => 'nullable|string|max:50',
+            'billingForm.era_status' => 'nullable|string|max:50',
+            'billingForm.billing_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $case = CredentialingCase::findOrFail($this->selectedCaseId);
+        $billing->updateBillingFields($case, $this->billingForm, Auth::guard('admin')->id());
+        flash()->success('Billing fields saved.');
+    }
+
+    public $billingForm = [];
+
+    public function loadBillingForm(): void
+    {
+        if (! $this->selectedCaseId) {
+            return;
+        }
+
+        $case = CredentialingCase::find($this->selectedCaseId);
+        if ($case) {
+            $this->billingForm = [
+                'approval_date' => $case->approval_date?->format('Y-m-d'),
+                'effective_date' => $case->effective_date?->format('Y-m-d'),
+                'payer_provider_id' => $case->payer_provider_id,
+                'payer_group_id' => $case->payer_group_id,
+                'eft_status' => $case->eft_status,
+                'era_status' => $case->era_status,
+                'billing_notes' => $case->billing_notes,
+                'ready_to_bill' => $case->ready_to_bill,
+                'billing_notified' => $case->billing_notified,
+            ];
+        }
+    }
+
+    public function notifyBilling(BillingReadinessService $billing): void
+    {
+        if (! $this->selectedCaseId) {
+            return;
+        }
+
+        try {
+            $billing->notifyBilling(CredentialingCase::findOrFail($this->selectedCaseId), Auth::guard('admin')->id());
+            flash()->success('Billing team notified.');
+        } catch (\InvalidArgumentException $e) {
+            flash()->error($e->getMessage());
+        }
+    }
+
+    public function saveDrawerStatus(CredentialingCaseService $caseService): void
     {
         if (! $this->selectedCaseId || ! $this->drawerStatusId) {
             return;
@@ -126,7 +237,7 @@ class CredentialListPage extends Component
 
         $case = CredentialingCase::findOrFail($this->selectedCaseId);
         if ($case->status_id != $this->drawerStatusId) {
-            $case->recordStatusChange((int) $this->drawerStatusId, Auth::guard('admin')->id());
+            $caseService->changeStatus($case, (int) $this->drawerStatusId, Auth::guard('admin')->id());
         }
 
         flash()->success('Case updated.');
@@ -175,6 +286,7 @@ class CredentialListPage extends Component
         }
 
         $emailService->sendFromTemplate($case, $template, $to, Auth::guard('admin')->id());
+        DocumentRequestSent::dispatch($case, $template, Auth::guard('admin')->id());
         flash()->success('Email sent to provider.');
     }
 
@@ -189,7 +301,7 @@ class CredentialListPage extends Component
         );
     }
 
-    public function createFollowUpTask(): void
+    public function createFollowUpTask(TaskService $taskService): void
     {
         $this->validate([
             'newTaskTitle' => 'required|string|max:255',
@@ -199,37 +311,37 @@ class CredentialListPage extends Component
 
         $case = CredentialingCase::findOrFail($this->selectedCaseId);
 
-        Task::create([
+        $taskService->create([
             'title' => $this->newTaskTitle,
             'description' => 'Follow-up for ' . $case->case_number,
             'credentialing_case_id' => $case->id,
             'provider_id' => $case->provider_id,
+            'payer_id' => $case->payer_id,
             'assigned_admin_id' => $this->newTaskAssigneeId ?: null,
-            'created_by_admin_id' => Auth::guard('admin')->id(),
             'due_date' => $this->newTaskDueDate ?: null,
             'task_type' => 'follow_up',
-        ]);
+        ], Auth::guard('admin')->id());
 
         $this->newTaskTitle = '';
         $this->newTaskDueDate = now()->addDays(3)->toDateString();
         flash()->success('Follow-up task created.');
     }
 
-    public function completeDrawerTask(int $taskId): void
+    public function completeDrawerTask(int $taskId, TaskService $taskService): void
     {
-        Task::where('credentialing_case_id', $this->selectedCaseId)
-            ->findOrFail($taskId)
-            ->markComplete();
+        $task = Task::where('credentialing_case_id', $this->selectedCaseId)->findOrFail($taskId);
+        $this->authorize('update', $task);
+        $taskService->complete($task, Auth::guard('admin')->id());
     }
 
-    public function render(TaskSyncService $taskSync)
+    public function render(TaskSyncService $taskSync, BillingReadinessService $billing)
     {
         $query = CredentialingCase::with([
             'provider.user', 'payer', 'practice', 'status', 'delayOwner', 'assignedAdmin', 'priority',
         ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
 
-        if ($this->search) {
-            $search = '%' . trim($this->search) . '%';
+        if (trim($this->caseSearch) !== '') {
+            $search = '%' . trim($this->caseSearch) . '%';
             $query->where(function ($q) use ($search) {
                 $q->where('case_number', 'like', $search)
                     ->orWhere('state', 'like', $search)
@@ -246,6 +358,26 @@ class CredentialListPage extends Component
 
         if ($this->filterStatusId) {
             $query->where('status_id', (int) $this->filterStatusId);
+        }
+
+        if ($this->filterOwnerId) {
+            $query->where('assigned_admin_id', (int) $this->filterOwnerId);
+        }
+
+        if ($this->filterState) {
+            $query->where('state', $this->filterState);
+        }
+
+        if ($this->filterRevalidation === '30') {
+            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(30)]);
+        } elseif ($this->filterRevalidation === '60') {
+            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(60)]);
+        } elseif ($this->filterRevalidation === '90') {
+            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(90)]);
+        }
+
+        if ($this->filterRecentlySubmitted) {
+            $query->where('submission_date', '>=', now()->subDays(14)->toDateString());
         }
 
         $query->filterCategory($this->filterCategory ?: null);
@@ -278,10 +410,15 @@ class CredentialListPage extends Component
 
         $delayOwners = DelayOwner::where('is_active', true)->orderBy('name')->get();
         $emailTemplates = NotificationTemplate::where('is_active', true)->orderBy('name')->get();
-        $admins = \App\Models\Admin::orderBy('name')->get(['id', 'name']);
+        $admins = \App\Models\Admin::assignable()->get(['id', 'name', 'username']);
+
+        $priorities = \App\Models\Priority::where('is_active', true)->orderBy('sort_order')->get();
 
         return view('livewire.admin.credential.credential-list-page', compact(
-            'cases', 'stats', 'statuses', 'payers', 'selectedCase', 'delayOwners', 'emailTemplates', 'admins'
-        ))->with('taskTypeLabel', fn (string $type) => $taskSync->taskTypeLabel($type));
+            'cases', 'stats', 'statuses', 'payers', 'selectedCase', 'delayOwners', 'emailTemplates', 'admins', 'priorities'
+        ))->with([
+            'taskTypeLabel' => fn (string $type) => $taskSync->taskTypeLabel($type),
+            'billingService' => $billing,
+        ]);
     }
 }

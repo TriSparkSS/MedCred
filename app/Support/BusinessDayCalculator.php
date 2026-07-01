@@ -27,11 +27,15 @@ class BusinessDayCalculator
 
     public function isBusinessDay(Carbon $date): bool
     {
-        if (config('credentialing.business_days.exclude_weekends', true) && $date->isWeekend()) {
+        $calendar = \App\Models\BusinessCalendar::default();
+
+        if ($calendar?->exclude_weekends && $date->isWeekend()) {
             return false;
         }
 
-        $holidays = config('credentialing.business_days.holidays', []);
+        $holidays = $calendar
+            ? $calendar->holidays()->pluck('date')->map(fn ($d) => $d->toDateString())->all()
+            : config('credentialing.business_days.holidays', []);
 
         return ! in_array($date->toDateString(), $holidays, true);
     }

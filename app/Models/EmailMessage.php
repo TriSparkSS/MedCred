@@ -10,6 +10,7 @@ class EmailMessage extends Model
 {
     protected $fillable = [
         'credentialing_case_id',
+        'provider_id',
         'notification_template_id',
         'sent_by_admin_id',
         'direction',
@@ -21,6 +22,9 @@ class EmailMessage extends Model
         'subject',
         'body',
         'status',
+        'queue_category',
+        'is_unlinked',
+        'has_pending_attachments',
         'sent_at',
         'received_at',
         'error_message',
@@ -29,6 +33,8 @@ class EmailMessage extends Model
     protected $casts = [
         'sent_at' => 'datetime',
         'received_at' => 'datetime',
+        'is_unlinked' => 'boolean',
+        'has_pending_attachments' => 'boolean',
     ];
 
     public function credentialingCase(): BelongsTo
@@ -63,7 +69,30 @@ class EmailMessage extends Model
 
     public function scopeUnlinked($query)
     {
-        return $query->whereNull('credentialing_case_id');
+        return $query->where(function ($q) {
+            $q->whereNull('credentialing_case_id')->orWhere('is_unlinked', true);
+        });
+    }
+
+    public function scopeForQueue($query, string $queue)
+    {
+        return match ($queue) {
+            'inbox' => $query->inbound()->where('queue_category', 'inbox'),
+            'unlinked' => $query->unlinked(),
+            'provider_responses' => $query->where('queue_category', 'provider_responses'),
+            'payer_responses' => $query->where('queue_category', 'payer_responses'),
+            'attachments_pending' => $query->where('has_pending_attachments', true),
+            'replies_awaited' => $query->where('queue_category', 'replies_awaited'),
+            'escalation' => $query->where('queue_category', 'escalation'),
+            'failed' => $query->whereIn('status', ['failed', 'bounced']),
+            'sent' => $query->outbound(),
+            default => $query,
+        };
+    }
+
+    public function provider(): BelongsTo
+    {
+        return $this->belongsTo(ProviderDetails::class, 'provider_id');
     }
 
     public function isLinked(): bool

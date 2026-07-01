@@ -9,6 +9,7 @@ use App\Models\DocumentType;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Task;
+use App\Services\DocumentService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -39,6 +40,10 @@ class DocumentListPage extends Component
     public $versionNotes = '';
 
     public $formData = [];
+
+    public $rejectionReason = '';
+
+    public $rejectDocumentId = null;
 
     protected function rules(): array
     {
@@ -97,12 +102,12 @@ class DocumentListPage extends Component
         });
     }
 
-    public function saveDocument(): void
+    public function saveDocument(DocumentService $documentService): void
     {
         $this->validate();
 
         $adminId = Auth::guard('admin')->id();
-        $document = Document::createWithFile($this->formData, $this->uploadFile, $adminId);
+        $document = $documentService->upload($this->formData, $this->uploadFile, $adminId);
 
         if ($document->credentialing_case_id) {
             $case = CredentialingCase::find($document->credentialing_case_id);
@@ -138,6 +143,31 @@ class DocumentListPage extends Component
 
         $this->showVersionModal = false;
         flash()->success('New version uploaded.');
+    }
+
+    public function verifyDocument(int $id, DocumentService $documentService): void
+    {
+        $documentService->verify(Document::findOrFail($id), Auth::guard('admin')->id());
+        flash()->success('Document verified.');
+    }
+
+    public function openRejectModal(int $id): void
+    {
+        $this->rejectDocumentId = $id;
+        $this->rejectionReason = '';
+    }
+
+    public function rejectDocument(DocumentService $documentService): void
+    {
+        $this->validate(['rejectionReason' => 'required|string|max:1000']);
+        $documentService->reject(
+            Document::findOrFail($this->rejectDocumentId),
+            $this->rejectionReason,
+            Auth::guard('admin')->id()
+        );
+        $this->rejectDocumentId = null;
+        $this->rejectionReason = '';
+        flash()->success('Document rejected.');
     }
 
     public function deleteDocument(int $id): void

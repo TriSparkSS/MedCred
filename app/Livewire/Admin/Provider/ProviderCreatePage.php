@@ -22,13 +22,15 @@ class ProviderCreatePage extends Component
 
     public $licensedStatesInput = '';
 
+    public $npiDuplicateWarning = '';
+
     protected $rules = [
         'userData.name' => 'required|string|max:255',
         'userData.email' => 'required|email|unique:users,email',
         'userData.phone' => 'nullable|string|max:30',
         'userData.password' => 'required|string|min:6',
         'formData.specialty_id' => 'nullable|exists:specialties,id',
-        'formData.npi' => 'required|string|max:50|unique:provider_details,npi',
+        'formData.npi' => 'required|string|max:50',
         'formData.caqh_id' => 'nullable|numeric|digits_between:1,15',
         'formData.license_number' => 'nullable|string|max:50|regex:/^[A-Za-z0-9\-]+$/',
         'formData.license_state' => 'nullable|string|max:50',
@@ -56,6 +58,15 @@ class ProviderCreatePage extends Component
     public function mount()
     {
         $this->specialties = Specialty::all();
+    }
+
+    public function updatedFormDataNpi($value): void
+    {
+        if ($value && ProviderDetails::where('npi', $value)->exists()) {
+            $this->npiDuplicateWarning = 'Warning: A provider with this NPI already exists in the system.';
+        } else {
+            $this->npiDuplicateWarning = '';
+        }
     }
 
     public function save()

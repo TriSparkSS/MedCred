@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(RunCredentialingSlaChecks::class)->dailyAt('08:00');
+Schedule::command(\App\Console\Commands\ProcessTaskDueReminders::class)->dailyAt('07:30');
+Schedule::command(\App\Console\Commands\SyncExpiryTasks::class)->dailyAt('06:00');

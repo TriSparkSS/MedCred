@@ -3,9 +3,7 @@
 namespace App\Livewire\Admin\Credential;
 
 use App\Models\Admin;
-use App\Models\CaseStatusHistory;
 use App\Models\CaseType;
-use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\Location;
 use App\Models\Payer;
@@ -13,6 +11,7 @@ use App\Models\Practice;
 use App\Models\Priority;
 use App\Models\ProviderDetails;
 use App\Models\Status;
+use App\Services\CredentialingCaseService;
 use App\Services\TaskSyncService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -25,12 +24,17 @@ class CredentialCreatePage extends Component
 
     public $practiceLocations = [];
 
+    public bool $confirmDuplicate = false;
+
+    public string $duplicateWarning = '';
+
     protected function rules(): array
     {
         return [
             'formData.provider_id' => 'required|exists:provider_details,id',
             'formData.practice_id' => 'required|exists:practices,id',
             'formData.location_id' => 'nullable|exists:locations,id',
+            'formData.provider_practice_location_id' => 'nullable|exists:provider_practice_locations,id',
             'formData.payer_id' => 'required|exists:payers,id',
             'formData.case_type_id' => 'nullable|exists:case_types,id',
             'formData.status_id' => 'required|exists:statuses,id',
@@ -69,6 +73,7 @@ class CredentialCreatePage extends Component
     public function updatedFormDataPracticeId($value): void
     {
         $this->formData['location_id'] = null;
+        $this->formData['provider_practice_location_id'] = null;
         $this->practiceLocations = $value
             ? Location::where('practice_id', $value)->orderByDesc('is_primary')->orderBy('name')->get()->toArray()
             : [];
@@ -84,36 +89,29 @@ class CredentialCreatePage extends Component
         }
     }
 
-    public function save()
+    public function save(CredentialingCaseService $caseService, TaskSyncService $taskSync)
     {
         $this->validate();
 
         $adminId = Auth::guard('admin')->id();
-        $case = CredentialingCase::create($this->formData);
 
-        CaseStatusHistory::create([
-            'credentialing_case_id' => $case->id,
-            'status_id' => $case->status_id,
-            'delay_owner_id' => $case->delay_owner_id,
-            'changed_by_admin_id' => $adminId,
-            'notes' => 'Case created',
-        ]);
+        try {
+            $case = $caseService->create($this->formData, $adminId, $this->confirmDuplicate);
+        } catch (\InvalidArgumentException $e) {
+            $this->duplicateWarning = $e->getMessage();
+            $this->confirmDuplicate = false;
+            flash()->warning($e->getMessage());
 
-        $case->addActivity('system', 'Credentialing case created', $adminId);
+            return;
+        }
 
         if ($case->notes) {
             $case->addActivity('note', $case->notes, $adminId);
         }
 
-        $case->seedDocumentChecklist();
-        $this->createMissingDocumentTasks($case, $adminId, app(TaskSyncService::class));
-
-        if ($case->status_id) {
-            app(\App\Services\DelayOwnershipService::class)->applyOnStatusChange(
-                $case->fresh(['status']),
-                \App\Models\Status::find($case->status_id),
-                $adminId
-            );
+        $case->load('documentItems.documentType');
+        foreach ($case->documentItems->where('is_required', true)->where('is_received', false) as $item) {
+            $taskSync->ensureDocumentTask($case, $item, $adminId);
         }
 
         flash()->success('Credentialing application created: ' . $case->case_number);
@@ -121,13 +119,10 @@ class CredentialCreatePage extends Component
         return redirect()->route('admin.credentials');
     }
 
-    protected function createMissingDocumentTasks(CredentialingCase $case, ?int $adminId, TaskSyncService $taskSync): void
+    public function saveAnyway(CredentialingCaseService $caseService, TaskSyncService $taskSync)
     {
-        $case->load('documentItems.documentType');
-
-        foreach ($case->documentItems->where('is_required', true)->where('is_received', false) as $item) {
-            $taskSync->ensureDocumentTask($case, $item, $adminId);
-        }
+        $this->confirmDuplicate = true;
+        $this->save($caseService, $taskSync);
     }
 
     public function render()
@@ -140,7 +135,8 @@ class CredentialCreatePage extends Component
             'statuses' => Status::where('is_active', true)->orderBy('sort_order')->get(),
             'priorities' => Priority::where('is_active', true)->orderBy('sort_order')->get(),
             'delayOwners' => DelayOwner::where('is_active', true)->orderBy('name')->get(),
-            'admins' => Admin::orderBy('name')->get(['id', 'name']),
+            'admins' => Admin::assignable()->get(['id', 'name', 'username']),
+            'duplicateWarning' => $this->duplicateWarning,
         ]);
     }
 }

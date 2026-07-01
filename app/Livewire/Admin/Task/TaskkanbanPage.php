@@ -154,6 +154,7 @@ class TaskkanbanPage extends Component
     public function render(TaskSyncService $taskSync)
     {
         $columns = [
+            'escalated' => ['label' => 'Escalated', 'color' => 'danger'],
             'overdue' => ['label' => 'Overdue', 'color' => 'danger'],
             'due_today' => ['label' => 'Due Today', 'color' => 'warning'],
             'upcoming' => ['label' => 'Upcoming', 'color' => 'info'],

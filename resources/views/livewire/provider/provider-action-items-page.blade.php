@@ -23,7 +23,15 @@
             <div class="col-sm-4">
                 <x-provider.stat-card label="Overdue Follow-ups" :value="$items['overdue_followups']->count()" valueClass="text-danger" />
             </div>
+            <div class="col-sm-4">
+                <x-provider.stat-card label="Open Tasks" :value="$items['provider_tasks']->count()" />
+            </div>
         </div>
+
+        <x-portal.tasks-table
+            :tasks="$items['provider_tasks']"
+            :documents-route="can_do('portal.documents.view') ? route('provider.documents') : null"
+        />
 
         <div class="row g-4">
             <div class="col-lg-6">

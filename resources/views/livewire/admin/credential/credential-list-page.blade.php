@@ -56,8 +56,9 @@
                         <label class="form-label small text-muted mb-1">Search</label>
                         <div class="input-group">
                             <span class="input-group-text bg-white"><i class="ti tabler-search"></i></span>
-                            <input type="search" wire:model.live.debounce.300ms="search" class="form-control"
-                                placeholder="Case #, provider, practice, NPI, payer...">
+                            <input type="search" wire:model.live.debounce.300ms="caseSearch" class="form-control"
+                                placeholder="Case #, provider, practice, NPI, payer..."
+                                autocomplete="off">
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -81,16 +82,46 @@
                     <div class="col-md-2">
                         <button type="button" wire:click="clearFilters"
                             class="btn btn-outline-secondary w-100"
-                            @disabled(! ($search || $filterCategory || $filterPayerId || $filterStatusId))>
+                            @disabled(! $this->hasActiveFilters())>
                             Clear
                         </button>
+                    </div>
+                </div>
+                <div class="row g-3 align-items-end mt-1">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Assigned To (Staff)</label>
+                        <select wire:model.live="filterOwnerId" class="form-select">
+                            <option value="">All Owners</option>
+                            @foreach ($admins as $admin)
+                                <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">State</label>
+                        <input type="text" wire:model.live.debounce.300ms="filterState" class="form-control" placeholder="e.g. TX" maxlength="2">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Revalidation Due</label>
+                        <select wire:model.live="filterRevalidation" class="form-select">
+                            <option value="">Any</option>
+                            <option value="30">Next 30 days</option>
+                            <option value="60">Next 60 days</option>
+                            <option value="90">Next 90 days</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input type="checkbox" wire:model.live="filterRecentlySubmitted" class="form-check-input" id="recentSubmitted">
+                            <label class="form-check-label small" for="recentSubmitted">Recently submitted (14d)</label>
+                        </div>
                     </div>
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
                     <button type="button" wire:click="setFilterCategory('escalated')" class="btn btn-sm {{ $filterCategory === 'escalated' ? 'btn-danger' : 'btn-outline-danger' }}">Escalated</button>
                     <button type="button" wire:click="setFilterCategory('internal')" class="btn btn-sm {{ $filterCategory === 'internal' ? 'btn-primary' : 'btn-outline-primary' }}">Internal</button>
                     <button type="button" wire:click="setFilterCategory('approved')" class="btn btn-sm {{ $filterCategory === 'approved' ? 'btn-success' : 'btn-outline-success' }}">Approved</button>
-                    @if ($search || $filterCategory || $filterPayerId || $filterStatusId)
+                    @if ($this->hasActiveFilters())
                         <span class="text-muted small ms-auto">
                             {{ $cases->total() }} result{{ $cases->total() !== 1 ? 's' : '' }}
                         </span>
@@ -100,7 +131,7 @@
         </div>
 
         {{-- Applications Table --}}
-        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="search,filterPayerId,filterStatusId,filterCategory,clearFilters,setFilterCategory">
+        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,openDrawer,closeDrawer,toggleEscalation,updateCaseStatus,inlineUpdate">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
@@ -117,7 +148,7 @@
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody wire:key="case-rows-{{ md5($caseSearch.$filterPayerId.$filterStatusId.$filterCategory.$filterOwnerId.$filterState.$cases->currentPage()) }}">
                         @forelse($cases as $case)
                             @php
                                 $isOverdue = $case->isOverdue();
@@ -141,13 +172,21 @@
                                         @endforeach
                                     </select>
                                 </td>
-                                <td><small>{{ $case->assignedAdmin->name ?? 'Unassigned' }}</small></td>
-                                <td>
-                                    @if($case->delayOwner)
-                                        <span class="badge bg-label-secondary">{{ $case->delayOwner->name }}</span>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
+                                <td style="min-width: 140px;">
+                                    <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'assigned_admin_id', $event.target.value)">
+                                        <option value="">Unassigned</option>
+                                        @foreach ($admins as $admin)
+                                            <option value="{{ $admin->id }}" @selected($case->assigned_admin_id == $admin->id)>{{ $admin->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td style="min-width: 130px;">
+                                    <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'delay_owner_id', $event.target.value)">
+                                        <option value="">—</option>
+                                        @foreach ($delayOwners as $owner)
+                                            <option value="{{ $owner->id }}" @selected($case->delay_owner_id == $owner->id)>{{ $owner->name }}</option>
+                                        @endforeach
+                                    </select>
                                 </td>
                                 <td><span class="fw-semibold">{{ $case->aging_days }}d</span></td>
                                 <td>
@@ -200,9 +239,18 @@
                         <h5 class="offcanvas-title fw-bold">{{ $selectedCase->case_number }}</h5>
                         <small class="text-muted">{{ $selectedCase->provider->user->name ?? '' }} · {{ $selectedCase->payer->name ?? '' }}</small>
                     </div>
-                    <button type="button" class="btn-close" wire:click="closeDrawer"></button>
+                    <button type="button" class="btn-close" wire:click="closeDrawer" aria-label="Close"></button>
                 </div>
                 <div class="offcanvas-body">
+                    <ul class="nav nav-pills nav-fill mb-3 small">
+                        @foreach (['details' => 'Details', 'documents' => 'Docs', 'communication' => 'Comms', 'tasks' => 'Tasks', 'billing' => 'Billing', 'timeline' => 'Timeline'] as $key => $label)
+                            <li class="nav-item">
+                                <button type="button" class="nav-link {{ $drawerTab === $key ? 'active' : '' }}" wire:click="setDrawerTab('{{ $key }}')">{{ $label }}</button>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    @if ($drawerTab === 'details')
                     {{-- Status update --}}
                     <div class="mb-4">
                         <label class="form-label fw-medium">Status</label>
@@ -227,7 +275,35 @@
                         </div>
                     </div>
 
-                    {{-- Document Checklist --}}
+                    <div class="mb-4">
+                        <h6 class="fw-semibold mb-2">Delay Ownership</h6>
+                        <p class="small text-muted mb-2">Current: <strong>{{ $selectedCase->delayOwner->name ?? 'Unassigned' }}</strong></p>
+                        @if ($selectedCase->slaTimers->isNotEmpty())
+                            <div class="small text-muted mb-2">
+                                @foreach ($selectedCase->slaTimers as $timer)
+                                    <div>{{ str_replace('_', ' ', $timer->rule_key) }} — due {{ $timer->due_at->format('m/d/Y') }}</div>
+                                @endforeach
+                            </div>
+                        @endif
+                        <select wire:model="drawerDelayOwnerId" class="form-select form-select-sm mb-2">
+                            <option value="">Select delay owner...</option>
+                            @foreach ($delayOwners as $owner)
+                                <option value="{{ $owner->id }}">{{ $owner->name }}</option>
+                            @endforeach
+                        </select>
+                        <input type="text" wire:model="overrideReason" class="form-control form-control-sm mb-2" placeholder="Override reason (required)">
+                        @error('overrideReason')<div class="text-danger small">{{ $message }}</div>@enderror
+                        <button type="button" wire:click="saveDelayOverride" class="btn btn-sm btn-outline-secondary">Override Delay Owner</button>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold mb-2">Add Note</h6>
+                        <textarea wire:model="newNote" rows="2" class="form-control mb-2" placeholder="Log a call, follow-up, or note..."></textarea>
+                        @error('newNote')<div class="text-danger small">{{ $message }}</div>@enderror
+                        <button type="button" wire:click="addNote" class="btn btn-sm btn-outline-primary">Add Note</button>
+                    </div>
+
+                    @elseif ($drawerTab === 'documents')
                     @php $checklist = $selectedCase->checklist_completion; @endphp
                     <div class="mb-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -261,7 +337,7 @@
                         @endif
                     </div>
 
-                    {{-- Tasks & Follow-ups --}}
+                    @elseif ($drawerTab === 'tasks')
                     <div class="mb-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="fw-semibold mb-0">Tasks & Follow-ups</h6>
@@ -299,8 +375,7 @@
                         @endforelse
                         <div class="mt-3 pt-3 border-top">
                             <label class="form-label small fw-medium mb-1">Create Follow-up Task</label>
-                            <input type="text" wire:model="newTaskTitle" class="form-control form-control-sm mb-2"
-                                placeholder="Task title...">
+                            <input type="text" wire:model="newTaskTitle" class="form-control form-control-sm mb-2" placeholder="Task title...">
                             @error('newTaskTitle')<div class="text-danger small">{{ $message }}</div>@enderror
                             <div class="row g-2 mb-2">
                                 <div class="col-6">
@@ -310,7 +385,7 @@
                                     <select wire:model="newTaskAssigneeId" class="form-select form-select-sm">
                                         <option value="">Unassigned</option>
                                         @foreach ($admins as $admin)
-                                            <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                                            <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -321,30 +396,7 @@
                         </div>
                     </div>
 
-                    {{-- Delay owner override --}}
-                    <div class="mb-4">
-                        <h6 class="fw-semibold mb-2">Delay Ownership</h6>
-                        <p class="small text-muted mb-2">Current: <strong>{{ $selectedCase->delayOwner->name ?? 'Unassigned' }}</strong></p>
-                        @if ($selectedCase->slaTimers->isNotEmpty())
-                            <div class="small text-muted mb-2">
-                                @foreach ($selectedCase->slaTimers as $timer)
-                                    <div>{{ str_replace('_', ' ', $timer->rule_key) }} — due {{ $timer->due_at->format('m/d/Y') }}</div>
-                                @endforeach
-                            </div>
-                        @endif
-                        <select wire:model="drawerDelayOwnerId" class="form-select form-select-sm mb-2">
-                            <option value="">Select delay owner...</option>
-                            @foreach ($delayOwners as $owner)
-                                <option value="{{ $owner->id }}">{{ $owner->name }}</option>
-                            @endforeach
-                        </select>
-                        <input type="text" wire:model="overrideReason" class="form-control form-control-sm mb-2"
-                            placeholder="Override reason (required)">
-                        @error('overrideReason')<div class="text-danger small">{{ $message }}</div>@enderror
-                        <button type="button" wire:click="saveDelayOverride" class="btn btn-sm btn-outline-secondary">Override Delay Owner</button>
-                    </div>
-
-                    {{-- Send email --}}
+                    @elseif ($drawerTab === 'communication')
                     <div class="mb-4">
                         <h6 class="fw-semibold mb-2">Send Email</h6>
                         <select wire:model="emailTemplateId" class="form-select form-select-sm mb-2">
@@ -353,26 +405,69 @@
                                 <option value="{{ $template->id }}">{{ $template->name }}</option>
                             @endforeach
                         </select>
-                        <button type="button" wire:click="sendDocumentRequest" class="btn btn-sm btn-primary">
+                        <button type="button" wire:click="sendDocumentRequest" class="btn btn-sm btn-primary mb-3">
                             <i class="ti tabler-mail me-1"></i>Send to Provider
                         </button>
+                        @forelse($selectedCase->emailMessages as $msg)
+                            <div class="small border-bottom py-2">
+                                <strong>{{ $msg->subject }}</strong>
+                                <div class="text-muted">{{ $msg->created_at->format('m/d/Y g:i A') }}</div>
+                            </div>
+                        @empty
+                            <p class="text-muted small">No emails linked to this case.</p>
+                        @endforelse
                     </div>
 
-                    {{-- Add note --}}
+                    @elseif ($drawerTab === 'billing')
+                    @php $missingBilling = $billingService->missingFields($selectedCase); @endphp
                     <div class="mb-4">
-                        <h6 class="fw-semibold mb-2">Add Note</h6>
-                        <textarea wire:model="newNote" rows="2" class="form-control mb-2" placeholder="Log a call, follow-up, or note..."></textarea>
-                        @error('newNote')<div class="text-danger small">{{ $message }}</div>@enderror
-                        <button type="button" wire:click="addNote" class="btn btn-sm btn-outline-primary">Add Note</button>
+                        <h6 class="fw-semibold mb-2">Billing Readiness</h6>
+                        @if ($selectedCase->ready_to_bill)
+                            <span class="badge bg-success mb-2">Ready to Bill</span>
+                        @elseif (count($missingBilling))
+                            <div class="alert alert-warning py-2 small">Missing: {{ implode(', ', $missingBilling) }}</div>
+                        @endif
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <label class="form-label">Approval Date</label>
+                                <input type="date" wire:model="billingForm.approval_date" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Effective Date</label>
+                                <input type="date" wire:model="billingForm.effective_date" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Payer Provider ID</label>
+                                <input type="text" wire:model="billingForm.payer_provider_id" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Group ID</label>
+                                <input type="text" wire:model="billingForm.payer_group_id" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">EFT Status</label>
+                                <input type="text" wire:model="billingForm.eft_status" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">ERA Status</label>
+                                <input type="text" wire:model="billingForm.era_status" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Billing Notes</label>
+                                <textarea wire:model="billingForm.billing_notes" rows="2" class="form-control form-control-sm"></textarea>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" wire:click="saveBillingFields" class="btn btn-sm btn-primary">Save</button>
+                            <button type="button" wire:click="notifyBilling" class="btn btn-sm btn-outline-success">Notify Billing</button>
+                        </div>
                     </div>
 
-                    {{-- Timeline --}}
+                    @elseif ($drawerTab === 'timeline')
                     <div class="mb-4">
                         <h6 class="fw-semibold mb-3">Activity Timeline</h6>
                         <x-admin.activity-timeline :activities="$selectedCase->activities" />
                     </div>
-
-                    {{-- Status History --}}
                     <div>
                         <h6 class="fw-semibold mb-3">Status History</h6>
                         @foreach($selectedCase->statusHistories as $history)
@@ -383,6 +478,7 @@
                             </div>
                         @endforeach
                     </div>
+                    @endif
                 </div>
             </div>
             <div class="offcanvas-backdrop fade show" wire:click="closeDrawer" style="z-index: 1080;"></div>

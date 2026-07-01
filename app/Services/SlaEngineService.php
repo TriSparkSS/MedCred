@@ -215,4 +215,17 @@ class SlaEngineService
     {
         return $case->status && in_array($case->status->dashboard_category, ['approved', 'closed'], true);
     }
+
+    public function startTimersForCase(CredentialingCase $case): void
+    {
+        $case->loadMissing('status');
+        if ($case->status) {
+            $this->syncTimersForCase($case, $case->status);
+        }
+    }
+
+    public function processDueTimers(): array
+    {
+        return $this->runDueChecks();
+    }
 }

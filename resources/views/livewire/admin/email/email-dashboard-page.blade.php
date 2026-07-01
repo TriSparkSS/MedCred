@@ -9,6 +9,9 @@
             <button wire:click="openComposeModal" class="btn btn-primary">
                 <i class="ti tabler-send me-1"></i>Compose Email
             </button>
+            <button wire:click="syncMailbox" class="btn btn-outline-secondary">
+                <i class="ti tabler-refresh me-1"></i>Sync Mailbox
+            </button>
         </div>
     </div>
 
@@ -60,9 +63,14 @@
                 <div class="col-md-4">
                     <select wire:model.live="filter" class="form-select">
                         <option value="all">All Messages</option>
-                        <option value="outbound">Outbound</option>
-                        <option value="inbound">Inbound</option>
+                        <option value="inbox">Inbox</option>
+                        <option value="sent">Sent</option>
                         <option value="unlinked">Unlinked</option>
+                        <option value="provider_responses">Provider Responses</option>
+                        <option value="payer_responses">Payer Responses</option>
+                        <option value="attachments_pending">Attachments Pending</option>
+                        <option value="replies_awaited">Replies Awaited</option>
+                        <option value="escalation">Escalation</option>
                         <option value="failed">Failed / Bounced</option>
                     </select>
                 </div>

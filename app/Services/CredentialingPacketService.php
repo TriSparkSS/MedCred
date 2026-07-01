@@ -15,8 +15,9 @@ class CredentialingPacketService
             'provider.user',
             'practice',
             'payer',
+            'documentItems.documentType',
             'documentItems.document.currentVersion',
-            'documents.versions' => fn ($q) => $q->where('is_current', true),
+            'documents.currentVersion',
         ]);
 
         $files = collect();
@@ -44,7 +45,7 @@ class CredentialingPacketService
         }
 
         $providerDocs = Document::where('provider_id', $case->provider_id)
-            ->with(['versions' => fn ($q) => $q->where('is_current', true)])
+            ->with('currentVersion')
             ->get();
 
         foreach ($providerDocs as $document) {

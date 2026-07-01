@@ -26,6 +26,10 @@ class AdminAuthMiddleware
             }
 
         }
+
+        if ($guard === 'admin' && Auth::guard('admin')->check()) {
+            Auth::shouldUse('admin');
+        }
         // dd(auth());
         // if ($guard === 'admin' && Auth::guard('admin')->check()) {
         //     LoginLog::touchCurrentSession(Auth::guard('admin')->user(), 'admin', $request);
