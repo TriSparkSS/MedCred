@@ -122,8 +122,19 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Folder</label>
+                                <label class="form-label">Inbox Folder</label>
                                 <input type="text" wire:model="imap_folder" class="form-control" placeholder="INBOX">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch mb-2">
+                                    <input type="checkbox" class="form-check-input" id="imap_sent_enabled" wire:model="imap_sent_enabled">
+                                    <label class="form-check-label" for="imap_sent_enabled">Sync Sent folder (Office 365: Sent Items)</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sent Folder</label>
+                                <input type="text" wire:model="imap_sent_folder" class="form-control @error('imap_sent_folder') is-invalid @enderror" placeholder="Sent Items" @disabled(!$imap_sent_enabled)>
+                                @error('imap_sent_folder')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
                                 <label class="form-label">IMAP Username</label>
@@ -177,11 +188,22 @@
                     </div>
                 </div>
 
-                <div class="alert alert-info mt-4 small mb-0">
+                <div class="alert alert-warning mt-4 small mb-0">
+                    <strong>If IMAP test shows "AUTHENTICATE failed" but SMTP works:</strong><br>
+                    Microsoft 365 treats SMTP and IMAP separately. SMTP password auth may work while IMAP password auth is disabled for your tenant.<br><br>
+                    <strong>Ask your M365 admin to:</strong>
+                    <ol class="mb-2 ps-3">
+                        <li>Open <strong>Microsoft 365 Admin → Users</strong> → select <code>credentialing@…</code> → <strong>Mail</strong> → <strong>Manage email apps</strong> → enable <strong>IMAP</strong>.</li>
+                        <li>In <strong>Exchange Admin Center</strong>, confirm IMAP is allowed for the organization (not blocked by an authentication policy).</li>
+                        <li>If IMAP still fails, the tenant likely requires <strong>OAuth (Modern Auth)</strong> for IMAP — password-only IMAP is not supported. Contact your developer to add OAuth or Microsoft Graph sync.</li>
+                    </ol>
+                    IMAP: outlook.office365.com · Port 993 · SSL · Username = full mailbox email
+                </div>
+
+                <div class="alert alert-info mt-3 small mb-0">
                     <strong>Office 365 reference:</strong><br>
                     SMTP: smtp.office365.com · Port 587 · STARTTLS<br>
-                    IMAP: outlook.office365.com · Port 993 · SSL<br>
-                    Authentication: Required (IMAP must be enabled in Microsoft 365 admin)
+                    IMAP inbox: INBOX · Sent folder: Sent Items
                 </div>
             </div>
         </div>

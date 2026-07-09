@@ -72,7 +72,72 @@ test('send email does not error when optional ids are empty strings', function (
         ->set('composeTemplateId', '')
         ->call('sendEmail')
         ->assertSet('showComposeModal', false)
-        ->assertSet('filter', 'sent');
+        ->assertSet('filter', 'sent')
+        ->assertSet('search', '');
+});
+
+test('failed compose send keeps modal open and switches to failed filter', function () {
+    $admin = Admin::where('username', 'superadmin')->first();
+
+    $failedMessage = new EmailMessage([
+        'status' => 'failed',
+        'error_message' => 'SMTP auth failed',
+        'subject' => 'Test Subject',
+        'to_address' => 'test@example.com',
+    ]);
+
+    $this->mock(CredentialingEmailService::class, function ($mock) use ($failedMessage) {
+        $mock->shouldReceive('stats')->andReturn([
+            'total_sent' => 0,
+            'inbox_count' => 0,
+            'pending_replies' => 0,
+            'unlinked_inbound' => 0,
+            'bounced_failed' => 0,
+            'reminders_sent' => 0,
+        ]);
+        $mock->shouldReceive('send')
+            ->once()
+            ->andReturn($failedMessage);
+    });
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EmailDashboardPage::class)
+        ->set('search', 'hidden-term')
+        ->call('openComposeModal')
+        ->set('composeTo', 'test@example.com')
+        ->set('composeSubject', 'Test Subject')
+        ->set('composeBody', 'Test body')
+        ->call('sendEmail')
+        ->assertSet('showComposeModal', true)
+        ->assertSet('filter', 'failed')
+        ->assertSet('search', '');
+});
+
+test('compose send surfaces configuration exceptions', function () {
+    $admin = Admin::where('username', 'superadmin')->first();
+
+    $this->mock(CredentialingEmailService::class, function ($mock) {
+        $mock->shouldReceive('stats')->andReturn([
+            'total_sent' => 0,
+            'inbox_count' => 0,
+            'pending_replies' => 0,
+            'unlinked_inbound' => 0,
+            'bounced_failed' => 0,
+            'reminders_sent' => 0,
+        ]);
+        $mock->shouldReceive('send')
+            ->once()
+            ->andThrow(new RuntimeException('SMTP is not configured.'));
+    });
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EmailDashboardPage::class)
+        ->call('openComposeModal')
+        ->set('composeTo', 'test@example.com')
+        ->set('composeSubject', 'Test Subject')
+        ->set('composeBody', 'Test body')
+        ->call('sendEmail')
+        ->assertSet('showComposeModal', true);
 });
 
 test('compose shows permission error for users without send access', function () {

@@ -36,11 +36,17 @@ class MailSettingsService
 
     public const KEY_IMAP_FOLDER = 'mail.imap.folder';
 
+    public const KEY_IMAP_SENT_ENABLED = 'mail.imap.sent.enabled';
+
+    public const KEY_IMAP_SENT_FOLDER = 'mail.imap.sent.folder';
+
     public const KEY_IMAP_USERNAME = 'mail.imap.username';
 
     public const KEY_IMAP_LAST_SYNC_AT = 'mail.imap_last_sync_at';
 
     public const KEY_IMAP_LAST_UID = 'mail.imap_last_uid';
+
+    public const KEY_IMAP_SENT_LAST_UID = 'mail.imap.last_uid.sent';
 
     public function defaults(): array
     {
@@ -59,6 +65,8 @@ class MailSettingsService
             'imap_port' => 993,
             'imap_encryption' => 'ssl',
             'imap_folder' => 'INBOX',
+            'imap_sent_enabled' => true,
+            'imap_sent_folder' => 'Sent Items',
             'imap_username' => 'credentialing@revantagehbs.com',
         ];
     }
@@ -98,9 +106,12 @@ class MailSettingsService
             'imap_port' => $imapPort,
             'imap_encryption' => Setting::getDecrypted(self::KEY_IMAP_ENCRYPTION, $defaults['imap_encryption']) ?? $defaults['imap_encryption'],
             'imap_folder' => Setting::getDecrypted(self::KEY_IMAP_FOLDER, $defaults['imap_folder']) ?? $defaults['imap_folder'],
+            'imap_sent_enabled' => filter_var(Setting::getDecrypted(self::KEY_IMAP_SENT_ENABLED, $defaults['imap_sent_enabled'] ? '1' : '0'), FILTER_VALIDATE_BOOLEAN),
+            'imap_sent_folder' => Setting::getDecrypted(self::KEY_IMAP_SENT_FOLDER, $defaults['imap_sent_folder']) ?? $defaults['imap_sent_folder'],
             'imap_username' => Setting::getDecrypted(self::KEY_IMAP_USERNAME, $defaults['imap_username']) ?? $defaults['imap_username'],
             'imap_last_sync_at' => Setting::getDecrypted(self::KEY_IMAP_LAST_SYNC_AT),
             'imap_last_uid' => (int) (Setting::getDecrypted(self::KEY_IMAP_LAST_UID, '0') ?? 0),
+            'imap_sent_last_uid' => (int) (Setting::getDecrypted(self::KEY_IMAP_SENT_LAST_UID, '0') ?? 0),
         ];
     }
 
@@ -158,6 +169,12 @@ class MailSettingsService
         if (array_key_exists('imap_folder', $data)) {
             Setting::set(self::KEY_IMAP_FOLDER, $data['imap_folder'] ?? 'INBOX');
         }
+        if (array_key_exists('imap_sent_enabled', $data)) {
+            Setting::set(self::KEY_IMAP_SENT_ENABLED, ($data['imap_sent_enabled'] ?? false) ? '1' : '0');
+        }
+        if (array_key_exists('imap_sent_folder', $data)) {
+            Setting::set(self::KEY_IMAP_SENT_FOLDER, $data['imap_sent_folder'] ?? 'Sent Items');
+        }
         if (array_key_exists('imap_username', $data)) {
             Setting::set(self::KEY_IMAP_USERNAME, $data['imap_username'] ?? '');
         }
@@ -169,10 +186,15 @@ class MailSettingsService
         $this->applyToConfig();
     }
 
-    public function setImapLastSync(int $uid): void
+    public function setImapLastSync(int $uid, ?string $uidKey = null): void
     {
-        Setting::set(self::KEY_IMAP_LAST_UID, (string) $uid);
+        Setting::set($uidKey ?? self::KEY_IMAP_LAST_UID, (string) $uid);
         Setting::set(self::KEY_IMAP_LAST_SYNC_AT, now()->toIso8601String());
+    }
+
+    public function setImapLastSyncForFolder(string $uidKey, int $uid): void
+    {
+        $this->setImapLastSync($uid, $uidKey);
     }
 
     public function applyToConfig(): void
@@ -242,6 +264,8 @@ class MailSettingsService
         return $settings['imap_enabled']
             && filled($settings['imap_host'])
             && filled($settings['imap_username'])
+            && filled($settings['imap_folder'])
+            && (! $settings['imap_sent_enabled'] || filled($settings['imap_sent_folder']))
             && ($settings['has_password'] || filled($settings['password']));
     }
 
@@ -257,11 +281,36 @@ class MailSettingsService
             'username' => $settings['imap_username'] ?: $settings['username'],
             'password' => $settings['password'],
             'protocol' => 'imap',
+            'timeout' => 30,
         ];
     }
 
+    public function formatImapError(\Throwable $e): string
+    {
+        $message = $e->getMessage();
+
+        if (! $this->isImapAuthFailure($message)) {
+            return $message;
+        }
+
+        return $message . ' — Microsoft 365 often allows SMTP with a password but blocks IMAP password login. '
+            . 'Your M365 admin must: (1) enable IMAP for this mailbox under Users → Mail → Manage email apps; '
+            . '(2) confirm the tenant still allows IMAP basic auth, or plan OAuth/Graph API (password-only IMAP is being retired). '
+            . 'Use the same email and password as SMTP; re-save mail settings if the password was changed.';
+    }
+
+    public function isImapAuthFailure(string $message): bool
+    {
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, 'authenticate failed')
+            || str_contains($normalized, 'authentication failed')
+            || str_contains($normalized, 'login failed')
+            || str_contains($normalized, 'auth failed');
+    }
+
     /**
-     * @return array{success: bool, message_count: int, folder: string}
+     * @return array{success: bool, message_count: int, folder: string, folders: array<int, array{folder: string, message_count: int}>}
      */
     public function testImapConnection(): array
     {
@@ -270,18 +319,44 @@ class MailSettingsService
         }
 
         $settings = $this->getSettings();
-        $client = (new ClientManager)->make($this->imapClientConfig());
-        $client->connect();
 
-        $folder = $client->getFolder($settings['imap_folder']);
-        $count = $folder->messages()->all()->count();
+        if (! filled($settings['password'])) {
+            throw new \RuntimeException('IMAP password is missing. Re-enter the mailbox password and save settings.');
+        }
+
+        $client = (new ClientManager)->make($this->imapClientConfig());
+
+        try {
+            $client->connect();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException($this->formatImapError($e), previous: $e);
+        }
+
+        $foldersToTest = [$settings['imap_folder']];
+        if ($settings['imap_sent_enabled'] && filled($settings['imap_sent_folder'])) {
+            $foldersToTest[] = $settings['imap_sent_folder'];
+        }
+
+        $folderResults = [];
+        $totalCount = 0;
+
+        foreach (array_unique($foldersToTest) as $folderName) {
+            $folder = $client->getFolder($folderName);
+            $count = $folder->messages()->all()->count();
+            $folderResults[] = [
+                'folder' => $folderName,
+                'message_count' => $count,
+            ];
+            $totalCount += $count;
+        }
 
         $client->disconnect();
 
         return [
             'success' => true,
-            'message_count' => $count,
+            'message_count' => $totalCount,
             'folder' => $settings['imap_folder'],
+            'folders' => $folderResults,
         ];
     }
 

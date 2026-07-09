@@ -40,6 +40,10 @@ class MailSettingsManager extends Component
 
     public string $imap_folder = 'INBOX';
 
+    public bool $imap_sent_enabled = true;
+
+    public string $imap_sent_folder = 'Sent Items';
+
     public string $imap_username = '';
 
     public string $testEmailTo = '';
@@ -62,6 +66,8 @@ class MailSettingsManager extends Component
         $this->imap_port = $settings['imap_port'];
         $this->imap_encryption = $settings['imap_encryption'];
         $this->imap_folder = $settings['imap_folder'];
+        $this->imap_sent_enabled = $settings['imap_sent_enabled'];
+        $this->imap_sent_folder = $settings['imap_sent_folder'];
         $this->imap_username = $settings['imap_username'];
         $this->testEmailTo = Auth::guard('admin')->user()?->email ?? '';
     }
@@ -83,6 +89,8 @@ class MailSettingsManager extends Component
             'imap_port' => 'required_if:imap_enabled,true|nullable|integer|min:1|max:65535',
             'imap_encryption' => 'required_if:imap_enabled,true|nullable|in:ssl,tls,none',
             'imap_folder' => 'nullable|string|max:255',
+            'imap_sent_enabled' => 'boolean',
+            'imap_sent_folder' => 'required_if:imap_sent_enabled,true|nullable|string|max:255',
             'imap_username' => 'nullable|email|max:255',
             'testEmailTo' => 'nullable|email|max:255',
         ];
@@ -128,6 +136,8 @@ class MailSettingsManager extends Component
             'imap_port' => $this->imap_port,
             'imap_encryption' => $this->imap_encryption,
             'imap_folder' => $this->imap_folder ?: 'INBOX',
+            'imap_sent_enabled' => $this->imap_sent_enabled,
+            'imap_sent_folder' => $this->imap_sent_folder ?: 'Sent Items',
             'imap_username' => $this->imap_username ?: $this->username,
         ];
     }
@@ -183,9 +193,12 @@ class MailSettingsManager extends Component
             }
 
             $result = $mailSettings->testImapConnection();
-            flash()->success("IMAP connected. Folder \"{$result['folder']}\" has {$result['message_count']} message(s).");
+            $folderSummary = collect($result['folders'] ?? [])
+                ->map(fn (array $folder) => "\"{$folder['folder']}\" ({$folder['message_count']})")
+                ->implode(', ');
+            flash()->success('IMAP connected. Folders: ' . $folderSummary . '.');
         } catch (\Throwable $e) {
-            flash()->error('IMAP test failed: ' . $e->getMessage());
+            flash()->error('IMAP test failed: ' . $mailSettings->formatImapError($e));
         }
     }
 

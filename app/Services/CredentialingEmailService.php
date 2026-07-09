@@ -167,6 +167,40 @@ class CredentialingEmailService
         return $message->fresh();
     }
 
+    public function logOutboundFromImap(array $data, ?int $adminId = null): EmailMessage
+    {
+        $message = EmailMessage::create([
+            'credentialing_case_id' => $data['credentialing_case_id'] ?? null,
+            'provider_id' => $data['provider_id'] ?? null,
+            'direction' => 'outbound',
+            'thread_id' => $data['thread_id'] ?? null,
+            'external_message_id' => $data['external_message_id'] ?? $data['message_id'] ?? null,
+            'message_id' => $data['message_id'] ?? null,
+            'in_reply_to' => $data['in_reply_to'] ?? null,
+            'references' => $data['references'] ?? null,
+            'imap_uid' => $data['imap_uid'] ?? null,
+            'from_address' => $data['from_address'],
+            'to_address' => $data['to_address'] ?? config('credentialing.mailbox.from_address'),
+            'subject' => $data['subject'],
+            'body' => $data['body'],
+            'status' => 'sent',
+            'queue_category' => 'sent',
+            'sent_at' => $data['sent_at'] ?? now(),
+            'has_pending_attachments' => $data['has_pending_attachments'] ?? false,
+            'is_unlinked' => empty($data['credentialing_case_id']),
+        ]);
+
+        if ($message->credentialing_case_id) {
+            $message->credentialingCase?->addActivity(
+                'email',
+                'Sent email imported from mailbox: ' . $message->subject,
+                $adminId
+            );
+        }
+
+        return $message->fresh();
+    }
+
     /**
      * @return array{imported: int, skipped: int, errors: array<int, string>}
      */

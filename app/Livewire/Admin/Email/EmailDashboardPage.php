@@ -235,54 +235,75 @@ class EmailDashboardPage extends Component
         $this->sanitizeComposeFields();
         $this->normalizeOptionalIds();
 
-        $this->validate([
+        $this->validate($this->composeRules());
+
+        try {
+            $case = $this->composeCaseId ? CredentialingCase::find($this->composeCaseId) : null;
+            $template = $this->composeTemplateId ? NotificationTemplate::find($this->composeTemplateId) : null;
+            $inReplyTo = filled($this->composeInReplyTo) ? $this->composeInReplyTo : null;
+            $threadId = filled($this->composeThreadId) ? $this->composeThreadId : null;
+
+            if ($template && $case) {
+                $message = $emailService->sendFromTemplate(
+                    $case,
+                    $template,
+                    $this->composeTo,
+                    Auth::guard('admin')->id(),
+                    null,
+                    [],
+                    $inReplyTo,
+                    $threadId,
+                );
+            } else {
+                $message = $emailService->send(
+                    $case,
+                    $this->composeTo,
+                    $this->composeSubject,
+                    $this->composeBody,
+                    Auth::guard('admin')->id(),
+                    $template,
+                    null,
+                    $inReplyTo,
+                    $threadId,
+                );
+            }
+
+            if ($message->status === 'failed') {
+                flash()->error('Email failed: ' . ($message->error_message ?? 'Unknown error'));
+                $this->filter = 'failed';
+                $this->search = '';
+                $this->resetPage();
+
+                return;
+            }
+
+            $this->closeComposeModal();
+            $this->filter = 'sent';
+            $this->search = '';
+            $this->resetPage();
+            flash()->success('Email sent successfully.');
+        } catch (\Throwable $e) {
+            flash()->error('Email failed: ' . $e->getMessage());
+        }
+    }
+
+    protected function composeRules(): array
+    {
+        $rules = [
             'composeTo' => 'required|email',
             'composeSubject' => 'required|string|max:255',
             'composeBody' => 'required|string|max:10000',
-            'composeCaseId' => 'nullable|exists:credentialing_cases,id',
-            'composeTemplateId' => 'nullable|exists:notification_templates,id',
-        ]);
+        ];
 
-        $case = $this->composeCaseId ? CredentialingCase::find($this->composeCaseId) : null;
-        $template = $this->composeTemplateId ? NotificationTemplate::find($this->composeTemplateId) : null;
-        $inReplyTo = filled($this->composeInReplyTo) ? $this->composeInReplyTo : null;
-        $threadId = filled($this->composeThreadId) ? $this->composeThreadId : null;
-
-        if ($template && $case) {
-            $message = $emailService->sendFromTemplate(
-                $case,
-                $template,
-                $this->composeTo,
-                Auth::guard('admin')->id(),
-                null,
-                [],
-                $inReplyTo,
-                $threadId,
-            );
-        } else {
-            $message = $emailService->send(
-                $case,
-                $this->composeTo,
-                $this->composeSubject,
-                $this->composeBody,
-                Auth::guard('admin')->id(),
-                $template,
-                null,
-                $inReplyTo,
-                $threadId,
-            );
+        if (filled($this->composeCaseId)) {
+            $rules['composeCaseId'] = 'exists:credentialing_cases,id';
         }
 
-        if ($message->status === 'failed') {
-            flash()->error('Email failed: ' . ($message->error_message ?? 'Unknown error'));
-
-            return;
+        if (filled($this->composeTemplateId)) {
+            $rules['composeTemplateId'] = 'exists:notification_templates,id';
         }
 
-        $this->closeComposeModal();
-        $this->filter = 'sent';
-        $this->resetPage();
-        flash()->success('Email sent successfully.');
+        return $rules;
     }
 
     public function importAttachment(int $attachmentId, CredentialingEmailService $emailService): void
@@ -323,7 +344,7 @@ class EmailDashboardPage extends Component
     public function render(CredentialingEmailService $emailService, MailSettingsService $mailSettings)
     {
         $query = EmailMessage::with(['credentialingCase.provider.user', 'notificationTemplate', 'sentByAdmin', 'attachments'])
-            ->latest();
+            ->orderByRaw('COALESCE(sent_at, received_at, created_at) DESC');
 
         $queueFilters = [
             'all', 'inbox', 'sent', 'unlinked', 'provider_responses', 'payer_responses',

@@ -308,7 +308,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" wire:click="closeComposeModal">Cancel</button>
-                            <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="sendEmail">
+                            <button type="submit" class="btn btn-primary" @disabled(! $smtpConfigured) wire:loading.attr="disabled" wire:target="sendEmail">
                                 <span wire:loading.remove wire:target="sendEmail">Send Email</span>
                                 <span wire:loading wire:target="sendEmail">Sending...</span>
                             </button>

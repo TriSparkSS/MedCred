@@ -27,6 +27,8 @@ class MailSettingsSeeder extends Seeder
             'imap_port' => $defaults['imap_port'],
             'imap_encryption' => $defaults['imap_encryption'],
             'imap_folder' => $defaults['imap_folder'],
+            'imap_sent_enabled' => $defaults['imap_sent_enabled'],
+            'imap_sent_folder' => $defaults['imap_sent_folder'],
             'imap_username' => $defaults['imap_username'],
         ]);
     }

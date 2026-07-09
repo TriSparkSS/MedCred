@@ -6,6 +6,7 @@ use App\Models\EmailAttachment;
 use App\Models\EmailMessage;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Webklex\PHPIMAP\Client;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Message;
 
@@ -28,60 +29,100 @@ class ImapMailboxService
 
         $settings = $this->mailSettings->getSettings();
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
-        $maxUid = $settings['imap_last_uid'];
+
+        $folders = [
+            [
+                'folder' => $settings['imap_folder'],
+                'direction' => 'inbound',
+                'uid_key' => MailSettingsService::KEY_IMAP_LAST_UID,
+                'last_uid' => $settings['imap_last_uid'],
+            ],
+        ];
+
+        if ($settings['imap_sent_enabled'] && filled($settings['imap_sent_folder'])) {
+            $folders[] = [
+                'folder' => $settings['imap_sent_folder'],
+                'direction' => 'outbound',
+                'uid_key' => MailSettingsService::KEY_IMAP_SENT_LAST_UID,
+                'last_uid' => $settings['imap_sent_last_uid'],
+            ];
+        }
 
         $client = (new ClientManager)->make($this->mailSettings->imapClientConfig());
 
         try {
             $client->connect();
-            $folder = $client->getFolder($settings['imap_folder']);
 
-            $query = $folder->messages()->all()->setFetchOrder('asc');
-
-            if ($settings['imap_last_uid'] > 0) {
-                $messages = $query->get()->filter(fn (Message $m) => (int) $m->getUid() > $settings['imap_last_uid']);
-            } else {
-                $since = now()->subDays(30);
-                $messages = $folder->messages()->since($since)->get();
-            }
-
-            foreach ($messages as $imapMessage) {
-                try {
-                    $uid = (int) $imapMessage->getUid();
-                    if ($uid > $maxUid) {
-                        $maxUid = $uid;
-                    }
-
-                    $parsed = $this->parseMessage($imapMessage);
-
-                    if ($this->isDuplicate($parsed)) {
-                        $result['skipped']++;
-
-                        continue;
-                    }
-
-                    $threadData = $this->resolveThread($parsed);
-                    $parsed = array_merge($parsed, $threadData);
-
-                    $emailMessage = $this->emailService->logInbound($parsed);
-                    $this->storeAttachments($imapMessage, $emailMessage);
-
-                    $result['imported']++;
-                } catch (\Throwable $e) {
-                    $result['errors'][] = $e->getMessage();
-                }
-            }
-
-            if ($maxUid > $settings['imap_last_uid']) {
-                $this->mailSettings->setImapLastSync($maxUid);
-            } elseif ($result['imported'] > 0) {
-                $this->mailSettings->setImapLastSync($settings['imap_last_uid'] ?: $maxUid);
+            foreach ($folders as $folderConfig) {
+                $folderResult = $this->syncFolder($client, $folderConfig);
+                $result['imported'] += $folderResult['imported'];
+                $result['skipped'] += $folderResult['skipped'];
+                $result['errors'] = array_merge($result['errors'], $folderResult['errors']);
             }
         } finally {
             try {
                 $client->disconnect();
             } catch (\Throwable) {
             }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array{folder: string, direction: string, uid_key: string, last_uid: int}  $folderConfig
+     * @return array{imported: int, skipped: int, errors: array<int, string>}
+     */
+    protected function syncFolder(Client $client, array $folderConfig): array
+    {
+        $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $maxUid = $folderConfig['last_uid'];
+        $folder = $client->getFolder($folderConfig['folder']);
+
+        if ($folderConfig['last_uid'] > 0) {
+            $messages = $folder->messages()->all()->setFetchOrder('asc')->get()
+                ->filter(fn (Message $m) => (int) $m->getUid() > $folderConfig['last_uid']);
+        } else {
+            $since = now()->subDays(30);
+            $messages = $folder->messages()->since($since)->get();
+        }
+
+        foreach ($messages as $imapMessage) {
+            try {
+                $uid = (int) $imapMessage->getUid();
+                if ($uid > $maxUid) {
+                    $maxUid = $uid;
+                }
+
+                $parsed = $this->parseMessage($imapMessage);
+
+                if ($this->isDuplicate($parsed)) {
+                    $result['skipped']++;
+
+                    continue;
+                }
+
+                $threadData = $this->resolveThread($parsed);
+                $parsed = array_merge($parsed, $threadData);
+
+                if ($folderConfig['direction'] === 'outbound') {
+                    $emailMessage = $this->emailService->logOutboundFromImap($parsed);
+                } else {
+                    $emailMessage = $this->emailService->logInbound($parsed);
+                }
+
+                $this->storeAttachments($imapMessage, $emailMessage);
+
+                $result['imported']++;
+            } catch (\Throwable $e) {
+                $result['errors'][] = $folderConfig['folder'] . ': ' . $e->getMessage();
+            }
+        }
+
+        if ($maxUid > $folderConfig['last_uid']) {
+            $this->mailSettings->setImapLastSyncForFolder($folderConfig['uid_key'], $maxUid);
+        } elseif ($result['imported'] > 0) {
+            $this->mailSettings->setImapLastSyncForFolder($folderConfig['uid_key'], $folderConfig['last_uid'] ?: $maxUid);
         }
 
         return $result;
@@ -108,6 +149,7 @@ class ImapMailboxService
             ->implode(' ');
 
         $body = $imapMessage->getTextBody() ?: strip_tags((string) $imapMessage->getHTMLBody());
+        $messageDate = $imapMessage->getDate()?->toDate() ?? now();
 
         return [
             'message_id' => $messageId,
@@ -119,7 +161,8 @@ class ImapMailboxService
             'to_address' => $toAddress,
             'subject' => (string) $imapMessage->getSubject(),
             'body' => trim($body),
-            'received_at' => $imapMessage->getDate()?->toDate() ?? now(),
+            'received_at' => $messageDate,
+            'sent_at' => $messageDate,
         ];
     }
 
@@ -144,13 +187,28 @@ class ImapMailboxService
 
     protected function isDuplicate(array $parsed): bool
     {
-        if (blank($parsed['message_id'])) {
+        $normalized = $this->normalizeMessageIdForComparison($parsed['message_id'] ?? null);
+
+        if (blank($normalized)) {
             return false;
         }
 
-        return EmailMessage::where('message_id', $parsed['message_id'])
-            ->orWhere('external_message_id', $parsed['message_id'])
+        $bracketed = '<' . $normalized . '>';
+
+        return EmailMessage::where('message_id', $normalized)
+            ->orWhere('message_id', $bracketed)
+            ->orWhere('external_message_id', $normalized)
+            ->orWhere('external_message_id', $bracketed)
             ->exists();
+    }
+
+    protected function normalizeMessageIdForComparison(?string $id): ?string
+    {
+        if (blank($id)) {
+            return null;
+        }
+
+        return trim($id, '<>');
     }
 
     /**
@@ -164,8 +222,18 @@ class ImapMailboxService
         ]);
 
         foreach ($parentIds as $parentId) {
-            $parent = EmailMessage::where('message_id', $parentId)
-                ->orWhere('external_message_id', $parentId)
+            $normalized = $this->normalizeMessageIdForComparison($parentId);
+            $bracketed = $normalized ? '<' . $normalized . '>' : null;
+
+            $parent = EmailMessage::query()
+                ->when($normalized, function ($query) use ($normalized, $bracketed) {
+                    $query->where(function ($q) use ($normalized, $bracketed) {
+                        $q->where('message_id', $normalized)
+                            ->orWhere('message_id', $bracketed)
+                            ->orWhere('external_message_id', $normalized)
+                            ->orWhere('external_message_id', $bracketed);
+                    });
+                })
                 ->first();
 
             if ($parent) {
