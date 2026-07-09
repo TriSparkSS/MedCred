@@ -88,6 +88,29 @@ class MailSettingsManager extends Component
         ];
     }
 
+    protected function rulesForTest(): array
+    {
+        $rules = $this->rules();
+        $rules['testEmailTo'] = 'required|email|max:255';
+
+        return $rules;
+    }
+
+    protected function persistSettingsBeforeTest(MailSettingsService $mailSettings): bool
+    {
+        if (! $this->hasPassword && blank($this->password)) {
+            $this->addError('password', 'SMTP password is required. Enter the password or save settings first.');
+
+            return false;
+        }
+
+        $mailSettings->saveSettings($this->settingsPayload());
+        $this->password = '';
+        $this->hasPassword = true;
+
+        return true;
+    }
+
     protected function settingsPayload(): array
     {
         return [
@@ -129,15 +152,11 @@ class MailSettingsManager extends Component
 
     public function sendTest(MailSettingsService $mailSettings): void
     {
-        $this->validate([
-            'testEmailTo' => 'required|email|max:255',
-        ]);
+        $this->validate($this->rulesForTest());
 
         try {
-            if (filled($this->password)) {
-                $mailSettings->saveSettings($this->settingsPayload());
-                $this->password = '';
-                $this->hasPassword = true;
+            if (! $this->persistSettingsBeforeTest($mailSettings)) {
+                return;
             }
 
             $message = $mailSettings->sendTestEmail($this->testEmailTo);
@@ -156,11 +175,11 @@ class MailSettingsManager extends Component
 
     public function testImap(MailSettingsService $mailSettings): void
     {
+        $this->validate($this->rules());
+
         try {
-            if (filled($this->password)) {
-                $mailSettings->saveSettings($this->settingsPayload());
-                $this->password = '';
-                $this->hasPassword = true;
+            if (! $this->persistSettingsBeforeTest($mailSettings)) {
+                return;
             }
 
             $result = $mailSettings->testImapConnection();

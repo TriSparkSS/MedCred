@@ -19,6 +19,8 @@ class CredentialingTemplateMail extends Mailable
         public string $mailBody,
         public ?string $messageId = null,
         public ?string $inReplyTo = null,
+        public ?string $fromAddress = null,
+        public ?string $fromName = null,
     ) {}
 
     public function envelope(): Envelope
@@ -26,8 +28,8 @@ class CredentialingTemplateMail extends Mailable
         return new Envelope(
             subject: $this->mailSubject,
             from: new Address(
-                config('mail.from.address'),
-                config('mail.from.name')
+                $this->fromAddress ?? config('mail.from.address'),
+                $this->fromName ?? config('mail.from.name')
             ),
         );
     }
@@ -42,7 +44,7 @@ class CredentialingTemplateMail extends Mailable
         }
 
         return new Headers(
-            messageId: $this->messageId,
+            messageId: $this->messageId ? trim($this->messageId, '<>') : null,
             text: $text,
         );
     }

@@ -65,6 +65,18 @@ class MailSettingsService
 
     public function getSettings(): array
     {
+        $settings = $this->loadSettingsFromStorage();
+        $settings['from_address'] = $this->resolveFromAddress($settings);
+        $settings['from_name'] = $this->resolveFromName($settings);
+
+        return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function loadSettingsFromStorage(): array
+    {
         $defaults = $this->defaults();
 
         $port = (int) (Setting::getDecrypted(self::KEY_PORT, (string) $defaults['port']) ?? $defaults['port']);
@@ -90,6 +102,34 @@ class MailSettingsService
             'imap_last_sync_at' => Setting::getDecrypted(self::KEY_IMAP_LAST_SYNC_AT),
             'imap_last_uid' => (int) (Setting::getDecrypted(self::KEY_IMAP_LAST_UID, '0') ?? 0),
         ];
+    }
+
+    public function resolveFromAddress(?array $settings = null): string
+    {
+        $settings ??= $this->loadSettingsFromStorage();
+        $defaults = $this->defaults();
+
+        $from = trim($settings['from_address'] ?? '');
+        if (filled($from)) {
+            return $from;
+        }
+
+        $username = trim($settings['username'] ?? '');
+        if (filled($username)) {
+            return $username;
+        }
+
+        return config('credentialing.mailbox.from_address', $defaults['from_address']);
+    }
+
+    public function resolveFromName(?array $settings = null): string
+    {
+        $settings ??= $this->loadSettingsFromStorage();
+        $defaults = $this->defaults();
+
+        $name = trim($settings['from_name'] ?? '');
+
+        return filled($name) ? $name : ($defaults['from_name'] ?? 'Revantage Credentialing');
     }
 
     public function saveSettings(array $data): void
@@ -143,6 +183,8 @@ class MailSettingsService
             return;
         }
 
+        $fromAddress = $this->resolveFromAddress($settings);
+        $fromName = $this->resolveFromName($settings);
         $scheme = $settings['scheme'] ?: (($settings['port'] === 465) ? 'smtps' : 'smtp');
 
         config([
@@ -153,10 +195,10 @@ class MailSettingsService
             'mail.mailers.smtp.scheme' => $scheme,
             'mail.mailers.smtp.username' => $settings['username'],
             'mail.mailers.smtp.password' => $settings['password'],
-            'mail.from.address' => $settings['from_address'],
-            'mail.from.name' => $settings['from_name'],
-            'credentialing.mailbox.from_address' => $settings['from_address'],
-            'credentialing.mailbox.from_name' => $settings['from_name'],
+            'mail.from.address' => $fromAddress,
+            'mail.from.name' => $fromName,
+            'credentialing.mailbox.from_address' => $fromAddress,
+            'credentialing.mailbox.from_name' => $fromName,
         ]);
 
         if (app()->bound('mail.manager')) {
@@ -166,12 +208,22 @@ class MailSettingsService
 
     public function isConfigured(): bool
     {
-        $settings = $this->getSettings();
+        $settings = $this->loadSettingsFromStorage();
 
         return $settings['enabled']
             && filled($settings['host'])
             && filled($settings['username'])
+            && filled($this->resolveFromAddress($settings))
             && ($settings['has_password'] || filled($settings['password']));
+    }
+
+    public function assertFromConfigured(): void
+    {
+        $settings = $this->loadSettingsFromStorage();
+
+        if (! filled($this->resolveFromAddress($settings))) {
+            throw new \RuntimeException('From email address is required. Set it in Admin → Settings → Mail.');
+        }
     }
 
     public function assertConfigured(): void
@@ -179,6 +231,8 @@ class MailSettingsService
         if (! $this->isConfigured()) {
             throw new \RuntimeException('SMTP is not configured. Save mail settings at Admin → Settings → Mail.');
         }
+
+        $this->assertFromConfigured();
     }
 
     public function isImapConfigured(): bool

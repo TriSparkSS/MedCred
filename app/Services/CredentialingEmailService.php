@@ -59,7 +59,17 @@ class CredentialingEmailService
         $mailSettings->applyToConfig();
         $mailSettings->assertConfigured();
 
-        $from = config('mail.from.address');
+        $from = $mailSettings->resolveFromAddress();
+        $fromName = $mailSettings->resolveFromName();
+
+        if (blank($from)) {
+            throw new \RuntimeException('From email address is required. Set it in Admin → Settings → Mail.');
+        }
+
+        if (blank($toAddress)) {
+            throw new \RuntimeException('Recipient email address is required.');
+        }
+
         $resolvedThreadId = $threadId ?? ($case ? 'case-' . $case->id : Str::uuid()->toString());
         $messageId = $this->generateMessageId();
 
@@ -81,7 +91,14 @@ class CredentialingEmailService
         ]);
 
         try {
-            Mail::to($toAddress)->send(new CredentialingTemplateMail($subject, $body, $messageId, $inReplyTo));
+            Mail::to($toAddress)->send(new CredentialingTemplateMail(
+                $subject,
+                $body,
+                $messageId,
+                $inReplyTo,
+                $from,
+                $fromName,
+            ));
 
             $message->update([
                 'status' => 'sent',
@@ -221,9 +238,55 @@ class CredentialingEmailService
 
     protected function generateMessageId(): string
     {
-        $host = parse_url(config('app.url', 'http://localhost'), PHP_URL_HOST) ?: 'revantage-crm.local';
+        return Str::uuid() . '@' . $this->messageIdDomain();
+    }
 
-        return '<' . Str::uuid() . '@' . $host . '>';
+    protected function messageIdDomain(): string
+    {
+        $mailSettings = app(MailSettingsService::class);
+        $fromAddress = $mailSettings->resolveFromAddress();
+
+        if ($domain = $this->domainFromEmail($fromAddress)) {
+            return $domain;
+        }
+
+        $appHost = parse_url(config('app.url', 'http://localhost'), PHP_URL_HOST);
+        if ($this->isValidMessageIdDomain($appHost)) {
+            return $appHost;
+        }
+
+        $configFrom = config('credentialing.mailbox.from_address');
+        if ($domain = $this->domainFromEmail($configFrom)) {
+            return $domain;
+        }
+
+        return 'revantagehbs.com';
+    }
+
+    protected function domainFromEmail(?string $email): ?string
+    {
+        if (blank($email)) {
+            return null;
+        }
+
+        $parts = explode('@', $email);
+
+        if (count($parts) === 2 && filled($parts[1])) {
+            return strtolower($parts[1]);
+        }
+
+        return null;
+    }
+
+    protected function isValidMessageIdDomain(?string $host): bool
+    {
+        if (blank($host)) {
+            return false;
+        }
+
+        $host = strtolower($host);
+
+        return ! in_array($host, ['localhost', '127.0.0.1', '::1'], true);
     }
 
     protected function caseVariables(CredentialingCase $case): array

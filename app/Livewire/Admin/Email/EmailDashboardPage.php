@@ -110,6 +110,7 @@ class EmailDashboardPage extends Component
         $this->showThreadDrawer = false;
         $this->showLinkModal = false;
         $this->resetComposeForm();
+        $this->sanitizeComposeFields();
         $this->showComposeModal = true;
     }
 
@@ -176,8 +177,8 @@ class EmailDashboardPage extends Component
     protected function normalizeOptionalIds(): void
     {
         foreach (['linkCaseId', 'composeCaseId', 'composeTemplateId'] as $property) {
-            if ($this->{$property} === '' || $this->{$property} === null) {
-                $this->{$property} = null;
+            if ($this->{$property} === null) {
+                $this->{$property} = '';
             }
         }
     }

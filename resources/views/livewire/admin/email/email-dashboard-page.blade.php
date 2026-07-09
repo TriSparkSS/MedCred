@@ -25,7 +25,7 @@
                 @endif
             </div>
             <div class="d-flex flex-wrap gap-2">
-                <button type="button" wire:click="openComposeModal" class="btn btn-primary" @if(! $canSend) disabled @endif title="{{ $canSend ? 'Compose a new email' : 'You do not have permission to send emails' }}">
+                <button type="button" wire:click="openComposeModal" class="btn btn-primary" title="{{ $canSend ? 'Compose a new email' : 'You do not have permission to send emails' }}">
                     <i class="ti tabler-send me-1"></i>Compose Email
                 </button>
                 <button type="button" wire:click="syncMailbox" class="btn btn-outline-secondary" wire:loading.attr="disabled" wire:target="syncMailbox" @if(! $imapConfigured) disabled @endif>
@@ -191,130 +191,132 @@
         </div>
         <div class="card-footer bg-white">{{ $emails->links('livewire::bootstrap') }}</div>
     </div>
-</div>
 
-@teleport('body')
-    <div class="offcanvas offcanvas-end {{ $showThreadDrawer ? 'show' : '' }}" tabindex="-1" style="{{ $showThreadDrawer ? 'visibility: visible;' : '' }}" wire:key="email-thread-drawer">
-        <div class="offcanvas-header border-bottom">
-            <h5 class="offcanvas-title">Email Thread</h5>
-            <button type="button" class="btn-close" wire:click="closeThread" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            @forelse ($threadMessages as $msg)
-                <div class="border rounded p-3 mb-3 {{ $msg->direction === 'outbound' ? 'bg-label-primary' : 'bg-label-info' }}" wire:key="thread-msg-{{ $msg->id }}">
-                    <div class="d-flex justify-content-between small text-muted mb-2">
-                        <span>{{ $msg->direction === 'outbound' ? 'To: ' . $msg->to_address : 'From: ' . $msg->from_address }}</span>
-                        <span>{{ ($msg->sent_at ?? $msg->received_at ?? $msg->created_at)?->format('m/d/Y g:i A') }}</span>
-                    </div>
-                    <h6 class="fw-semibold">{{ $msg->subject }}</h6>
-                    <div class="small" style="white-space: pre-wrap;">{{ $msg->body }}</div>
-                    @if ($msg->attachments->isNotEmpty())
-                        <div class="mt-2">
-                            @foreach ($msg->attachments as $attachment)
-                                <span class="badge bg-secondary me-1">{{ $attachment->original_name }}</span>
-                            @endforeach
-                        </div>
-                    @endif
-                    @if ($msg->direction === 'inbound' && $canSend)
-                        <button type="button" wire:click="openReplyModal({{ $msg->id }})" class="btn btn-sm btn-primary mt-2">
-                            <i class="ti tabler-arrow-back-up me-1"></i>Reply
-                        </button>
-                    @endif
-                </div>
-            @empty
-                <p class="text-muted">No messages in this thread.</p>
-            @endforelse
-        </div>
-    </div>
     @if ($showThreadDrawer)
-        <div class="offcanvas-backdrop fade show" wire:click="closeThread"></div>
+        <div class="offcanvas offcanvas-end show" tabindex="-1" style="visibility: visible; z-index: 1090;" wire:key="email-thread-drawer">
+            <div class="offcanvas-header border-bottom">
+                <h5 class="offcanvas-title">Email Thread</h5>
+                <button type="button" class="btn-close" wire:click="closeThread" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                @forelse ($threadMessages as $msg)
+                    <div class="border rounded p-3 mb-3 {{ $msg->direction === 'outbound' ? 'bg-label-primary' : 'bg-label-info' }}" wire:key="thread-msg-{{ $msg->id }}">
+                        <div class="d-flex justify-content-between small text-muted mb-2">
+                            <span>{{ $msg->direction === 'outbound' ? 'To: ' . $msg->to_address : 'From: ' . $msg->from_address }}</span>
+                            <span>{{ ($msg->sent_at ?? $msg->received_at ?? $msg->created_at)?->format('m/d/Y g:i A') }}</span>
+                        </div>
+                        <h6 class="fw-semibold">{{ $msg->subject }}</h6>
+                        <div class="small" style="white-space: pre-wrap;">{{ $msg->body }}</div>
+                        @if ($msg->attachments->isNotEmpty())
+                            <div class="mt-2">
+                                @foreach ($msg->attachments as $attachment)
+                                    <span class="badge bg-secondary me-1">{{ $attachment->original_name }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                        @if ($msg->direction === 'inbound' && $canSend)
+                            <button type="button" wire:click="openReplyModal({{ $msg->id }})" class="btn btn-sm btn-primary mt-2">
+                                <i class="ti tabler-arrow-back-up me-1"></i>Reply
+                            </button>
+                        @endif
+                    </div>
+                @empty
+                    <p class="text-muted">No messages in this thread.</p>
+                @endforelse
+            </div>
+        </div>
+        <div class="offcanvas-backdrop fade show" wire:click="closeThread" style="z-index: 1085;"></div>
     @endif
 
-    <div class="modal fade {{ $showLinkModal ? 'show d-block' : 'd-none' }}" tabindex="-1" style="{{ $showLinkModal ? 'background: rgba(0,0,0,.5);' : '' }}" wire:click.self="closeLinkModal" wire:keydown.escape.window="closeLinkModal" wire:key="email-link-modal">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Link Email to Case</h5>
-                    <button type="button" class="btn-close" wire:click="closeLinkModal" aria-label="Close"></button>
+    @if ($showLinkModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 1090;" wire:click.self="closeLinkModal" wire:keydown.escape.window="closeLinkModal" wire:key="email-link-modal">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Link Email to Case</h5>
+                        <button type="button" class="btn-close" wire:click="closeLinkModal" aria-label="Close"></button>
+                    </div>
+                    <form wire:submit.prevent="linkEmail">
+                        <div class="modal-body">
+                            <label class="form-label">Credentialing Case</label>
+                            <select wire:model="linkCaseId" class="form-select @error('linkCaseId') is-invalid @enderror">
+                                <option value="">Select case...</option>
+                                @foreach ($cases as $case)
+                                    <option value="{{ $case->id }}">{{ $case->case_number }} — {{ $case->provider->user->name ?? '' }}</option>
+                                @endforeach
+                            </select>
+                            @error('linkCaseId')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="closeLinkModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="linkEmail">
+                                <span wire:loading.remove wire:target="linkEmail">Link Email</span>
+                                <span wire:loading wire:target="linkEmail">Linking...</span>
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                <form wire:submit.prevent="linkEmail">
-                    <div class="modal-body">
-                        <label class="form-label">Credentialing Case</label>
-                        <select wire:model="linkCaseId" class="form-select @error('linkCaseId') is-invalid @enderror">
-                            <option value="">Select case...</option>
-                            @foreach ($cases as $case)
-                                <option value="{{ $case->id }}">{{ $case->case_number }} — {{ $case->provider->user->name ?? '' }}</option>
-                            @endforeach
-                        </select>
-                        @error('linkCaseId')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="closeLinkModal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="linkEmail">
-                            <span wire:loading.remove wire:target="linkEmail">Link Email</span>
-                            <span wire:loading wire:target="linkEmail">Linking...</span>
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
-    </div>
+    @endif
 
-    <div class="modal fade {{ $showComposeModal ? 'show d-block' : 'd-none' }}" tabindex="-1" style="{{ $showComposeModal ? 'background: rgba(0,0,0,.5);' : '' }}" wire:click.self="closeComposeModal" wire:keydown.escape.window="closeComposeModal" wire:key="email-compose-modal">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">{{ $composeInReplyTo ? 'Reply' : 'Compose Email' }}</h5>
-                    <button type="button" class="btn-close" wire:click="closeComposeModal" aria-label="Close"></button>
-                </div>
-                <form wire:submit.prevent="sendEmail">
-                    <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label" for="composeCaseId">Case (optional)</label>
-                                <select id="composeCaseId" wire:model.live="composeCaseId" class="form-select">
-                                    <option value="">No case</option>
-                                    @foreach ($cases as $case)
-                                        <option value="{{ $case->id }}">{{ $case->case_number }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="composeTemplateId">Template</label>
-                                <select id="composeTemplateId" wire:model.live="composeTemplateId" class="form-select" @if($composeInReplyTo) disabled @endif>
-                                    <option value="">Custom message</option>
-                                    @foreach ($templates as $template)
-                                        <option value="{{ $template->id }}">{{ $template->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label" for="composeTo">To <span class="text-danger">*</span></label>
-                                <input id="composeTo" type="email" wire:model="composeTo" class="form-control @error('composeTo') is-invalid @enderror" autocomplete="email">
-                                @error('composeTo')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label" for="composeSubject">Subject <span class="text-danger">*</span></label>
-                                <input id="composeSubject" type="text" wire:model="composeSubject" class="form-control @error('composeSubject') is-invalid @enderror">
-                                @error('composeSubject')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label" for="composeBody">Body <span class="text-danger">*</span></label>
-                                <textarea id="composeBody" wire:model="composeBody" rows="8" class="form-control @error('composeBody') is-invalid @enderror"></textarea>
-                                @error('composeBody')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+    @if ($showComposeModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 1090;" wire:click.self="closeComposeModal" wire:keydown.escape.window="closeComposeModal" wire:key="email-compose-modal">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ $composeInReplyTo ? 'Reply' : 'Compose Email' }}</h5>
+                        <button type="button" class="btn-close" wire:click="closeComposeModal" aria-label="Close"></button>
+                    </div>
+                    <form wire:submit.prevent="sendEmail">
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="composeCaseId">Case (optional)</label>
+                                    <select id="composeCaseId" wire:model.live="composeCaseId" class="form-select">
+                                        <option value="">No case</option>
+                                        @foreach ($cases as $case)
+                                            <option value="{{ $case->id }}">{{ $case->case_number }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="composeTemplateId">Template</label>
+                                    <select id="composeTemplateId" wire:model.live="composeTemplateId" class="form-select" @if($composeInReplyTo) disabled @endif>
+                                        <option value="">Custom message</option>
+                                        @foreach ($templates as $template)
+                                            <option value="{{ $template->id }}">{{ $template->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="composeTo">To <span class="text-danger">*</span></label>
+                                    <input id="composeTo" type="email" wire:model="composeTo" class="form-control @error('composeTo') is-invalid @enderror" autocomplete="email">
+                                    @error('composeTo')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="composeSubject">Subject <span class="text-danger">*</span></label>
+                                    <input id="composeSubject" type="text" wire:model="composeSubject" class="form-control @error('composeSubject') is-invalid @enderror">
+                                    @error('composeSubject')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="composeBody">Body <span class="text-danger">*</span></label>
+                                    <textarea id="composeBody" wire:model="composeBody" rows="8" class="form-control @error('composeBody') is-invalid @enderror"></textarea>
+                                    @error('composeBody')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="closeComposeModal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="sendEmail">
-                            <span wire:loading.remove wire:target="sendEmail">Send Email</span>
-                            <span wire:loading wire:target="sendEmail">Sending...</span>
-                        </button>
-                    </div>
-                </form>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="closeComposeModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="sendEmail">
+                                <span wire:loading.remove wire:target="sendEmail">Send Email</span>
+                                <span wire:loading wire:target="sendEmail">Sending...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
-@endteleport
+    @endif
+</div>
 </div>
