@@ -7,7 +7,9 @@ use App\Models\EmailAttachment;
 use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
 use App\Services\CredentialingEmailService;
+use App\Services\MailSettingsService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -17,27 +19,42 @@ class EmailDashboardPage extends Component
 {
     use WithPagination;
 
-    public $filter = 'all';
+    public string $filter = 'all';
 
-    public $search = '';
+    public string $search = '';
 
-    public $showLinkModal = false;
+    public bool $showLinkModal = false;
 
-    public $linkEmailId = null;
+    public ?int $linkEmailId = null;
 
-    public $linkCaseId = '';
+    public string $linkCaseId = '';
 
-    public $showComposeModal = false;
+    public bool $showComposeModal = false;
 
-    public $composeCaseId = '';
+    public string $composeCaseId = '';
 
-    public $composeTemplateId = '';
+    public string $composeTemplateId = '';
 
-    public $composeTo = '';
+    public string $composeTo = '';
 
-    public $composeSubject = '';
+    public string $composeSubject = '';
 
-    public $composeBody = '';
+    public string $composeBody = '';
+
+    public string $composeInReplyTo = '';
+
+    public string $composeThreadId = '';
+
+    public bool $showThreadDrawer = false;
+
+    public ?int $threadEmailId = null;
+
+    public bool $syncing = false;
+
+    public function mount(): void
+    {
+        $this->resetComposeForm();
+    }
 
     public function updated($propertyName): void
     {
@@ -46,33 +63,123 @@ class EmailDashboardPage extends Component
         }
     }
 
+    public function setFilter(string $filter): void
+    {
+        $this->filter = $filter;
+        $this->resetPage();
+    }
+
     public function openLinkModal(int $emailId): void
     {
         $this->linkEmailId = $emailId;
         $this->linkCaseId = '';
         $this->showLinkModal = true;
+        $this->resetValidation();
+    }
+
+    public function closeLinkModal(): void
+    {
+        $this->showLinkModal = false;
+        $this->linkEmailId = null;
+        $this->linkCaseId = '';
+        $this->resetValidation();
     }
 
     public function linkEmail(CredentialingEmailService $emailService): void
     {
+        $this->normalizeOptionalIds();
+
         $this->validate(['linkCaseId' => 'required|exists:credentialing_cases,id']);
 
         $message = EmailMessage::findOrFail($this->linkEmailId);
         $case = CredentialingCase::findOrFail($this->linkCaseId);
         $emailService->linkToCase($message, $case, Auth::guard('admin')->id());
 
-        $this->showLinkModal = false;
+        $this->closeLinkModal();
         flash()->success('Email linked to case ' . $case->case_number);
     }
 
     public function openComposeModal(): void
+    {
+        if (! Auth::guard('admin')->user()?->can('admin.emails.send')) {
+            flash()->error('You do not have permission to send emails.');
+
+            return;
+        }
+
+        $this->showThreadDrawer = false;
+        $this->showLinkModal = false;
+        $this->resetComposeForm();
+        $this->showComposeModal = true;
+    }
+
+    public function openReplyModal(int $emailId): void
+    {
+        $email = EmailMessage::findOrFail($emailId);
+        $this->resetComposeForm();
+
+        $subject = $email->subject;
+        if (! str_starts_with(strtolower($subject), 're:')) {
+            $subject = 'Re: ' . $subject;
+        }
+
+        $this->composeTo = $email->from_address;
+        $this->composeSubject = $subject;
+        $this->composeCaseId = $email->credentialing_case_id ? (string) $email->credentialing_case_id : '';
+        $this->composeInReplyTo = $email->message_id ?? $email->external_message_id ?? '';
+        $this->composeThreadId = $email->thread_id ?? '';
+        $this->composeBody = "\n\n---\nOn " . ($email->received_at ?? $email->created_at)?->format('m/d/Y g:i A') . ", {$email->from_address} wrote:\n" . Str::limit($email->body, 500);
+
+        $this->showComposeModal = true;
+        $this->showThreadDrawer = false;
+    }
+
+    public function closeComposeModal(): void
+    {
+        $this->showComposeModal = false;
+        $this->resetComposeForm();
+        $this->resetValidation();
+    }
+
+    protected function resetComposeForm(): void
     {
         $this->composeCaseId = '';
         $this->composeTemplateId = '';
         $this->composeTo = '';
         $this->composeSubject = '';
         $this->composeBody = '';
-        $this->showComposeModal = true;
+        $this->composeInReplyTo = '';
+        $this->composeThreadId = '';
+    }
+
+    public function openThread(int $emailId): void
+    {
+        $this->threadEmailId = $emailId;
+        $this->showThreadDrawer = true;
+    }
+
+    public function closeThread(): void
+    {
+        $this->showThreadDrawer = false;
+        $this->threadEmailId = null;
+    }
+
+    protected function sanitizeComposeFields(): void
+    {
+        foreach (['composeTo', 'composeSubject', 'composeBody', 'composeInReplyTo', 'composeThreadId'] as $field) {
+            if ($this->{$field} === 'undefined' || $this->{$field} === 'null') {
+                $this->{$field} = '';
+            }
+        }
+    }
+
+    protected function normalizeOptionalIds(): void
+    {
+        foreach (['linkCaseId', 'composeCaseId', 'composeTemplateId'] as $property) {
+            if ($this->{$property} === '' || $this->{$property} === null) {
+                $this->{$property} = null;
+            }
+        }
     }
 
     public function updatedComposeTemplateId($value): void
@@ -112,30 +219,69 @@ class EmailDashboardPage extends Component
             $this->updatedComposeTemplateId($this->composeTemplateId);
         } elseif ($value) {
             $case = CredentialingCase::with('provider.user')->find($value);
-            $this->composeTo = $case->provider->user->email ?? '';
+            $this->composeTo = $case?->provider?->user?->email ?? '';
         }
     }
 
     public function sendEmail(CredentialingEmailService $emailService): void
     {
+        if (! Auth::guard('admin')->user()?->can('admin.emails.send')) {
+            flash()->error('You do not have permission to send emails.');
+
+            return;
+        }
+
+        $this->sanitizeComposeFields();
+        $this->normalizeOptionalIds();
+
         $this->validate([
             'composeTo' => 'required|email',
             'composeSubject' => 'required|string|max:255',
             'composeBody' => 'required|string|max:10000',
             'composeCaseId' => 'nullable|exists:credentialing_cases,id',
+            'composeTemplateId' => 'nullable|exists:notification_templates,id',
         ]);
 
         $case = $this->composeCaseId ? CredentialingCase::find($this->composeCaseId) : null;
         $template = $this->composeTemplateId ? NotificationTemplate::find($this->composeTemplateId) : null;
+        $inReplyTo = filled($this->composeInReplyTo) ? $this->composeInReplyTo : null;
+        $threadId = filled($this->composeThreadId) ? $this->composeThreadId : null;
 
         if ($template && $case) {
-            $emailService->sendFromTemplate($case, $template, $this->composeTo, Auth::guard('admin')->id());
+            $message = $emailService->sendFromTemplate(
+                $case,
+                $template,
+                $this->composeTo,
+                Auth::guard('admin')->id(),
+                null,
+                [],
+                $inReplyTo,
+                $threadId,
+            );
         } else {
-            $emailService->send($case, $this->composeTo, $this->composeSubject, $this->composeBody, Auth::guard('admin')->id(), $template);
+            $message = $emailService->send(
+                $case,
+                $this->composeTo,
+                $this->composeSubject,
+                $this->composeBody,
+                Auth::guard('admin')->id(),
+                $template,
+                null,
+                $inReplyTo,
+                $threadId,
+            );
         }
 
-        $this->showComposeModal = false;
-        flash()->success('Email queued for delivery.');
+        if ($message->status === 'failed') {
+            flash()->error('Email failed: ' . ($message->error_message ?? 'Unknown error'));
+
+            return;
+        }
+
+        $this->closeComposeModal();
+        $this->filter = 'sent';
+        $this->resetPage();
+        flash()->success('Email sent successfully.');
     }
 
     public function importAttachment(int $attachmentId, CredentialingEmailService $emailService): void
@@ -155,11 +301,25 @@ class EmailDashboardPage extends Component
 
     public function syncMailbox(): void
     {
-        \App\Jobs\SyncCredentialingMailboxJob::dispatch();
-        flash()->success('Mailbox sync queued.');
+        if ($this->syncing) {
+            return;
+        }
+
+        $this->syncing = true;
+
+        dispatch(function () {
+            try {
+                app(CredentialingEmailService::class)->syncInbox();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        })->afterResponse();
+
+        flash()->success('Mailbox sync started. Refresh in a moment to see imported messages.');
+        $this->syncing = false;
     }
 
-    public function render(CredentialingEmailService $emailService)
+    public function render(CredentialingEmailService $emailService, MailSettingsService $mailSettings)
     {
         $query = EmailMessage::with(['credentialingCase.provider.user', 'notificationTemplate', 'sentByAdmin', 'attachments'])
             ->latest();
@@ -170,11 +330,7 @@ class EmailDashboardPage extends Component
         ];
 
         if (in_array($this->filter, $queueFilters, true) && $this->filter !== 'all') {
-            if ($this->filter === 'sent') {
-                $query->outbound();
-            } else {
-                $query->forQueue($this->filter);
-            }
+            $query->forQueue($this->filter);
         }
 
         if ($this->search) {
@@ -187,11 +343,31 @@ class EmailDashboardPage extends Component
             });
         }
 
+        $threadMessages = collect();
+        if ($this->showThreadDrawer && $this->threadEmailId) {
+            $anchor = EmailMessage::find($this->threadEmailId);
+            if ($anchor?->thread_id) {
+                $threadMessages = EmailMessage::with('attachments')
+                    ->where('thread_id', $anchor->thread_id)
+                    ->orderByRaw('COALESCE(sent_at, received_at, created_at) asc')
+                    ->get();
+            } else {
+                $threadMessages = collect([$anchor])->filter();
+            }
+        }
+
+        $settings = $mailSettings->getSettings();
+
         return view('livewire.admin.email.email-dashboard-page', [
             'emails' => $query->paginate(15),
             'stats' => $emailService->stats(),
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'cases' => CredentialingCase::with('provider.user')->latest()->limit(100)->get(['id', 'case_number', 'provider_id']),
+            'smtpConfigured' => $mailSettings->isConfigured(),
+            'imapConfigured' => $mailSettings->isImapConfigured(),
+            'imapLastSyncAt' => $settings['imap_last_sync_at'],
+            'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
+            'threadMessages' => $threadMessages,
         ]);
     }
 }

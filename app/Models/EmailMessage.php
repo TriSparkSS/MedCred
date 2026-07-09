@@ -16,6 +16,10 @@ class EmailMessage extends Model
         'direction',
         'thread_id',
         'external_message_id',
+        'message_id',
+        'in_reply_to',
+        'references',
+        'imap_uid',
         'from_address',
         'to_address',
         'cc_address',
@@ -77,7 +81,8 @@ class EmailMessage extends Model
     public function scopeForQueue($query, string $queue)
     {
         return match ($queue) {
-            'inbox' => $query->inbound()->where('queue_category', 'inbox'),
+            'inbox' => $query->inbound()->whereIn('queue_category', ['inbox', 'provider_responses', 'payer_responses']),
+            'sent' => $query->outbound()->where('status', 'sent'),
             'unlinked' => $query->unlinked(),
             'provider_responses' => $query->where('queue_category', 'provider_responses'),
             'payer_responses' => $query->where('queue_category', 'payer_responses'),
@@ -85,7 +90,6 @@ class EmailMessage extends Model
             'replies_awaited' => $query->where('queue_category', 'replies_awaited'),
             'escalation' => $query->where('queue_category', 'escalation'),
             'failed' => $query->whereIn('status', ['failed', 'bounced']),
-            'sent' => $query->outbound(),
             default => $query,
         };
     }

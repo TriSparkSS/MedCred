@@ -34,6 +34,7 @@ use App\Livewire\Admin\Provider\ProviderListPage;
 use App\Livewire\Admin\ProviderPractice\ProviderPracticeAssignmentPage;
 use App\Livewire\Admin\Reports\ReportListPage;
 use App\Livewire\Admin\Setting\AdminUserManager;
+use App\Livewire\Admin\Setting\MailSettingsManager;
 use App\Livewire\Admin\Setting\SettingPage;
 use App\Livewire\Admin\Setting\Specialty\SpecialtyListPage;
 use App\Livewire\Admin\Task\TaskBoardPage;
@@ -41,10 +42,12 @@ use App\Livewire\Authenticate\LoginPage;
 use App\Livewire\Authenticate\PortalLoginPage;
 use App\Livewire\Authenticate\ProviderLoginPage;
 use App\Livewire\Provider\ProviderActionItemsPage;
+use App\Livewire\Provider\ProviderCaseDetailPage;
 use App\Livewire\Provider\ProviderCasesPage;
 use App\Livewire\Provider\ProviderDashboardPage;
 use App\Livewire\Provider\ProviderDocumentsPage;
 use App\Livewire\Practice\PracticeActionItemsPage;
+use App\Livewire\Practice\PracticeCaseDetailPage;
 use App\Livewire\Practice\PracticeCasesPage;
 use App\Livewire\Practice\PracticeDashboardPage;
 use App\Livewire\Practice\PracticeDocumentsPage;
@@ -68,6 +71,7 @@ Route::prefix('provider')->name('provider.')->middleware(['provider_auth'])->gro
     Route::redirect('profile', '/provider/cases')->name('profile');
 
     Route::get('cases', ProviderCasesPage::class)->middleware('portal.permission:portal.cases.view')->name('cases');
+    Route::get('cases/{case}', ProviderCaseDetailPage::class)->middleware('portal.permission:portal.cases.view')->name('cases.show');
     Route::get('documents', ProviderDocumentsPage::class)->middleware('portal.permission:portal.documents.view')->name('documents');
 });
 
@@ -80,6 +84,7 @@ Route::prefix('practice')->name('practice.')->middleware(['practice_auth'])->gro
     Route::redirect('profile', '/practice/cases')->name('profile');
 
     Route::get('cases', PracticeCasesPage::class)->middleware('portal.permission:portal.cases.view')->name('cases');
+    Route::get('cases/{case}', PracticeCaseDetailPage::class)->middleware('portal.permission:portal.cases.view')->name('cases.show');
     Route::get('documents', PracticeDocumentsPage::class)->middleware('portal.permission:portal.documents.view')->name('documents');
 });
 
@@ -113,6 +118,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('imports/bulk', BulkImportPage::class)->middleware('admin.permission:admin.imports.manage')->name('imports.bulk');
 
     Route::get('settings/specialties', SpecialtyListPage::class)->middleware('admin.permission:admin.settings.manage')->name('settings.specialties');
+    Route::get('settings/mail', MailSettingsManager::class)->middleware('admin.permission:admin.settings.manage')->name('settings.mail');
     Route::get('settings/users', AdminUserManager::class)->middleware('admin.permission:admin.users.manage')->name('settings.users');
 
     Route::get('payers', PayerListPage::class)->middleware('admin.permission:admin.settings.manage')->name('payers');

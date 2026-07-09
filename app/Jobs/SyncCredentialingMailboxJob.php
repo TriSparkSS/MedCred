@@ -12,8 +12,6 @@ class SyncCredentialingMailboxJob implements ShouldQueue
 
     public function handle(CredentialingEmailService $emailService): void
     {
-        if (method_exists($emailService, 'syncInbox')) {
-            $emailService->syncInbox();
-        }
+        $emailService->syncInbox();
     }
 }

@@ -96,6 +96,21 @@
                     <div class="card shadow-sm border-0 h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-start gap-3 mb-3">
+                                <span class="badge bg-info text-white rounded-3 p-2"><i
+                                        class="ti tabler-mail"></i></span>
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-bold mb-1">Mail / SMTP</h6>
+                                    <p class="text-muted mb-2">Configure Office 365 SMTP for outbound credentialing emails.</p>
+                                    <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-outline-primary">Configure Mail</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start gap-3 mb-3">
                                 <span class="badge bg-primary text-white rounded-3 p-2"><i
                                         class="ti tabler-users"></i></span>
                                 <div class="flex-grow-1">

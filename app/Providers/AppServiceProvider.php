@@ -10,8 +10,10 @@ use App\Policies\CredentialingCasePolicy;
 use App\Policies\DocumentPolicy;
 use App\Policies\ProviderPolicy;
 use App\Policies\TaskPolicy;
+use App\Services\MailSettingsService;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use App\Listeners\FollowUpEngineListener;
@@ -39,5 +41,13 @@ class AppServiceProvider extends ServiceProvider
         Event::subscribe(RecordTaskActivity::class);
         Event::subscribe(FollowUpEngineListener::class);
         Event::subscribe(TaskNotificationListener::class);
+
+        if (Schema::hasTable('settings')) {
+            try {
+                app(MailSettingsService::class)->applyToConfig();
+            } catch (\Throwable) {
+                // Settings may be unavailable during install or migration.
+            }
+        }
     }
 }

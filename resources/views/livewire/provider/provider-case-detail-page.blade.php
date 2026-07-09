@@ -1,0 +1,10 @@
+<x-portal.case-detail.shell
+    :case="$case"
+    :checklist="$checklist"
+    :grouped-tasks="$groupedTasks"
+    :active-tab="$activeTab"
+    :cases-route="$casesRoute"
+    :case-show-route="$caseShowRoute"
+    :documents-route="$documentsRoute"
+    :show-provider="$showProvider"
+/>

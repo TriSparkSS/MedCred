@@ -33,13 +33,18 @@
                             <th>Status</th>
                             <th>Checklist</th>
                             <th>Intake</th>
+                            <th width="80" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($cases as $case)
                             @php $c = $case->checklist_completion; @endphp
                             <tr wire:key="case-{{ $case->id }}">
-                                <td class="fw-semibold">{{ $case->case_number }}</td>
+                                <td class="fw-semibold">
+                                    <a href="{{ route('practice.cases.show', $case) }}" class="text-decoration-none">
+                                        {{ $case->case_number }}
+                                    </a>
+                                </td>
                                 <td>{{ $case->provider->user->name ?? '—' }}</td>
                                 <td>{{ $case->payer->name ?? '—' }}</td>
                                 <td><span class="badge bg-label-primary">{{ $case->status->name ?? '—' }}</span></td>
@@ -52,10 +57,15 @@
                                     </div>
                                 </td>
                                 <td>{{ $case->intake_date?->format('m/d/Y') ?? '—' }}</td>
+                                <td class="text-end">
+                                    <a href="{{ route('practice.cases.show', $case) }}" class="btn btn-sm btn-outline-primary" title="View details">
+                                        <i class="ti tabler-eye"></i>
+                                    </a>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-5">
+                                <td colspan="7" class="text-center text-muted py-5">
                                     <i class="ti tabler-briefcase-off d-block mb-2 fs-3"></i>
                                     No credentialing applications found.
                                 </td>

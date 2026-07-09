@@ -81,6 +81,7 @@ class PortalActionItemsService
             'pending_cases' => $pendingCases,
             'overdue_followups' => $overdueCases,
             'provider_tasks' => $providerTasks,
+            'grouped_tasks' => $this->groupTasksForKanban($providerTasks),
             'total_count' => $this->providerActionCount($provider),
         ];
     }
@@ -108,7 +109,33 @@ class PortalActionItemsService
             'pending_cases' => $pendingCases,
             'overdue_followups' => $overdueCases,
             'provider_tasks' => $practiceTasks,
+            'grouped_tasks' => $this->groupTasksForKanban($practiceTasks),
             'total_count' => $this->practiceActionCount($practice),
         ];
+    }
+
+    public function groupTasksForKanban(Collection $tasks): array
+    {
+        $columns = [
+            'overdue' => ['label' => 'Overdue', 'color' => 'danger', 'tasks' => collect()],
+            'due_today' => ['label' => 'Due Today', 'color' => 'warning', 'tasks' => collect()],
+            'upcoming' => ['label' => 'Upcoming', 'color' => 'info', 'tasks' => collect()],
+        ];
+
+        foreach ($tasks as $task) {
+            $column = $task->kanbanColumn();
+
+            if ($column === 'escalated') {
+                $column = 'overdue';
+            }
+
+            if (! isset($columns[$column])) {
+                $column = 'upcoming';
+            }
+
+            $columns[$column]['tasks']->push($task);
+        }
+
+        return $columns;
     }
 }
