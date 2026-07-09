@@ -19,6 +19,8 @@ class EmailDashboardPage extends Component
 {
     use WithPagination;
 
+    protected string $paginationTheme = 'bootstrap';
+
     public string $filter = 'all';
 
     public string $search = '';
@@ -51,9 +53,31 @@ class EmailDashboardPage extends Component
 
     public bool $syncing = false;
 
+    public ?array $notification = null;
+
     public function mount(): void
     {
         $this->resetComposeForm();
+    }
+
+    public function dismissNotification(): void
+    {
+        $this->notification = null;
+    }
+
+    protected function notify(string $type, string $message): void
+    {
+        $this->notification = [
+            'type' => match ($type) {
+                'success' => 'success',
+                'error', 'danger' => 'danger',
+                'warning' => 'warning',
+                default => 'info',
+            },
+            'message' => $message,
+        ];
+
+        flash()->{$type === 'danger' ? 'error' : $type}($message);
     }
 
     public function updated($propertyName): void
@@ -69,8 +93,24 @@ class EmailDashboardPage extends Component
         $this->resetPage();
     }
 
+    public function resetFilters(): void
+    {
+        $this->filter = 'all';
+        $this->search = '';
+        $this->resetPage();
+    }
+
+    protected function closeAllOverlays(): void
+    {
+        $this->showComposeModal = false;
+        $this->showLinkModal = false;
+        $this->showThreadDrawer = false;
+        $this->threadEmailId = null;
+    }
+
     public function openLinkModal(int $emailId): void
     {
+        $this->closeAllOverlays();
         $this->linkEmailId = $emailId;
         $this->linkCaseId = '';
         $this->showLinkModal = true;
@@ -96,19 +136,18 @@ class EmailDashboardPage extends Component
         $emailService->linkToCase($message, $case, Auth::guard('admin')->id());
 
         $this->closeLinkModal();
-        flash()->success('Email linked to case ' . $case->case_number);
+        $this->notify('success', 'Email linked to case ' . $case->case_number);
     }
 
     public function openComposeModal(): void
     {
         if (! Auth::guard('admin')->user()?->can('admin.emails.send')) {
-            flash()->error('You do not have permission to send emails.');
+            $this->notify('error', 'You do not have permission to send emails.');
 
             return;
         }
 
-        $this->showThreadDrawer = false;
-        $this->showLinkModal = false;
+        $this->closeAllOverlays();
         $this->resetComposeForm();
         $this->sanitizeComposeFields();
         $this->showComposeModal = true;
@@ -116,7 +155,14 @@ class EmailDashboardPage extends Component
 
     public function openReplyModal(int $emailId): void
     {
+        if (! Auth::guard('admin')->user()?->can('admin.emails.send')) {
+            $this->notify('error', 'You do not have permission to send emails.');
+
+            return;
+        }
+
         $email = EmailMessage::findOrFail($emailId);
+        $this->closeAllOverlays();
         $this->resetComposeForm();
 
         $subject = $email->subject;
@@ -132,7 +178,6 @@ class EmailDashboardPage extends Component
         $this->composeBody = "\n\n---\nOn " . ($email->received_at ?? $email->created_at)?->format('m/d/Y g:i A') . ", {$email->from_address} wrote:\n" . Str::limit($email->body, 500);
 
         $this->showComposeModal = true;
-        $this->showThreadDrawer = false;
     }
 
     public function closeComposeModal(): void
@@ -227,7 +272,7 @@ class EmailDashboardPage extends Component
     public function sendEmail(CredentialingEmailService $emailService): void
     {
         if (! Auth::guard('admin')->user()?->can('admin.emails.send')) {
-            flash()->error('You do not have permission to send emails.');
+            $this->notify('error', 'You do not have permission to send emails.');
 
             return;
         }
@@ -269,7 +314,7 @@ class EmailDashboardPage extends Component
             }
 
             if ($message->status === 'failed') {
-                flash()->error('Email failed: ' . ($message->error_message ?? 'Unknown error'));
+                $this->notify('error', 'Email failed: ' . ($message->error_message ?? 'Unknown error'));
                 $this->filter = 'failed';
                 $this->search = '';
                 $this->resetPage();
@@ -281,9 +326,9 @@ class EmailDashboardPage extends Component
             $this->filter = 'sent';
             $this->search = '';
             $this->resetPage();
-            flash()->success('Email sent successfully.');
+            $this->notify('success', 'Email sent successfully.');
         } catch (\Throwable $e) {
-            flash()->error('Email failed: ' . $e->getMessage());
+            $this->notify('error', 'Email failed: ' . $e->getMessage());
         }
     }
 
@@ -312,33 +357,44 @@ class EmailDashboardPage extends Component
         $message = $attachment->emailMessage;
 
         if (! $message->credentialing_case_id) {
-            flash()->error('Link the email to a case before importing attachments.');
+            $this->notify('error', 'Link the email to a case before importing attachments.');
             return;
         }
 
         $case = CredentialingCase::findOrFail($message->credentialing_case_id);
         $emailService->saveAttachmentToDocument($attachment, $case, Auth::guard('admin')->id());
-        flash()->success('Attachment saved to document repository.');
+        $this->notify('success', 'Attachment saved to document repository.');
     }
 
-    public function syncMailbox(): void
+    public function syncMailbox(CredentialingEmailService $emailService, MailSettingsService $mailSettings): void
     {
         if ($this->syncing) {
             return;
         }
 
+        if (! $mailSettings->isImapConfigured()) {
+            $this->notify('error', 'IMAP is not configured. Save IMAP settings first.');
+
+            return;
+        }
+
         $this->syncing = true;
 
-        dispatch(function () {
-            try {
-                app(CredentialingEmailService::class)->syncInbox();
-            } catch (\Throwable $e) {
-                report($e);
-            }
-        })->afterResponse();
+        try {
+            $result = $emailService->syncInbox();
 
-        flash()->success('Mailbox sync started. Refresh in a moment to see imported messages.');
-        $this->syncing = false;
+            $message = "Mailbox sync complete. Imported {$result['imported']}, skipped {$result['skipped']}.";
+            if (! empty($result['errors'])) {
+                $message .= ' Errors: ' . implode('; ', array_slice($result['errors'], 0, 2));
+            }
+
+            $this->notify('success', $message);
+            $this->resetPage();
+        } catch (\Throwable $e) {
+            $this->notify('error', 'Mailbox sync failed: ' . $mailSettings->formatImapError($e));
+        } finally {
+            $this->syncing = false;
+        }
     }
 
     public function render(CredentialingEmailService $emailService, MailSettingsService $mailSettings)

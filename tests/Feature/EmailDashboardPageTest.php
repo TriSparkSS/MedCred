@@ -140,6 +140,27 @@ test('compose send surfaces configuration exceptions', function () {
         ->assertSet('showComposeModal', true);
 });
 
+test('reset filters clears search and sets filter to all', function () {
+    $admin = Admin::where('username', 'superadmin')->first();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EmailDashboardPage::class)
+        ->set('filter', 'sent')
+        ->set('search', 'test query')
+        ->call('resetFilters')
+        ->assertSet('filter', 'all')
+        ->assertSet('search', '');
+});
+
+test('setFilter updates active filter', function () {
+    $admin = Admin::where('username', 'superadmin')->first();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EmailDashboardPage::class)
+        ->call('setFilter', 'inbox')
+        ->assertSet('filter', 'inbox');
+});
+
 test('compose shows permission error for users without send access', function () {
     $admin = Admin::create([
         'name' => 'View Only',
