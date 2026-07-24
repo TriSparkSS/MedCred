@@ -14,10 +14,21 @@
         </div>
     @endif
 
-    @if (! $imapConfigured)
+    @if (! $mailboxSyncConfigured)
         <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-            <span><i class="ti tabler-inbox me-1"></i> IMAP is not configured. Mailbox sync is disabled until IMAP settings are saved.</span>
-            <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-outline-primary">Configure IMAP</a>
+            <span><i class="ti tabler-inbox me-1"></i> Mailbox sync is not configured. Set Microsoft Graph <code>GRAPH_*</code> env vars (recommended) or save IMAP settings.</span>
+            <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-outline-primary">Configure Mail</a>
+        </div>
+    @elseif (($mailboxSyncDriver ?? 'imap') === 'graph')
+        <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 mb-4 py-2">
+            <span>
+                <i class="ti tabler-shield-check me-1"></i>
+                Syncing via Microsoft Graph OAuth 2.0
+                @if ($graphMailbox)
+                    (<code>{{ $graphMailbox }}</code>)
+                @endif
+                — inbox sync runs in batches to avoid timeouts.
+            </span>
         </div>
     @endif
 
@@ -27,16 +38,16 @@
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
                 <div>
                     <h3 class="fw-bold text-primary mb-1"><i class="ti tabler-mail me-2"></i>Email Center</h3>
-                    <p class="text-muted mb-0">Send credentialing emails, track threads, and sync your Office 365 mailbox.</p>
-                    @if ($imapLastSyncAt)
-                        <small class="text-muted d-block mt-1">Last sync: {{ \Carbon\Carbon::parse($imapLastSyncAt)->diffForHumans() }}</small>
+                    <p class="text-muted mb-0">Send credentialing emails, track threads, and sync your Office 365 mailbox via Microsoft Graph.</p>
+                    @if ($mailboxLastSyncAt)
+                        <small class="text-muted d-block mt-1">Last sync: {{ \Carbon\Carbon::parse($mailboxLastSyncAt)->diffForHumans() }}</small>
                     @endif
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-primary" wire:click="openComposeModal" @disabled(! $canSend) title="{{ $canSend ? 'Compose email' : 'No send permission' }}">
                         <i class="ti tabler-pencil me-1"></i>Compose
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" wire:click="syncMailbox" wire:loading.attr="disabled" wire:target="syncMailbox" @disabled(! $imapConfigured || $syncing)>
+                    <button type="button" class="btn btn-outline-secondary" wire:click="syncMailbox" wire:loading.attr="disabled" wire:target="syncMailbox" @disabled(! $mailboxSyncConfigured || $syncing)>
                         <span wire:loading.remove wire:target="syncMailbox"><i class="ti tabler-refresh me-1"></i>Sync Mailbox</span>
                         <span wire:loading wire:target="syncMailbox"><i class="ti tabler-loader-2 me-1"></i>Syncing...</span>
                     </button>
@@ -191,7 +202,7 @@
                                     @if ($canSend)
                                         <button type="button" class="btn btn-sm btn-primary" wire:click="openComposeModal">Compose Email</button>
                                     @endif
-                                    @if ($imapConfigured)
+                                    @if ($mailboxSyncConfigured)
                                         <button type="button" class="btn btn-sm btn-outline-secondary" wire:click="syncMailbox">Sync Mailbox</button>
                                     @endif
                                 </div>

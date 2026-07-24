@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Admin\Setting;
 
+use App\Services\GraphMailboxService;
 use App\Services\MailSettingsService;
+use App\Services\MicrosoftGraphTokenService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -202,8 +204,25 @@ class MailSettingsManager extends Component
         }
     }
 
-    public function render()
+    public function testGraph(GraphMailboxService $graphMailbox): void
     {
-        return view('livewire.admin.setting.mail-settings-manager');
+        try {
+            $result = $graphMailbox->testConnection();
+            $folderSummary = collect($result['folders'] ?? [])
+                ->map(fn (array $folder) => "\"{$folder['folder']}\" ({$folder['total_count']})")
+                ->implode(', ');
+            flash()->success('Microsoft Graph connected to '.$result['mailbox'].'. Folders: '.$folderSummary.'.');
+        } catch (\Throwable $e) {
+            flash()->error('Graph test failed: '.$e->getMessage());
+        }
+    }
+
+    public function render(MicrosoftGraphTokenService $graphToken)
+    {
+        return view('livewire.admin.setting.mail-settings-manager', [
+            'graphConfigured' => $graphToken->isConfigured(),
+            'graphMissingKeys' => $graphToken->missingConfigKeys(),
+            'graphMailbox' => config('services.microsoft_graph.mailbox'),
+        ]);
     }
 }

@@ -202,10 +202,16 @@ class CredentialingEmailService
     }
 
     /**
-     * @return array{imported: int, skipped: int, errors: array<int, string>}
+     * @return array{imported: int, skipped: int, errors: array<int, string>, has_more?: bool}
      */
-    public function syncInbox(): array
+    public function syncInbox(?int $maxMessagesPerFolder = null): array
     {
+        $graph = app(GraphMailboxService::class);
+
+        if ($graph->isConfigured()) {
+            return $graph->sync($maxMessagesPerFolder);
+        }
+
         return app(ImapMailboxService::class)->sync();
     }
 

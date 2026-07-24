@@ -372,8 +372,8 @@ class EmailDashboardPage extends Component
             return;
         }
 
-        if (! $mailSettings->isImapConfigured()) {
-            $this->notify('error', 'IMAP is not configured. Save IMAP settings first.');
+        if (! $mailSettings->isMailboxSyncConfigured()) {
+            $this->notify('error', 'Mailbox sync is not configured. Set Microsoft Graph env vars or save IMAP settings.');
 
             return;
         }
@@ -381,9 +381,17 @@ class EmailDashboardPage extends Component
         $this->syncing = true;
 
         try {
-            $result = $emailService->syncInbox();
+            $maxPerFolder = $mailSettings->mailboxSyncDriver() === 'graph'
+                ? (int) config('services.microsoft_graph.sync_ui_batch_size', 25)
+                : null;
 
-            $message = "Mailbox sync complete. Imported {$result['imported']}, skipped {$result['skipped']}.";
+            $result = $emailService->syncInbox($maxPerFolder);
+
+            $driver = $mailSettings->mailboxSyncDriver() === 'graph' ? 'Graph' : 'IMAP';
+            $message = "Mailbox sync complete ({$driver}). Imported {$result['imported']}, skipped {$result['skipped']}.";
+            if (! empty($result['has_more'])) {
+                $message .= ' More messages remain — click Sync again or wait for the scheduled job.';
+            }
             if (! empty($result['errors'])) {
                 $message .= ' Errors: ' . implode('; ', array_slice($result['errors'], 0, 2));
             }
@@ -391,7 +399,7 @@ class EmailDashboardPage extends Component
             $this->notify('success', $message);
             $this->resetPage();
         } catch (\Throwable $e) {
-            $this->notify('error', 'Mailbox sync failed: ' . $mailSettings->formatImapError($e));
+            $this->notify('error', 'Mailbox sync failed: ' . $mailSettings->formatMailboxSyncError($e));
         } finally {
             $this->syncing = false;
         }
@@ -442,8 +450,10 @@ class EmailDashboardPage extends Component
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'cases' => CredentialingCase::with('provider.user')->latest()->limit(100)->get(['id', 'case_number', 'provider_id']),
             'smtpConfigured' => $mailSettings->isConfigured(),
-            'imapConfigured' => $mailSettings->isImapConfigured(),
-            'imapLastSyncAt' => $settings['imap_last_sync_at'],
+            'mailboxSyncConfigured' => $mailSettings->isMailboxSyncConfigured(),
+            'mailboxSyncDriver' => $mailSettings->mailboxSyncDriver(),
+            'graphMailbox' => config('services.microsoft_graph.mailbox'),
+            'mailboxLastSyncAt' => $settings['imap_last_sync_at'],
             'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
             'threadMessages' => $threadMessages,
         ]);

@@ -178,10 +178,52 @@
 
                 <div class="card shadow-sm border-0 mt-4">
                     <div class="card-header bg-white">
+                        <h6 class="mb-0 fw-semibold">Microsoft Graph OAuth 2.0</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Preferred for Office 365 inbox sync. Uses client-credentials OAuth — no IMAP password required.
+                            Configure in <code>.env</code> (not stored in this form).
+                        </p>
+                        @if ($graphConfigured)
+                            <div class="alert alert-success small mb-3">
+                                <i class="ti tabler-check me-1"></i>
+                                Graph configured for <strong>{{ $graphMailbox }}</strong>. Mailbox sync will use Graph instead of IMAP.
+                            </div>
+                        @else
+                            <div class="alert alert-warning small mb-3">
+                                <i class="ti tabler-alert-triangle me-1"></i>
+                                Graph not configured.
+                                @if (! empty($graphMissingKeys))
+                                    Missing: <code>{{ implode(', ', $graphMissingKeys) }}</code>
+                                @endif
+                            </div>
+                        @endif
+                        <ol class="small text-muted ps-3 mb-3">
+                            <li>Register an Entra ID app and create a client secret.</li>
+                            <li>Add Application permission <code>Mail.Read</code> and grant admin consent.</li>
+                            <li>Set env vars carefully:
+                                <ul class="mt-1 mb-0">
+                                    <li><code>GRAPH_TENANT_ID</code> = Directory (tenant) ID (GUID)</li>
+                                    <li><code>GRAPH_CLIENT_ID</code> = Application (client) ID (GUID) — <strong>not</strong> the secret</li>
+                                    <li><code>GRAPH_CLIENT_SECRET</code> = Value from Certificates &amp; secrets (often contains <code>~</code>)</li>
+                                    <li><code>GRAPH_MAILBOX</code> = mailbox email to sync</li>
+                                </ul>
+                            </li>
+                            <li>Run <code>php artisan config:clear</code> then Test Graph below.</li>
+                        </ol>
+                        <button type="button" wire:click="testGraph" class="btn btn-outline-success w-100" @disabled(! $graphConfigured)>
+                            <i class="ti tabler-brand-onedrive me-1"></i> Test Graph Connection
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mt-4">
+                    <div class="card-header bg-white">
                         <h6 class="mb-0 fw-semibold">Test IMAP Connection</h6>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted small">Connect and count messages in the configured folder (no import).</p>
+                        <p class="text-muted small">Fallback when Graph is not configured. Connect and count messages (no import).</p>
                         <button type="button" wire:click="testImap" class="btn btn-outline-secondary w-100">
                             <i class="ti tabler-plug-connected me-1"></i> Test IMAP
                         </button>
@@ -189,21 +231,16 @@
                 </div>
 
                 <div class="alert alert-warning mt-4 small mb-0">
-                    <strong>If IMAP test shows "AUTHENTICATE failed" but SMTP works:</strong><br>
-                    Microsoft 365 treats SMTP and IMAP separately. SMTP password auth may work while IMAP password auth is disabled for your tenant.<br><br>
-                    <strong>Ask your M365 admin to:</strong>
-                    <ol class="mb-2 ps-3">
-                        <li>Open <strong>Microsoft 365 Admin → Users</strong> → select <code>credentialing@…</code> → <strong>Mail</strong> → <strong>Manage email apps</strong> → enable <strong>IMAP</strong>.</li>
-                        <li>In <strong>Exchange Admin Center</strong>, confirm IMAP is allowed for the organization (not blocked by an authentication policy).</li>
-                        <li>If IMAP still fails, the tenant likely requires <strong>OAuth (Modern Auth)</strong> for IMAP — password-only IMAP is not supported. Contact your developer to add OAuth or Microsoft Graph sync.</li>
-                    </ol>
-                    IMAP: outlook.office365.com · Port 993 · SSL · Username = full mailbox email
+                    <strong>If IMAP shows "AUTHENTICATE failed" but SMTP works:</strong><br>
+                    Use <strong>Microsoft Graph OAuth</strong> above — password IMAP is often blocked on Microsoft 365.
+                    Graph requires an Entra app with <code>Mail.Read</code> (application) + admin consent and the <code>GRAPH_*</code> env vars.
                 </div>
 
                 <div class="alert alert-info mt-3 small mb-0">
                     <strong>Office 365 reference:</strong><br>
                     SMTP: smtp.office365.com · Port 587 · STARTTLS<br>
-                    IMAP inbox: INBOX · Sent folder: Sent Items
+                    Graph sync: Inbox + Sent Items via Microsoft Graph<br>
+                    IMAP fallback: outlook.office365.com · Port 993 · SSL
                 </div>
             </div>
         </div>

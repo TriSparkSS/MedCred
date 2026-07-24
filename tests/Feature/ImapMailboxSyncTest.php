@@ -67,5 +67,5 @@ test('formatImapError adds office365 guidance for authenticate failures', functi
 
     expect($service->isImapAuthFailure('NO AUTHENTICATE failed.'))->toBeTrue()
         ->and($formatted)->toContain('Microsoft 365')
-        ->and($formatted)->toContain('Manage email apps');
+        ->and($formatted)->toContain('Microsoft Graph OAuth');
 });

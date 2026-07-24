@@ -269,6 +269,25 @@ class MailSettingsService
             && ($settings['has_password'] || filled($settings['password']));
     }
 
+    public function isMailboxSyncConfigured(): bool
+    {
+        return app(GraphMailboxService::class)->isConfigured() || $this->isImapConfigured();
+    }
+
+    public function mailboxSyncDriver(): string
+    {
+        return app(GraphMailboxService::class)->isConfigured() ? 'graph' : 'imap';
+    }
+
+    public function formatMailboxSyncError(\Throwable $e): string
+    {
+        if ($this->mailboxSyncDriver() === 'graph') {
+            return $e->getMessage();
+        }
+
+        return $this->formatImapError($e);
+    }
+
     public function imapClientConfig(): array
     {
         $settings = $this->getSettings();
@@ -294,9 +313,9 @@ class MailSettingsService
         }
 
         return $message . ' — Microsoft 365 often allows SMTP with a password but blocks IMAP password login. '
-            . 'Your M365 admin must: (1) enable IMAP for this mailbox under Users → Mail → Manage email apps; '
-            . '(2) confirm the tenant still allows IMAP basic auth, or plan OAuth/Graph API (password-only IMAP is being retired). '
-            . 'Use the same email and password as SMTP; re-save mail settings if the password was changed.';
+            . 'Prefer Microsoft Graph OAuth: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, and GRAPH_MAILBOX in .env '
+            . '(Entra app with Mail.Read application permission + admin consent). '
+            . 'IMAP fallback: enable IMAP under Users → Mail → Manage email apps, or confirm the tenant still allows IMAP basic auth.';
     }
 
     public function isImapAuthFailure(string $message): bool

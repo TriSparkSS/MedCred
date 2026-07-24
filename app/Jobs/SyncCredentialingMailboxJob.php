@@ -12,6 +12,12 @@ class SyncCredentialingMailboxJob implements ShouldQueue
 
     public function handle(CredentialingEmailService $emailService): void
     {
-        $emailService->syncInbox();
+        @set_time_limit(300);
+
+        $maxPerFolder = app(\App\Services\GraphMailboxService::class)->isConfigured()
+            ? (int) config('services.microsoft_graph.sync_batch_size', 50)
+            : null;
+
+        $emailService->syncInbox($maxPerFolder);
     }
 }

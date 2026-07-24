@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'microsoft_graph' => [
+        'tenant_id' => env('GRAPH_TENANT_ID'),
+        'client_id' => env('GRAPH_CLIENT_ID'),
+        'client_secret' => env('GRAPH_CLIENT_SECRET'),
+        'mailbox' => env('GRAPH_MAILBOX'),
+        'sync_batch_size' => (int) env('GRAPH_SYNC_BATCH_SIZE', 50),
+        'sync_ui_batch_size' => (int) env('GRAPH_SYNC_UI_BATCH_SIZE', 25),
+    ],
+
 ];
