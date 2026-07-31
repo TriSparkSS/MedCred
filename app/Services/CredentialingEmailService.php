@@ -261,9 +261,7 @@ class CredentialingEmailService
     {
         return [
             'total_sent' => EmailMessage::outbound()->where('status', 'sent')->count(),
-            'inbox_count' => EmailMessage::inbound()
-                ->whereIn('queue_category', ['inbox', 'provider_responses', 'payer_responses'])
-                ->count(),
+            'inbox_count' => EmailMessage::inbound()->count(),
             'pending_replies' => EmailMessage::outbound()
                 ->where('status', 'sent')
                 ->whereDoesntHave('credentialingCase', fn ($q) => $q)

@@ -37,6 +37,14 @@
                         @error('formData.legal_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label fw-medium">Client Code <span class="text-danger">*</span></label>
+                        <input type="text" wire:model="formData.client_code" maxlength="3"
+                            class="form-control text-uppercase @error('formData.client_code') is-invalid @enderror"
+                            placeholder="e.g. RVA" style="letter-spacing: 0.1em;">
+                        <small class="text-muted">3 letters used in case numbers (e.g. RVA-2026-0001).</small>
+                        @error('formData.client_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label fw-medium">DBA Name</label>
                         <input type="text" wire:model="formData.dba_name"
                             class="form-control @error('formData.dba_name') is-invalid @enderror"

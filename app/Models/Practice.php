@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable([
     'user_id',
     'legal_name',
+    'client_code',
     'dba_name',
     'ein_tin',
     'group_npi',
@@ -35,6 +36,12 @@ class Practice extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (Practice $practice) {
+            if (filled($practice->client_code)) {
+                $practice->client_code = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', (string) $practice->client_code) ?? '', 0, 3));
+            }
+        });
+
         static::deleting(function (Practice $practice) {
             $practice->addresses()->delete();
             $practice->contacts()->delete();

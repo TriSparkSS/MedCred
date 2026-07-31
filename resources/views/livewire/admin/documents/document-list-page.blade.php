@@ -120,13 +120,16 @@
                             </td>
                             <td>{{ $document->documentType->name ?? '—' }}</td>
                             <td class="small">
+                                @if ($document->practice)
+                                    <div><span class="text-muted">Practice:</span> {{ $document->practice->legal_name ?? 'Practice' }}</div>
+                                @endif
                                 @if ($document->provider)
-                                    <div>{{ $document->provider->user->name ?? 'Provider' }}</div>
+                                    <div><span class="text-muted">Provider:</span> {{ $document->provider->user->name ?? 'Provider' }}</div>
                                 @endif
                                 @if ($document->credentialingCase)
-                                    <div class="text-muted">{{ $document->credentialingCase->case_number }}</div>
+                                    <div class="text-muted">Case {{ $document->credentialingCase->case_number }}</div>
                                 @endif
-                                @if (! $document->provider && ! $document->credentialingCase)
+                                @if (! $document->practice && ! $document->provider && ! $document->credentialingCase)
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
@@ -216,20 +219,20 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Provider</label>
-                                    <select wire:model="formData.provider_id" class="form-select">
-                                        <option value="">None</option>
-                                        @foreach ($providers as $provider)
-                                            <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
                                     <label class="form-label">Practice</label>
                                     <select wire:model="formData.practice_id" class="form-select">
                                         <option value="">None</option>
                                         @foreach ($practices as $practice)
                                             <option value="{{ $practice->id }}">{{ $practice->legal_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Provider</label>
+                                    <select wire:model="formData.provider_id" class="form-select">
+                                        <option value="">None</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
                                         @endforeach
                                     </select>
                                 </div>

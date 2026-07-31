@@ -11,9 +11,12 @@
         @error('formData.pecos_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-4 d-flex align-items-end">
-        <div class="form-check form-switch mb-2">
-            <input type="checkbox" class="form-check-input" wire:model="formData.pecos_enrolled" id="pecosEnrolled">
-            <label class="form-check-label" for="pecosEnrolled">PECOS Enrolled</label>
+        <div class="mb-2">
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" wire:model="formData.pecos_enrolled" id="pecosEnrolled">
+                <label class="form-check-label" for="pecosEnrolled">PECOS Enrolled</label>
+            </div>
+            <small class="text-muted d-block mt-1">Indicates PECOS enrollment for Medicare; stored for reference only; does not auto-approve applications.</small>
         </div>
     </div>
     <div class="col-md-4">

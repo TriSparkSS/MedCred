@@ -21,7 +21,7 @@ class EmailDashboardPage extends Component
 
     protected string $paginationTheme = 'bootstrap';
 
-    public string $filter = 'all';
+    public string $filter = 'inbox';
 
     public string $search = '';
 
@@ -455,6 +455,7 @@ class EmailDashboardPage extends Component
             'graphMailbox' => config('services.microsoft_graph.mailbox'),
             'mailboxLastSyncAt' => $settings['imap_last_sync_at'],
             'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
+            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.manage') ?? false,
             'threadMessages' => $threadMessages,
         ]);
     }

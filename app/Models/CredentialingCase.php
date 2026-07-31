@@ -71,7 +71,7 @@ class CredentialingCase extends Model
     {
         static::creating(function (CredentialingCase $case) {
             if (empty($case->case_number)) {
-                $case->case_number = self::generateCaseNumber();
+                $case->case_number = self::generateCaseNumber($case->practice_id);
             }
             if (empty($case->intake_date)) {
                 $case->intake_date = now()->toDateString();
@@ -82,20 +82,34 @@ class CredentialingCase extends Model
         });
     }
 
-    public static function generateCaseNumber(): string
+    public static function generateCaseNumber(?int $practiceId = null): string
     {
+        $practice = $practiceId
+            ? Practice::find($practiceId)
+            : null;
+
+        $clientCode = strtoupper(trim((string) ($practice?->client_code ?? '')));
+
+        if (! preg_match('/^[A-Z]{3}$/', $clientCode)) {
+            throw new \RuntimeException(
+                'Practice client code is required (3 letters) before creating a credentialing case. Set it on the Practice.'
+            );
+        }
+
         $year = now()->format('Y');
+        $prefix = "{$clientCode}-{$year}-";
+
         $latest = self::withTrashed()
-            ->where('case_number', 'like', "APP-{$year}-%")
+            ->where('case_number', 'like', "{$prefix}%")
             ->orderByDesc('id')
             ->value('case_number');
 
         $sequence = 1;
-        if ($latest && preg_match('/APP-\d{4}-(\d+)/', $latest, $matches)) {
+        if ($latest && preg_match('/^[A-Z]{3}-\d{4}-(\d+)$/', $latest, $matches)) {
             $sequence = (int) $matches[1] + 1;
         }
 
-        return sprintf('APP-%s-%04d', $year, $sequence);
+        return sprintf('%s-%s-%04d', $clientCode, $year, $sequence);
     }
 
     public function provider(): BelongsTo

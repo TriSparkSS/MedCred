@@ -8,6 +8,7 @@ use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\DashboardPage;
 use App\Livewire\Admin\Documents\DocumentListPage;
 use App\Livewire\Admin\Email\EmailDashboardPage;
+use App\Livewire\Admin\Email\EmailViewPage;
 use App\Livewire\Admin\Imports\BulkImportPage;
 use App\Livewire\Admin\Master\BusinessCalendarManager;
 use App\Livewire\Admin\Master\CaseTypeManager;
@@ -108,6 +109,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('credentials/{case}/packet', [CredentialPacketController::class, 'download'])->middleware('admin.permission:admin.credentials.view')->name('credentials.packet');
 
     Route::get('emails', EmailDashboardPage::class)->middleware('admin.permission:admin.emails.view')->name('email.dashboard');
+    Route::get('emails/{email}', EmailViewPage::class)->middleware('admin.permission:admin.emails.view')->name('email.show');
     Route::get('documents', DocumentListPage::class)->middleware('admin.permission:admin.documents.view')->name('documents');
     Route::get('tasks/kanban', TaskBoardPage::class)->middleware('admin.permission:admin.tasks.view')->name('tasks.kanban');
 

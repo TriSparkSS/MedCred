@@ -23,6 +23,9 @@ class ProviderListPage extends Component
     public $filterSpecialty = '';
     public $filterStatus = '';
 
+    /** @var array<int, true> */
+    public array $expandedProviders = [];
+
     protected $rules = [
         'formData.user_id' => 'required|exists:users,id',
         'formData.specialty_id' => 'nullable|exists:specialties,id',
@@ -44,6 +47,15 @@ class ProviderListPage extends Component
     {
         if (in_array($propertyName, ['search', 'filterSpecialty', 'filterStatus'])) {
             $this->resetPage();
+        }
+    }
+
+    public function toggleApplications(int $providerId): void
+    {
+        if (isset($this->expandedProviders[$providerId])) {
+            unset($this->expandedProviders[$providerId]);
+        } else {
+            $this->expandedProviders[$providerId] = true;
         }
     }
 
@@ -98,7 +110,12 @@ class ProviderListPage extends Component
 
     public function render()
     {
-        $query = ProviderDetails::with('user', 'specialty');
+        $query = ProviderDetails::with([
+            'user',
+            'specialty',
+            'credentialingCases.payer',
+            'credentialingCases.status',
+        ]);
 
         if ($this->filterSpecialty) {
             $query->where('specialty_id', $this->filterSpecialty);
@@ -109,14 +126,13 @@ class ProviderListPage extends Component
         }
 
         if ($this->search) {
-            $query->whereHas('user', function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%');
-            })->whereHas('specialty', function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%');
-            })->orWhere('npi', 'like', '%' . $this->search . '%')
-                ->orWhere('practice', 'like', '%' . $this->search . '%')
-                ->orWhere('npi', 'like', '%' . $this->search . '%')
-                ->orWhere('city', 'like', '%' . $this->search . '%');
+            $term = '%' . $this->search . '%';
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term))
+                    ->orWhereHas('specialty', fn ($sq) => $sq->where('name', 'like', $term))
+                    ->orWhere('npi', 'like', $term)
+                    ->orWhere('practice', 'like', $term);
+            });
         }
 
         $query->orderBy('created_at', 'desc');

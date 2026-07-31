@@ -14,11 +14,13 @@
                             <p class="text-muted mb-0">Oversee and maintain credentialing compliance across your network.
                             </p>
                         </div>
+                        @can('admin.providers.create')
                         <div class="d-flex flex-column flex-sm-row gap-2">
                             <a href="{{ route('admin.providers.create') }}" class="btn btn-primary">
                                 <i class="ti tabler-plus me-1"></i> New Provider
                             </a>
                         </div>
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -75,7 +77,7 @@
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                             <input type="search" wire:model.live="search" class="form-control border-start-0"
-                                placeholder="Search by provider name, NPI, practice or city...">
+                                placeholder="Search by provider name, NPI, or practice...">
                         </div>
                     </div>
 
@@ -122,52 +124,49 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th scope="col" style="width: 40px;">
-                                <input class="form-check-input" type="checkbox" />
-                            </th>
+                            <th scope="col" style="width: 40px;"></th>
                             <th scope="col">Provider Name</th>
                             <th scope="col">NPI</th>
                             <th scope="col">Specialty</th>
                             <th scope="col">Practice</th>
-                            <th scope="col">City</th>
-                            <th scope="col">Status</th>
+                            <th scope="col">Applications</th>
                             <th scope="col" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($providers as $provider)
-                            <tr>
-                                <td><input class="form-check-input" type="checkbox" /></td>
+                            @php
+                                $isExpanded = isset($expandedProviders[$provider->id]);
+                                $apps = $provider->credentialingCases ?? collect();
+                            @endphp
+                            <tr wire:key="provider-{{ $provider->id }}">
                                 <td>
-                                    <div class="d-flex align-items-center gap-3">
-                                        <span class="avatar rounded-circle bg-primary text-white fw-bold"
-                                            style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-                                            {{ substr($provider->user->name ?? 'P', 0, 1) }}
-                                        </span>
-                                        <div>
-                                            <div class="fw-semibold">{{ $provider->user->name ?? 'N/A' }}</div>
-                                            <small class="text-muted">{{ $provider->specialty->name ?? 'No Specialty' }}</small>
-                                        </div>
-                                    </div>
+                                    <button type="button" class="btn btn-sm btn-link p-0 text-muted"
+                                        wire:click="toggleApplications({{ $provider->id }})"
+                                        title="{{ $isExpanded ? 'Hide' : 'Show' }} payer applications">
+                                        <i class="ti tabler-chevron-{{ $isExpanded ? 'down' : 'right' }}"></i>
+                                    </button>
                                 </td>
-                                <td> <small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small> </td>
-                                <td> <small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small> </td>
-                                <td> <small class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small> </td>
-                                <td> <small class="text-muted">{{ $provider->city ?? 'N/A' }}</small> </td>
                                 <td>
-                                    @php
-                                        $statusKey = is_object($provider->status)
-                                            ? $provider->status->value
-                                            : $provider->status;
-                                        $statusBadge = match ($statusKey) {
-                                            ProviderStatus::APPROVED->value => 'success',
-                                            ProviderStatus::PENDING->value => 'warning',
-                                            ProviderStatus::REJECTED->value => 'danger',
-                                            default => 'secondary',
-                                        };
-                                    @endphp
-                                    <span
-                                        class="badge bg-label-{{ $statusBadge }} text-uppercase">{{ strtoupper($provider->status?->value ?? 'N/A') }}</span>
+                                    <button type="button" class="btn btn-link text-start p-0 text-decoration-none"
+                                        wire:click="toggleApplications({{ $provider->id }})">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <span class="avatar rounded-circle bg-primary text-white fw-bold"
+                                                style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+                                                {{ substr($provider->user->name ?? 'P', 0, 1) }}
+                                            </span>
+                                            <div>
+                                                <div class="fw-semibold text-primary">{{ $provider->user->name ?? 'N/A' }}</div>
+                                                <small class="text-muted">Click to view payer applications</small>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </td>
+                                <td><small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small></td>
+                                <td><small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small></td>
+                                <td><small class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small></td>
+                                <td>
+                                    <span class="badge bg-label-primary">{{ $apps->count() }} app{{ $apps->count() === 1 ? '' : 's' }}</span>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">
@@ -186,9 +185,47 @@
                                     </div>
                                 </td>
                             </tr>
+                            @if ($isExpanded)
+                                <tr wire:key="provider-apps-{{ $provider->id }}" class="bg-light">
+                                    <td></td>
+                                    <td colspan="6" class="py-3">
+                                        <div class="fw-semibold small mb-2">Payer applications</div>
+                                        @if ($apps->isEmpty())
+                                            <p class="text-muted small mb-0">No credentialing applications yet for this provider.</p>
+                                        @else
+                                            <div class="table-responsive">
+                                                <table class="table table-sm mb-0 bg-white border">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Case #</th>
+                                                            <th>Payer</th>
+                                                            <th>Status</th>
+                                                            <th></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach ($apps as $app)
+                                                            <tr>
+                                                                <td class="fw-semibold">{{ $app->case_number }}</td>
+                                                                <td>{{ $app->payer->name ?? 'N/A' }}</td>
+                                                                <td>
+                                                                    <span class="badge bg-label-secondary">{{ $app->status->name ?? 'N/A' }}</span>
+                                                                </td>
+                                                                <td class="text-end">
+                                                                    <a href="{{ route('admin.credentials', ['search' => $app->case_number]) }}" class="btn btn-sm btn-outline-primary">Open in Tracker</a>
+                                                                </td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="d-flex flex-column align-items-center gap-2">
                                         <i class="ti tabler-inbox" style="font-size: 2rem; color: #ccc;"></i>
                                         <p class="text-muted mb-0">No providers found</p>

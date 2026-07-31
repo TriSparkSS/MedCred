@@ -16,6 +16,12 @@ class ReportExportService
                 'description' => 'Active credentialing cases by status, payer, state, and assigned owner.',
                 'type' => 'Operational',
             ],
+            'practice_credentialing_status' => [
+                'name' => 'Practice Credentialing Status',
+                'description' => 'Credentialing status by practice and provider with payer and latest comment. Can be emailed from Reports.',
+                'type' => 'Operational',
+                'emailable' => true,
+            ],
             'document_compliance' => [
                 'name' => 'Document Compliance',
                 'description' => 'Checklist completion percentage per credentialing case.',
@@ -66,6 +72,7 @@ class ReportExportService
     {
         return match ($type) {
             'open_applications' => $this->exportOpenApplications(),
+            'practice_credentialing_status' => $this->exportPracticeCredentialingStatus(),
             'document_compliance' => $this->exportDocumentCompliance(),
             'case_aging' => $this->exportCaseAging(),
             'expiring_documents' => $this->exportExpiringDocuments(),
@@ -74,6 +81,86 @@ class ReportExportService
             'recredentialing_upcoming' => $this->exportRecredentialingUpcoming(),
             default => abort(404, 'Report not found.'),
         };
+    }
+
+    /**
+     * @return array{filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|null>>}
+     */
+    public function rowsFor(string $type): array
+    {
+        return match ($type) {
+            'practice_credentialing_status' => $this->practiceCredentialingStatusData(),
+            default => throw new \InvalidArgumentException("CSV email is not supported for report [{$type}]."),
+        };
+    }
+
+    public function csvContents(string $type): string
+    {
+        $data = $this->rowsFor($type);
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $data['headers']);
+        foreach ($data['rows'] as $row) {
+            fputcsv($handle, $row);
+        }
+        rewind($handle);
+        $csv = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        return $csv;
+    }
+
+    protected function exportPracticeCredentialingStatus(): StreamedResponse
+    {
+        $data = $this->practiceCredentialingStatusData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    /**
+     * @return array{filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|null>>}
+     */
+    protected function practiceCredentialingStatusData(): array
+    {
+        $cases = CredentialingCase::query()
+            ->with([
+                'practice',
+                'provider.user',
+                'payer',
+                'status',
+                'activities' => fn ($q) => $q->latest('id')->limit(1),
+            ])
+            ->get()
+            ->sortBy([
+                fn ($case) => strtolower((string) ($case->practice->legal_name ?? '')),
+                fn ($case) => strtolower((string) ($case->provider->user->name ?? '')),
+                fn ($case) => (string) $case->case_number,
+            ])
+            ->values();
+
+        $rows = $cases->map(function (CredentialingCase $case) {
+            $latest = $case->activities->first();
+
+            return [
+                $case->practice->legal_name ?? '',
+                $case->practice->client_code ?? '',
+                $case->provider->user->name ?? '',
+                $case->provider->npi ?? '',
+                $case->case_number,
+                $case->payer->name ?? '',
+                $case->status->name ?? '',
+                $latest?->summary ?? '',
+                $latest?->created_at?->format('Y-m-d H:i') ?? '',
+            ];
+        })->all();
+
+        return [
+            'filename' => 'practice_credentialing_status_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Practice', 'Client Code', 'Provider', 'NPI', 'Case Number',
+                'Payer', 'Credentialing Status', 'Latest Comment', 'Comment At',
+            ],
+            'rows' => $rows,
+        ];
     }
 
     protected function exportOpenApplications(): StreamedResponse

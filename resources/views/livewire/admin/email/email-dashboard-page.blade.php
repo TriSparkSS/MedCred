@@ -10,14 +10,18 @@
     @if (! $smtpConfigured)
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <span><i class="ti tabler-alert-triangle me-1"></i> SMTP is not configured. Outbound email will fail until you save mail settings.</span>
-            <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-warning">Configure SMTP</a>
+            @if ($canManageMail ?? false)
+                <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-warning">Configure SMTP</a>
+            @endif
         </div>
     @endif
 
     @if (! $mailboxSyncConfigured)
         <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <span><i class="ti tabler-inbox me-1"></i> Mailbox sync is not configured. Set Microsoft Graph <code>GRAPH_*</code> env vars (recommended) or save IMAP settings.</span>
-            <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-outline-primary">Configure Mail</a>
+            @if ($canManageMail ?? false)
+                <a href="{{ route('admin.settings.mail') }}" class="btn btn-sm btn-outline-primary">Configure Mail</a>
+            @endif
         </div>
     @elseif (($mailboxSyncDriver ?? 'imap') === 'graph')
         <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 mb-4 py-2">
@@ -51,19 +55,44 @@
                         <span wire:loading.remove wire:target="syncMailbox"><i class="ti tabler-refresh me-1"></i>Sync Mailbox</span>
                         <span wire:loading wire:target="syncMailbox"><i class="ti tabler-loader-2 me-1"></i>Syncing...</span>
                     </button>
+                    @if ($canManageMail ?? false)
                     <a href="{{ route('admin.settings.mail') }}" class="btn btn-outline-primary">
                         <i class="ti tabler-settings me-1"></i>Mail Settings
                     </a>
+                    @endif
                 </div>
             </div>
         </div>
+    </div>
+
+    {{-- Primary Inbox / Sent tabs --}}
+    <div class="mb-3">
+        <ul class="nav nav-pills gap-2">
+            <li class="nav-item">
+                <button type="button" wire:click="setFilter('inbox')" class="nav-link {{ $filter === 'inbox' ? 'active' : '' }}">
+                    <i class="ti tabler-inbox me-1"></i>Inbox
+                    <span class="badge bg-label-{{ $filter === 'inbox' ? 'light' : 'info' }} ms-1">{{ $stats['inbox_count'] }}</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" wire:click="setFilter('sent')" class="nav-link {{ $filter === 'sent' ? 'active' : '' }}">
+                    <i class="ti tabler-send me-1"></i>Sent Items
+                    <span class="badge bg-label-{{ $filter === 'sent' ? 'light' : 'primary' }} ms-1">{{ $stats['total_sent'] }}</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" wire:click="setFilter('all')" class="nav-link {{ $filter === 'all' ? 'active' : '' }}">
+                    All
+                </button>
+            </li>
+        </ul>
     </div>
 
     {{-- Stats --}}
     <div class="row g-3 mb-4">
         @foreach ([
             ['key' => 'all', 'label' => 'All Messages', 'value' => $stats['total_sent'] + $stats['inbox_count'], 'class' => 'text-body'],
-            ['key' => 'sent', 'label' => 'Sent', 'value' => $stats['total_sent'], 'class' => 'text-primary'],
+            ['key' => 'sent', 'label' => 'Sent Items', 'value' => $stats['total_sent'], 'class' => 'text-primary'],
             ['key' => 'inbox', 'label' => 'Inbox', 'value' => $stats['inbox_count'], 'class' => 'text-info'],
             ['key' => 'failed', 'label' => 'Failed', 'value' => $stats['bounced_failed'], 'class' => 'text-danger'],
         ] as $stat)
@@ -95,7 +124,7 @@
                     <select wire:model.live="filter" class="form-select">
                         <option value="all">All Messages</option>
                         <option value="inbox">Inbox</option>
-                        <option value="sent">Sent</option>
+                        <option value="sent">Sent Items</option>
                         <option value="unlinked">Unlinked</option>
                         <option value="provider_responses">Provider Responses</option>
                         <option value="payer_responses">Payer Responses</option>
@@ -140,9 +169,11 @@
                                 </span>
                             </td>
                             <td>
-                                <div class="fw-medium">{{ \Illuminate\Support\Str::limit($email->subject, 55) ?: '(no subject)' }}</div>
+                                <a href="{{ route('admin.email.show', $email) }}" class="fw-medium text-decoration-none">
+                                    {{ \Illuminate\Support\Str::limit($email->subject, 55) ?: '(no subject)' }}
+                                </a>
                                 @if ($email->notificationTemplate)
-                                    <small class="text-muted">{{ $email->notificationTemplate->name }}</small>
+                                    <small class="text-muted d-block">{{ $email->notificationTemplate->name }}</small>
                                 @endif
                             </td>
                             <td>
@@ -177,9 +208,9 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-outline-secondary" wire:click="openThread({{ $email->id }})" title="View thread">
-                                        <i class="ti tabler-messages"></i>
-                                    </button>
+                                    <a href="{{ route('admin.email.show', $email) }}" class="btn btn-outline-secondary" title="Open email">
+                                        <i class="ti tabler-mail-opened"></i>
+                                    </a>
                                     @if ($email->direction === 'inbound' && $canSend)
                                         <button type="button" class="btn btn-outline-primary" wire:click="openReplyModal({{ $email->id }})" title="Reply">
                                             <i class="ti tabler-arrow-back-up"></i>

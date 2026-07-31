@@ -47,7 +47,12 @@
                         </div>
                         @if (! $smtpConfigured)
                             <div class="alert alert-warning mt-3 mb-0 small">
-                                SMTP is not configured. <a href="{{ route('admin.settings.mail') }}">Configure mail settings</a> before sending.
+                                SMTP is not configured.
+                                @if ($canManageMail ?? false)
+                                    <a href="{{ route('admin.settings.mail') }}">Configure mail settings</a> before sending.
+                                @else
+                                    Ask a System Admin to configure mail settings before sending.
+                                @endif
                             </div>
                         @endif
                     </div>

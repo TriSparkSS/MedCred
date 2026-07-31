@@ -149,6 +149,7 @@ class ImapMailboxService
             ->implode(' ');
 
         $body = $imapMessage->getTextBody() ?: strip_tags((string) $imapMessage->getHTMLBody());
+        $body = trim(html_entity_decode((string) $body, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $messageDate = $imapMessage->getDate()?->toDate() ?? now();
 
         return [
@@ -160,7 +161,7 @@ class ImapMailboxService
             'from_address' => $fromAddress,
             'to_address' => $toAddress,
             'subject' => (string) $imapMessage->getSubject(),
-            'body' => trim($body),
+            'body' => $body,
             'received_at' => $messageDate,
             'sent_at' => $messageDate,
         ];

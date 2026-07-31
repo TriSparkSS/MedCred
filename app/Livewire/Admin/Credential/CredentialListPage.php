@@ -36,6 +36,12 @@ class CredentialListPage extends Component
     #[Url(as: 'payer', history: true)]
     public string $filterPayerId = '';
 
+    #[Url(as: 'practice', history: true)]
+    public string $filterPracticeId = '';
+
+    #[Url(as: 'provider', history: true)]
+    public string $filterProviderId = '';
+
     #[Url(as: 'status', history: true)]
     public string $filterStatusId = '';
 
@@ -76,9 +82,12 @@ class CredentialListPage extends Component
     public function updated($propertyName): void
     {
         if (in_array($propertyName, [
-            'caseSearch', 'filterCategory', 'filterPayerId', 'filterStatusId',
-            'filterOwnerId', 'filterState', 'filterRevalidation', 'filterRecentlySubmitted',
+            'caseSearch', 'filterCategory', 'filterPayerId', 'filterPracticeId', 'filterProviderId',
+            'filterStatusId', 'filterOwnerId', 'filterState', 'filterRevalidation', 'filterRecentlySubmitted',
         ])) {
+            if ($propertyName === 'filterPracticeId') {
+                $this->filterProviderId = '';
+            }
             $this->resetPage();
         }
     }
@@ -88,6 +97,8 @@ class CredentialListPage extends Component
         $this->caseSearch = '';
         $this->filterCategory = '';
         $this->filterPayerId = '';
+        $this->filterPracticeId = '';
+        $this->filterProviderId = '';
         $this->filterStatusId = '';
         $this->filterOwnerId = '';
         $this->filterState = '';
@@ -99,6 +110,7 @@ class CredentialListPage extends Component
     public function hasActiveFilters(): bool
     {
         return (bool) (trim($this->caseSearch) || $this->filterCategory || $this->filterPayerId
+            || $this->filterPracticeId || $this->filterProviderId
             || $this->filterStatusId || $this->filterOwnerId || $this->filterState
             || $this->filterRevalidation || $this->filterRecentlySubmitted);
     }
@@ -294,11 +306,13 @@ class CredentialListPage extends Component
     {
         $case = CredentialingCase::findOrFail($caseId);
         $case->update(['is_escalated' => ! $case->is_escalated]);
+        $case->refresh();
         $case->addActivity(
             'system',
             $case->is_escalated ? 'Case escalated' : 'Escalation removed',
             Auth::guard('admin')->id()
         );
+        flash()->success($case->is_escalated ? 'Case escalated.' : 'Escalation removed.');
     }
 
     public function createFollowUpTask(TaskService $taskService): void
@@ -356,6 +370,14 @@ class CredentialListPage extends Component
             $query->where('payer_id', (int) $this->filterPayerId);
         }
 
+        if ($this->filterPracticeId) {
+            $query->where('practice_id', (int) $this->filterPracticeId);
+        }
+
+        if ($this->filterProviderId) {
+            $query->where('provider_id', (int) $this->filterProviderId);
+        }
+
         if ($this->filterStatusId) {
             $query->where('status_id', (int) $this->filterStatusId);
         }
@@ -394,6 +416,13 @@ class CredentialListPage extends Component
 
         $statuses = Status::where('is_active', true)->orderBy('sort_order')->get();
         $payers = \App\Models\Payer::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $practices = \App\Models\Practice::orderBy('legal_name')->get(['id', 'legal_name', 'client_code']);
+        $providers = $this->filterPracticeId
+            ? \App\Models\ProviderDetails::query()
+                ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId))
+                ->with('user:id,name')
+                ->get()
+            : collect();
 
         $selectedCase = $this->selectedCaseId
             ? CredentialingCase::with([
@@ -415,7 +444,7 @@ class CredentialListPage extends Component
         $priorities = \App\Models\Priority::where('is_active', true)->orderBy('sort_order')->get();
 
         return view('livewire.admin.credential.credential-list-page', compact(
-            'cases', 'stats', 'statuses', 'payers', 'selectedCase', 'delayOwners', 'emailTemplates', 'admins', 'priorities'
+            'cases', 'stats', 'statuses', 'payers', 'practices', 'providers', 'selectedCase', 'delayOwners', 'emailTemplates', 'admins', 'priorities'
         ))->with([
             'taskTypeLabel' => fn (string $type) => $taskSync->taskTypeLabel($type),
             'billingService' => $billing,

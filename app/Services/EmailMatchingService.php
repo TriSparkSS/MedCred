@@ -36,6 +36,14 @@ class EmailMatchingService
 
     public function categorizeQueue(EmailMessage $message): string
     {
+        if ($message->status === 'failed' || $message->status === 'bounced') {
+            return 'failed';
+        }
+
+        if ($message->direction === 'outbound') {
+            return 'sent';
+        }
+
         if ($message->is_unlinked || ! $message->credentialing_case_id) {
             return 'unlinked';
         }
@@ -44,21 +52,20 @@ class EmailMatchingService
             return 'attachments_pending';
         }
 
-        if ($message->direction === 'inbound') {
-            return str_contains(strtolower($message->from_address), 'payer') ? 'payer_responses' : 'provider_responses';
-        }
-
-        if ($message->status === 'failed') {
-            return 'failed';
-        }
-
-        return 'inbox';
+        return str_contains(strtolower((string) $message->from_address), 'payer')
+            ? 'payer_responses'
+            : 'provider_responses';
     }
 
     protected function matchByCaseNumber(string $text): ?CredentialingCase
     {
-        if (preg_match('/APP-\d{4}-\d{4}/', $text, $matches)) {
-            return CredentialingCase::where('case_number', $matches[0])->first();
+        if (preg_match('/\b([A-Z]{3}-\d{4}-\d{4})\b/', strtoupper($text), $matches)) {
+            return CredentialingCase::where('case_number', $matches[1])->first();
+        }
+
+        // Legacy APP-YYYY-NNNN numbers
+        if (preg_match('/\b(APP-\d{4}-\d{4})\b/', strtoupper($text), $matches)) {
+            return CredentialingCase::where('case_number', $matches[1])->first();
         }
 
         return null;

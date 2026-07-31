@@ -57,6 +57,7 @@ class AdminPermissionSeeder extends Seeder
             AdminRole::CredentialingManager->value => array_diff($permissions, [
                 'admin.settings.manage',
                 'admin.users.manage',
+                'admin.providers.create',
             ]),
             AdminRole::CredentialingExecutive->value => [
                 'admin.dashboard.view',

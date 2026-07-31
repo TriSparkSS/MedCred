@@ -287,7 +287,11 @@ class GraphMailboxService
 
         $bodyContent = (string) data_get($graphMessage, 'body.content', '');
         $bodyType = strtolower((string) data_get($graphMessage, 'body.contentType', 'text'));
-        $body = $bodyType === 'html' ? trim(strip_tags($bodyContent)) : trim($bodyContent);
+        $body = $bodyType === 'html'
+            ? trim(html_entity_decode(strip_tags($bodyContent), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+            : trim(html_entity_decode($bodyContent, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $body = preg_replace("/[ \t]+\n/", "\n", $body) ?? $body;
+        $body = preg_replace("/\n{3,}/", "\n\n", $body) ?? $body;
 
         $receivedAt = isset($graphMessage['receivedDateTime'])
             ? \Carbon\Carbon::parse($graphMessage['receivedDateTime'])

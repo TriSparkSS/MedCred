@@ -64,11 +64,23 @@
                                 <td class="fw-semibold">{{ $report['name'] }}</td>
                                 <td><span class="badge bg-label-primary">{{ $report['type'] }}</span></td>
                                 <td class="text-muted small">{{ $report['description'] }}</td>
-                                <td class="text-end">
-                                    <a href="{{ route('admin.reports.export', $key) }}"
-                                        class="btn btn-sm btn-primary">
-                                        <i class="ti tabler-download me-1"></i>Download CSV
-                                    </a>
+                                <td class="text-end text-nowrap">
+                                    @if (empty($report['link']))
+                                        <a href="{{ route('admin.reports.export', $key) }}"
+                                            class="btn btn-sm btn-primary">
+                                            <i class="ti tabler-download me-1"></i>Download CSV
+                                        </a>
+                                    @else
+                                        <a href="{{ $report['link'] }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="ti tabler-external-link me-1"></i>Open
+                                        </a>
+                                    @endif
+                                    @if (! empty($report['emailable']) && ($canExport ?? false))
+                                        <button type="button" class="btn btn-sm btn-outline-success"
+                                            wire:click="openEmailModal('{{ $key }}')">
+                                            <i class="ti tabler-mail me-1"></i>Email
+                                        </button>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -86,6 +98,12 @@
         <div class="card-body">
             <h6 class="fw-semibold mb-3">Report Guide</h6>
             <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <p class="fw-semibold mb-1">Practice Credentialing Status</p>
+                        <small class="text-muted">Practice → provider → payer status with latest comment. Download CSV or email from Cred App.</small>
+                    </div>
+                </div>
                 <div class="col-md-6">
                     <div class="border rounded-3 p-3 h-100">
                         <p class="fw-semibold mb-1">Open Applications</p>
@@ -113,4 +131,32 @@
             </div>
         </div>
     </div>
+
+    @if ($showEmailModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.45);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Email Report</h5>
+                        <button type="button" class="btn-close" wire:click="closeEmailModal"></button>
+                    </div>
+                    <form wire:submit.prevent="emailReport">
+                        <div class="modal-body">
+                            <p class="text-muted small">Send the Practice Credentialing Status CSV to a recipient using configured SMTP.</p>
+                            <label class="form-label">Send to <span class="text-danger">*</span></label>
+                            <input type="email" wire:model="emailTo" class="form-control @error('emailTo') is-invalid @enderror" placeholder="recipient@example.com">
+                            @error('emailTo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="closeEmailModal">Cancel</button>
+                            <button type="submit" class="btn btn-success" wire:loading.attr="disabled">
+                                <span wire:loading.remove wire:target="emailReport"><i class="ti tabler-send me-1"></i>Send Report</span>
+                                <span wire:loading wire:target="emailReport">Sending...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

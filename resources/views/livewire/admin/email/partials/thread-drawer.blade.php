@@ -13,7 +13,7 @@
                         <span>{{ ($msg->sent_at ?? $msg->received_at ?? $msg->created_at)?->format('m/d/Y g:i A') }}</span>
                     </div>
                     <h6 class="fw-semibold mb-2">{{ $msg->subject }}</h6>
-                    <div class="small text-body" style="white-space: pre-wrap;">{{ $msg->body }}</div>
+                    <div class="small text-body" style="white-space: pre-wrap;">{{ $msg->displayBody() }}</div>
                     @if ($msg->attachments->isNotEmpty())
                         <div class="mt-2 d-flex flex-wrap gap-1">
                             @foreach ($msg->attachments as $attachment)

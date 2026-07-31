@@ -55,6 +55,7 @@ class PracticeEditPage extends Component
 
         $this->formData = [
             'legal_name' => $practiceModel->legal_name,
+            'client_code' => $practiceModel->client_code,
             'dba_name' => $practiceModel->dba_name,
             'ein_tin' => $practiceModel->ein_tin,
             'group_npi' => $practiceModel->group_npi,
@@ -88,6 +89,7 @@ class PracticeEditPage extends Component
         return array_merge(
             $this->basePracticeRules(),
             [
+                'formData.client_code' => 'required|string|size:3|regex:/^[A-Za-z]{3}$/|unique:practices,client_code,' . $this->practiceId,
                 'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin,' . $this->practiceId,
                 'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi,' . $this->practiceId,
                 'formData.email' => 'required|email|max:255|unique:practices,email,' . $this->practiceId . '|unique:users,email,' . $practice->user_id,

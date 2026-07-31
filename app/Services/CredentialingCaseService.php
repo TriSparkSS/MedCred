@@ -37,6 +37,13 @@ class CredentialingCaseService
         }
 
         return DB::transaction(function () use ($data, $adminId) {
+            $practice = \App\Models\Practice::find($data['practice_id'] ?? null);
+            if (! $practice || ! preg_match('/^[A-Z]{3}$/', strtoupper(trim((string) $practice->client_code)))) {
+                throw new \InvalidArgumentException(
+                    'This practice needs a 3-letter client code before creating a case. Edit the practice and set Client Code.'
+                );
+            }
+
             $case = CredentialingCase::create([
                 ...$data,
                 'last_action_at' => now(),

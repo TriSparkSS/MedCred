@@ -49,6 +49,7 @@ class PracticeCreatePage extends Component
             $this->basePracticeRules(),
             [
                 'userData.password' => 'required|string|min:6',
+                'formData.client_code' => 'required|string|size:3|regex:/^[A-Za-z]{3}$/|unique:practices,client_code',
                 'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin',
                 'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi',
                 'formData.email' => 'required|email|max:255|unique:practices,email|unique:users,email',

@@ -38,20 +38,20 @@ new class extends Component {
             </li>
             @endif
 
-            @if ($canAdmin('admin.providers.view'))
-            <li class="menu-item {{ request()->routeIs('admin.providers*') ? 'active' : '' }}">
-                <a href="{{ route('admin.providers') }}" class="menu-link">
-                    <i class="menu-icon icon-base ti tabler-first-aid-kit"></i>
-                    <div>Providers</div>
-                </a>
-            </li>
-            @endif
-
             @if ($canAdmin('admin.practices.view'))
             <li class="menu-item {{ request()->routeIs('admin.practices*') || request()->routeIs('admin.provider-practices') ? 'active' : '' }}">
                 <a href="{{ route('admin.practices') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-building"></i>
                     <div>Practices</div>
+                </a>
+            </li>
+            @endif
+
+            @if ($canAdmin('admin.providers.view'))
+            <li class="menu-item {{ request()->routeIs('admin.providers*') ? 'active' : '' }}">
+                <a href="{{ route('admin.providers') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-first-aid-kit"></i>
+                    <div>Providers</div>
                 </a>
             </li>
             @endif
@@ -66,7 +66,7 @@ new class extends Component {
             @endif
 
             @if ($canAdmin('admin.emails.view'))
-            <li class="menu-item {{ request()->routeIs('admin.email.dashboard') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('admin.email*') ? 'active' : '' }}">
                 <a href="{{ route('admin.email.dashboard') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-mail"></i>
                     <div>Email Center</div>

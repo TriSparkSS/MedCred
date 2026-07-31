@@ -13,6 +13,7 @@ trait ManagesPracticeForm
     {
         return [
             'formData.legal_name' => 'required|string|max:255',
+            'formData.client_code' => 'required|string|size:3|regex:/^[A-Za-z]{3}$/',
             'formData.dba_name' => 'nullable|string|max:255',
             'formData.ein_tin' => 'nullable|string|max:50',
             'formData.group_npi' => 'nullable|string|max:50',
