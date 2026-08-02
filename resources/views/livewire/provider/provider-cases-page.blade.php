@@ -1,13 +1,13 @@
 <div>
     <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
-        <x-provider.page-header
-            title="My Credentialing Applications"
-            subtitle="View status and document checklist progress for all your payer applications."
-        />
+        <x-provider.page-header title="My Credentialing Applications"
+            subtitle="View status and document checklist progress for all your payer applications." />
 
         @php
-            $activeCount = $cases->filter(fn ($c) => ! in_array($c->status?->dashboard_category ?? '', ['approved', 'closed']))->count();
-            $actionCount = $cases->filter(fn ($c) => ($c->status?->dashboard_category ?? '') === 'provider')->count();
+            $activeCount = $cases
+                ->filter(fn($c) => !in_array($c->status?->dashboard_category ?? '', ['approved', 'closed']))
+                ->count();
+            $actionCount = $cases->filter(fn($c) => ($c->status?->dashboard_category ?? '') === 'provider')->count();
         @endphp
 
         <div class="row g-3 mb-4">
@@ -49,14 +49,16 @@
                                 <td style="min-width: 140px;">
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height: 6px;">
-                                            <div class="progress-bar bg-primary" style="width: {{ $c['percent'] }}%"></div>
+                                            <div class="progress-bar bg-primary" style="width: {{ $c['percent'] }}%">
+                                            </div>
                                         </div>
                                         <small class="text-muted">{{ $c['received'] }}/{{ $c['total'] }}</small>
                                     </div>
                                 </td>
                                 <td>{{ $case->intake_date?->format('m/d/Y') ?? '—' }}</td>
                                 <td class="text-end">
-                                    <a href="{{ route('provider.cases.show', $case) }}" class="btn btn-sm btn-outline-primary" title="View details">
+                                    <a href="{{ route('provider.cases.show', $case) }}"
+                                        class="btn btn-sm btn-outline-primary" title="View details">
                                         <i class="ti tabler-eye"></i>
                                     </a>
                                 </td>
@@ -72,8 +74,8 @@
                     </tbody>
                 </table>
             </div>
-            @if($cases->hasPages())
-            <div class="card-footer bg-white">{{ $cases->links() }}</div>
+            @if ($cases->hasPages())
+                <div class="card-footer bg-white">{{ $cases->links('livewire::bootstrap') }}</div>
             @endif
         </div>
     </div>

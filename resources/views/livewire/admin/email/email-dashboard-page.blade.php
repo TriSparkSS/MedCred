@@ -244,7 +244,7 @@
             </table>
         </div>
         @if ($emails->hasPages())
-            <div class="card-footer bg-white border-top">{{ $emails->links() }}</div>
+            <div class="card-footer bg-white border-top">{{ $emails->links('livewire::bootstrap') }}</div>
         @endif
     </div>
 

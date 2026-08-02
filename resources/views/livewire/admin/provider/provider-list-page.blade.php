@@ -15,11 +15,11 @@
                             </p>
                         </div>
                         @can('admin.providers.create')
-                        <div class="d-flex flex-column flex-sm-row gap-2">
-                            <a href="{{ route('admin.providers.create') }}" class="btn btn-primary">
-                                <i class="ti tabler-plus me-1"></i> New Provider
-                            </a>
-                        </div>
+                            <div class="d-flex flex-column flex-sm-row gap-2">
+                                <a href="{{ route('admin.providers.create') }}" class="btn btn-primary">
+                                    <i class="ti tabler-plus me-1"></i> New Provider
+                                </a>
+                            </div>
                         @endcan
                     </div>
                 </div>
@@ -124,7 +124,6 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th scope="col" style="width: 40px;"></th>
                             <th scope="col">Provider Name</th>
                             <th scope="col">NPI</th>
                             <th scope="col">Specialty</th>
@@ -141,32 +140,28 @@
                             @endphp
                             <tr wire:key="provider-{{ $provider->id }}">
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-link p-0 text-muted"
-                                        wire:click="toggleApplications({{ $provider->id }})"
-                                        title="{{ $isExpanded ? 'Hide' : 'Show' }} payer applications">
-                                        <i class="ti tabler-chevron-{{ $isExpanded ? 'down' : 'right' }}"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="btn btn-link text-start p-0 text-decoration-none"
-                                        wire:click="toggleApplications({{ $provider->id }})">
+                                    <a href="{{ route('admin.providers.show', $provider->id) }}"
+                                        class="btn btn-link text-start p-0 text-decoration-none">
                                         <div class="d-flex align-items-center gap-3">
                                             <span class="avatar rounded-circle bg-primary text-white fw-bold"
                                                 style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
                                                 {{ substr($provider->user->name ?? 'P', 0, 1) }}
                                             </span>
                                             <div>
-                                                <div class="fw-semibold text-primary">{{ $provider->user->name ?? 'N/A' }}</div>
-                                                <small class="text-muted">Click to view payer applications</small>
+                                                <div class="fw-semibold text-primary">
+                                                    {{ $provider->user->name ?? 'N/A' }}</div>
                                             </div>
                                         </div>
-                                    </button>
+                                    </a>
                                 </td>
                                 <td><small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small></td>
                                 <td><small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small></td>
-                                <td><small class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small></td>
+                                <td><small
+                                        class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small>
+                                </td>
                                 <td>
-                                    <span class="badge bg-label-primary">{{ $apps->count() }} app{{ $apps->count() === 1 ? '' : 's' }}</span>
+                                    <span class="badge bg-label-primary">{{ $apps->count() }}
+                                        app{{ $apps->count() === 1 ? '' : 's' }}</span>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">
@@ -185,7 +180,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            @if ($isExpanded)
+                            {{-- @if ($isExpanded)
                                 <tr wire:key="provider-apps-{{ $provider->id }}" class="bg-light">
                                     <td></td>
                                     <td colspan="6" class="py-3">
@@ -222,7 +217,7 @@
                                         @endif
                                     </td>
                                 </tr>
-                            @endif
+                            @endif --}}
                         @empty
                             <tr>
                                 <td colspan="7" class="text-center py-5">

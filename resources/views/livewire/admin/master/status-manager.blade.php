@@ -9,11 +9,13 @@
                 <div class="col-lg-6">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
-                        <input type="search" wire:model.live="search" class="form-control border-start-0" placeholder="Search statuses...">
+                        <input type="search" wire:model.live="search" class="form-control border-start-0"
+                            placeholder="Search statuses...">
                     </div>
                 </div>
                 <div class="col-lg-3 text-lg-end">
-                    <button wire:click="openCreateModal" class="btn btn-primary"><i class="ti tabler-plus me-1"></i>Add New</button>
+                    <button wire:click="openCreateModal" class="btn btn-primary"><i class="ti tabler-plus me-1"></i>Add
+                        New</button>
                 </div>
             </div>
         </div>
@@ -37,29 +39,43 @@
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-1">
-                                    <button wire:click="moveUp({{ $record->id }})" class="btn btn-sm btn-icon btn-outline-secondary"><i class="ti tabler-chevron-up"></i></button>
+                                    <button wire:click="moveUp({{ $record->id }})"
+                                        class="btn btn-sm btn-icon btn-outline-secondary"><i
+                                            class="ti tabler-chevron-up"></i></button>
                                     <span class="fw-semibold">{{ $record->sort_order }}</span>
-                                    <button wire:click="moveDown({{ $record->id }})" class="btn btn-sm btn-icon btn-outline-secondary"><i class="ti tabler-chevron-down"></i></button>
+                                    <button wire:click="moveDown({{ $record->id }})"
+                                        class="btn btn-sm btn-icon btn-outline-secondary"><i
+                                            class="ti tabler-chevron-down"></i></button>
                                 </div>
                             </td>
                             <td class="fw-semibold">{{ $record->name }}</td>
-                            <td><span class="badge bg-label-info">{{ $dashboardCategories[$record->dashboard_category] ?? ($record->dashboard_category ?: 'N/A') }}</span></td>
+                            <td><span
+                                    class="badge bg-label-info">{{ $dashboardCategories[$record->dashboard_category] ?? ($record->dashboard_category ?: 'N/A') }}</span>
+                            </td>
                             <td><small>{{ $record->delayOwner->name ?? 'N/A' }}</small></td>
                             <td>
-                                <span class="badge {{ $record->is_active ? 'bg-success' : 'bg-secondary' }}">{{ $record->is_active ? 'Active' : 'Inactive' }}</span>
+                                <span
+                                    class="badge {{ $record->is_active ? 'bg-success' : 'bg-secondary' }}">{{ $record->is_active ? 'Active' : 'Inactive' }}</span>
                             </td>
                             <td class="text-end">
-                                <button wire:click="openEditModal({{ $record->id }})" class="btn btn-sm btn-icon btn-outline-primary"><i class="ti tabler-edit"></i></button>
-                                <button wire:click="delete({{ $record->id }})" class="btn btn-sm btn-icon btn-outline-danger"><i class="ti tabler-trash"></i></button>
+                                <button wire:click="openEditModal({{ $record->id }})"
+                                    class="btn btn-sm btn-icon btn-outline-primary"><i
+                                        class="ti tabler-edit"></i></button>
+                                <button wire:click="delete({{ $record->id }})"
+                                    class="btn btn-sm btn-icon btn-outline-danger"><i
+                                        class="ti tabler-trash"></i></button>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center py-5 text-muted">No statuses found. Run the seeder to populate BRD defaults.</td></tr>
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">No statuses found. Run the seeder to
+                                populate BRD defaults.</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <div class="card-footer bg-white">{{ $records->links() }}</div>
+        <div class="card-footer bg-white">{{ $records->links('livewire::bootstrap') }}</div>
     </div>
 
     @if ($showModal)
@@ -75,13 +91,20 @@
                             <div class="row g-3">
                                 <div class="col-md-8">
                                     <label class="form-label">Status Name</label>
-                                    <input type="text" wire:model="formData.name" class="form-control @error('formData.name') is-invalid @enderror">
-                                    @error('formData.name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    <input type="text" wire:model="formData.name"
+                                        class="form-control @error('formData.name') is-invalid @enderror">
+                                    @error('formData.name')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Sort Order</label>
-                                    <input type="number" wire:model="formData.sort_order" class="form-control @error('formData.sort_order') is-invalid @enderror" min="0">
-                                    @error('formData.sort_order')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    <input type="number" wire:model="formData.sort_order"
+                                        class="form-control @error('formData.sort_order') is-invalid @enderror"
+                                        min="0">
+                                    @error('formData.sort_order')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Dashboard Category</label>
@@ -103,7 +126,8 @@
                                 </div>
                                 <div class="col-12">
                                     <div class="form-check form-switch">
-                                        <input type="checkbox" class="form-check-input" id="isActive" wire:model="formData.is_active">
+                                        <input type="checkbox" class="form-check-input" id="isActive"
+                                            wire:model="formData.is_active">
                                         <label class="form-check-label" for="isActive">Active Status</label>
                                     </div>
                                 </div>
@@ -111,7 +135,8 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" wire:click="closeModal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">{{ $modalMode === 'create' ? 'Create' : 'Update' }}</button>
+                            <button type="submit"
+                                class="btn btn-primary">{{ $modalMode === 'create' ? 'Create' : 'Update' }}</button>
                         </div>
                     </form>
                 </div>

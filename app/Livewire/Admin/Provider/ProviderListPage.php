@@ -23,8 +23,7 @@ class ProviderListPage extends Component
     public $filterSpecialty = '';
     public $filterStatus = '';
 
-    /** @var array<int, true> */
-    public array $expandedProviders = [];
+    
 
     protected $rules = [
         'formData.user_id' => 'required|exists:users,id',
@@ -50,14 +49,6 @@ class ProviderListPage extends Component
         }
     }
 
-    public function toggleApplications(int $providerId): void
-    {
-        if (isset($this->expandedProviders[$providerId])) {
-            unset($this->expandedProviders[$providerId]);
-        } else {
-            $this->expandedProviders[$providerId] = true;
-        }
-    }
 
     public function openCreateModal()
     {

@@ -41,14 +41,16 @@
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body d-flex align-items-center">
                     @php
-                        $compliant = $stats['total'] > 0
-                            ? round((($stats['total'] - $stats['expired']) / $stats['total']) * 100)
-                            : 100;
+                        $compliant =
+                            $stats['total'] > 0
+                                ? round((($stats['total'] - $stats['expired']) / $stats['total']) * 100)
+                                : 100;
                     @endphp
                     <div>
                         <p class="text-uppercase text-muted small mb-1">Compliance</p>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="rounded-circle d-inline-block bg-{{ $compliant >= 90 ? 'success' : 'warning' }}"
+                            <span
+                                class="rounded-circle d-inline-block bg-{{ $compliant >= 90 ? 'success' : 'warning' }}"
                                 style="width:10px; height:10px;"></span>
                             <span class="fw-semibold">{{ $compliant }}% Current</span>
                         </div>
@@ -115,21 +117,24 @@
                                     {{ $document->title }}
                                 </div>
                                 @if ($version)
-                                    <small class="text-muted">v{{ $version->version_number }} · {{ $version->original_name }}</small>
+                                    <small class="text-muted">v{{ $version->version_number }} ·
+                                        {{ $version->original_name }}</small>
                                 @endif
                             </td>
                             <td>{{ $document->documentType->name ?? '—' }}</td>
                             <td class="small">
                                 @if ($document->practice)
-                                    <div><span class="text-muted">Practice:</span> {{ $document->practice->legal_name ?? 'Practice' }}</div>
+                                    <div><span class="text-muted">Practice:</span>
+                                        {{ $document->practice->legal_name ?? 'Practice' }}</div>
                                 @endif
                                 @if ($document->provider)
-                                    <div><span class="text-muted">Provider:</span> {{ $document->provider->user->name ?? 'Provider' }}</div>
+                                    <div><span class="text-muted">Provider:</span>
+                                        {{ $document->provider->user->name ?? 'Provider' }}</div>
                                 @endif
                                 @if ($document->credentialingCase)
                                     <div class="text-muted">Case {{ $document->credentialingCase->case_number }}</div>
                                 @endif
-                                @if (! $document->practice && ! $document->provider && ! $document->credentialingCase)
+                                @if (!$document->practice && !$document->provider && !$document->credentialingCase)
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
@@ -139,7 +144,8 @@
                             </td>
                             <td>
                                 @php $vStatus = $document->verification_status ?? 'uploaded'; @endphp
-                                <span class="badge bg-label-{{ match($vStatus) { 'verified' => 'success', 'rejected' => 'danger', 'expired' => 'warning', default => 'secondary' } }}">
+                                <span
+                                    class="badge bg-label-{{ match ($vStatus) {'verified' => 'success','rejected' => 'danger','expired' => 'warning',default => 'secondary'} }}">
                                     {{ ucfirst(str_replace('_', ' ', $vStatus)) }}
                                 </span>
                                 @if ($expired)
@@ -151,12 +157,14 @@
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
                                     @if ($vStatus !== 'verified')
-                                        <button wire:click="verifyDocument({{ $document->id }})" class="btn btn-outline-success" title="Verify">
+                                        <button wire:click="verifyDocument({{ $document->id }})"
+                                            class="btn btn-outline-success" title="Verify">
                                             <i class="ti tabler-check"></i>
                                         </button>
                                     @endif
                                     @if ($vStatus !== 'rejected')
-                                        <button wire:click="openRejectModal({{ $document->id }})" class="btn btn-outline-danger" title="Reject">
+                                        <button wire:click="openRejectModal({{ $document->id }})"
+                                            class="btn btn-outline-danger" title="Reject">
                                             <i class="ti tabler-x"></i>
                                         </button>
                                     @endif
@@ -171,8 +179,8 @@
                                         <i class="ti tabler-versions"></i>
                                     </button>
                                     <button wire:click="deleteDocument({{ $document->id }})"
-                                        wire:confirm="Delete this document?"
-                                        class="btn btn-outline-danger" title="Delete">
+                                        wire:confirm="Delete this document?" class="btn btn-outline-danger"
+                                        title="Delete">
                                         <i class="ti tabler-trash"></i>
                                     </button>
                                 </div>
@@ -189,7 +197,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="card-footer bg-white">{{ $documents->links() }}</div>
+        <div class="card-footer bg-white">{{ $documents->links('livewire::bootstrap') }}</div>
     </div>
 
     {{-- Upload Modal --}}
@@ -206,8 +214,11 @@
                             <div class="row g-3">
                                 <div class="col-md-8">
                                     <label class="form-label">Title <span class="text-danger">*</span></label>
-                                    <input type="text" wire:model="formData.title" class="form-control @error('formData.title') is-invalid @enderror">
-                                    @error('formData.title')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    <input type="text" wire:model="formData.title"
+                                        class="form-control @error('formData.title') is-invalid @enderror">
+                                    @error('formData.title')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Document Type</label>
@@ -232,7 +243,8 @@
                                     <select wire:model="formData.provider_id" class="form-select">
                                         <option value="">None</option>
                                         @foreach ($providers as $provider)
-                                            <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
+                                            <option value="{{ $provider->id }}">
+                                                {{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -241,7 +253,8 @@
                                     <select wire:model="formData.credentialing_case_id" class="form-select">
                                         <option value="">None</option>
                                         @foreach ($cases as $case)
-                                            <option value="{{ $case->id }}">{{ $case->case_number }} — {{ $case->provider->user->name ?? '' }}</option>
+                                            <option value="{{ $case->id }}">{{ $case->case_number }} —
+                                                {{ $case->provider->user->name ?? '' }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -255,19 +268,25 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">State</label>
-                                    <input type="text" wire:model="formData.state" class="form-control" maxlength="50">
+                                    <input type="text" wire:model="formData.state" class="form-control"
+                                        maxlength="50">
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">File <span class="text-danger">*</span></label>
-                                    <input type="file" wire:model="uploadFile" class="form-control @error('uploadFile') is-invalid @enderror"
+                                    <input type="file" wire:model="uploadFile"
+                                        class="form-control @error('uploadFile') is-invalid @enderror"
                                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                    @error('uploadFile')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                    <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">Uploading...</div>
+                                    @error('uploadFile')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                    <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">
+                                        Uploading...</div>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" wire:click="$set('showModal', false)">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                wire:click="$set('showModal', false)">Cancel</button>
                             <button type="submit" class="btn btn-primary" wire:loading.attr="disabled">
                                 <span wire:loading.remove wire:target="saveDocument">Save Document</span>
                                 <span wire:loading wire:target="saveDocument">Saving...</span>
@@ -286,15 +305,19 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Upload New Version</h5>
-                        <button type="button" class="btn-close" wire:click="$set('showVersionModal', false)"></button>
+                        <button type="button" class="btn-close"
+                            wire:click="$set('showVersionModal', false)"></button>
                     </div>
                     <form wire:submit.prevent="uploadNewVersion">
                         <div class="modal-body">
                             <div class="mb-3">
                                 <label class="form-label">File <span class="text-danger">*</span></label>
-                                <input type="file" wire:model="versionFile" class="form-control @error('versionFile') is-invalid @enderror"
+                                <input type="file" wire:model="versionFile"
+                                    class="form-control @error('versionFile') is-invalid @enderror"
                                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                @error('versionFile')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                @error('versionFile')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
                             </div>
                             <div>
                                 <label class="form-label">Notes</label>
@@ -302,7 +325,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" wire:click="$set('showVersionModal', false)">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                wire:click="$set('showVersionModal', false)">Cancel</button>
                             <button type="submit" class="btn btn-primary">Upload Version</button>
                         </div>
                     </form>
@@ -318,15 +342,20 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Reject Document</h5>
-                        <button type="button" class="btn-close" wire:click="$set('rejectDocumentId', null)"></button>
+                        <button type="button" class="btn-close"
+                            wire:click="$set('rejectDocumentId', null)"></button>
                     </div>
                     <div class="modal-body">
                         <label class="form-label">Rejection reason <span class="text-danger">*</span></label>
-                        <textarea wire:model="rejectionReason" rows="3" class="form-control @error('rejectionReason') is-invalid @enderror"></textarea>
-                        @error('rejectionReason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <textarea wire:model="rejectionReason" rows="3"
+                            class="form-control @error('rejectionReason') is-invalid @enderror"></textarea>
+                        @error('rejectionReason')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="$set('rejectDocumentId', null)">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary"
+                            wire:click="$set('rejectDocumentId', null)">Cancel</button>
                         <button type="button" wire:click="rejectDocument" class="btn btn-danger">Reject</button>
                     </div>
                 </div>

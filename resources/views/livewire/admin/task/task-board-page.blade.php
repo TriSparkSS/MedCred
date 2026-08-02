@@ -62,7 +62,8 @@
             <select wire:model.live="filterProviderId" class="form-select form-select-sm">
                 <option value="">All Providers</option>
                 @foreach ($providers as $provider)
-                    <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
+                    <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #' . $provider->id }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -114,12 +115,17 @@
                         <div class="card-header bg-white border-bottom py-3">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0 fw-bold">{{ $column['meta']['label'] }}</h6>
-                                <span class="badge bg-label-{{ $column['meta']['color'] }}">{{ $column['tasks']->count() }}</span>
+                                <span
+                                    class="badge bg-label-{{ $column['meta']['color'] }}">{{ $column['tasks']->count() }}</span>
                             </div>
                         </div>
                         <div class="card-body p-3" style="min-height: 200px; max-height: 70vh; overflow-y: auto;">
                             @forelse($column['tasks'] as $task)
-                                @include('livewire.admin.task.partials.task-card', ['task' => $task, 'columnKey' => $columnKey, 'column' => $column])
+                                @include('livewire.admin.task.partials.task-card', [
+                                    'task' => $task,
+                                    'columnKey' => $columnKey,
+                                    'column' => $column,
+                                ])
                             @empty
                                 <p class="text-muted small text-center py-4 mb-0">No tasks</p>
                             @endforelse
@@ -152,26 +158,32 @@
                                     <small class="text-muted">{{ $taskTypeLabels($task->task_type) }}</small>
                                 </td>
                                 <td><small>{{ $task->assignedAdmin->name ?? 'Unassigned' }}</small></td>
-                                <td><span class="badge bg-label-secondary">{{ $task->status?->label() ?? 'Open' }}</span></td>
+                                <td><span
+                                        class="badge bg-label-secondary">{{ $task->status?->label() ?? 'Open' }}</span>
+                                </td>
                                 <td><small>{{ $task->priority->name ?? '—' }}</small></td>
                                 <td><small>{{ $task->due_date?->format('m/d/Y') ?: '—' }}</small></td>
                                 <td><small>{{ $task->follow_up_date?->format('m/d/Y') ?: '—' }}</small></td>
                                 <td><small>{{ $task->credentialingCase->case_number ?? '—' }}</small></td>
                                 <td class="text-end">
-                                    <button wire:click="openDetail({{ $task->id }})" class="btn btn-sm btn-outline-primary">View</button>
+                                    <button wire:click="openDetail({{ $task->id }})"
+                                        class="btn btn-sm btn-outline-primary">View</button>
                                     @can('update', $task)
-                                        <button wire:click="openEditModal({{ $task->id }})" class="btn btn-sm btn-outline-secondary">Edit</button>
+                                        <button wire:click="openEditModal({{ $task->id }})"
+                                            class="btn btn-sm btn-outline-secondary">Edit</button>
                                     @endcan
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="text-center py-5 text-muted">No tasks found.</td></tr>
+                            <tr>
+                                <td colspan="8" class="text-center py-5 text-muted">No tasks found.</td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if ($listTasks)
-                <div class="card-footer">{{ $listTasks->links() }}</div>
+                <div class="card-footer">{{ $listTasks->links('livewire::bootstrap') }}</div>
             @endif
         </div>
     @endif

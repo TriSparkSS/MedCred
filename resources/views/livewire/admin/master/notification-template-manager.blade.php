@@ -3,7 +3,8 @@
         <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
             <div>
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-template me-2"></i>Email Templates</h4>
-                <p class="text-muted mb-0">Manage notification templates for document requests, reminders, and escalations.</p>
+                <p class="text-muted mb-0">Manage notification templates for document requests, reminders, and
+                    escalations.</p>
             </div>
             <button wire:click="openCreateModal" class="btn btn-primary">
                 <i class="ti tabler-plus me-1"></i>New Template
@@ -44,16 +45,20 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button wire:click="openEditModal({{ $record->id }})" class="btn btn-sm btn-outline-primary">Edit</button>
+                                <button wire:click="openEditModal({{ $record->id }})"
+                                    class="btn btn-sm btn-outline-primary">Edit</button>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">No templates. Run <code>php artisan db:seed --class=Phase2Seeder</code> for defaults.</td></tr>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">No templates. Run <code>php artisan
+                                    db:seed --class=Phase2Seeder</code> for defaults.</td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <div class="card-footer bg-white">{{ $records->links() }}</div>
+        <div class="card-footer bg-white">{{ $records->links('livewire::bootstrap') }}</div>
     </div>
 
     @if ($showModal)
@@ -73,7 +78,8 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Template Key</label>
-                                    <input type="text" wire:model="formData.template_key" class="form-control" @if($modalMode === 'edit') readonly @endif>
+                                    <input type="text" wire:model="formData.template_key" class="form-control"
+                                        @if ($modalMode === 'edit') readonly @endif>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Category</label>
@@ -88,14 +94,17 @@
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end">
                                     <div class="form-check form-switch">
-                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_active" id="tplActive">
+                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_active"
+                                            id="tplActive">
                                         <label class="form-check-label" for="tplActive">Active</label>
                                     </div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Subject</label>
                                     <input type="text" wire:model="formData.subject" class="form-control">
-                                    <small class="text-muted">Variables: @{{case_number}}, @{{provider_name}}, @{{payer_name}}, @{{practice_name}}, @{{state}}, @{{next_follow_up_date}}</small>
+                                    <small class="text-muted">Variables: @{{ case_number }}, @{{ provider_name }},
+                                        @{{ payer_name }}, @{{ practice_name }}, @{{ state }},
+                                        @{{ next_follow_up_date }}</small>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Body</label>
@@ -104,7 +113,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" wire:click="closeModal">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                wire:click="closeModal">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save</button>
                         </div>
                     </form>

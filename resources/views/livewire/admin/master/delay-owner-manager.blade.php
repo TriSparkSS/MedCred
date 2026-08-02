@@ -79,7 +79,7 @@
             </table>
         </div>
         <div class="card-footer bg-white">
-            {{ $records->links() }}
+            {{ $records->links('livewire::bootstrap') }}
         </div>
     </div>
 

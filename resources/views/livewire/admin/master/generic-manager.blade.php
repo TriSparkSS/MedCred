@@ -66,7 +66,7 @@ sure?\)">Delete</button>
                             </table>
                         </div>
                         <div class="d-flex justify-content-center">
-                            {{ $records->links() }}
+                            {{ $records->links('livewire::bootstrap') }}
                         </div>
                     </div>
                 </div>

@@ -264,7 +264,7 @@
                 </table>
             </div>
             @if ($cases->hasPages())
-                <div class="card-footer bg-white py-2">{{ $cases->withQueryString()->links() }}</div>
+                <div class="card-footer bg-white py-2">{{ $cases->withQueryString()->links('livewire::bootstrap') }}</div>
             @endif
         </div>
 

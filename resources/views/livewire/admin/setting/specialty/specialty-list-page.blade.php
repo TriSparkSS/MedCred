@@ -145,7 +145,7 @@
             </table>
         </div>
         <div class="card-footer bg-white">
-            {{ $specialties->links() }}
+            {{ $specialties->links('livewire::bootstrap') }}
         </div>
     </div>
 
@@ -179,7 +179,8 @@
                                     Specialty Name
                                 </label>
 
-                                <input type="text" wire:model="formData.name" class="form-control" placeholder="Specialty Name">
+                                <input type="text" wire:model="formData.name" class="form-control"
+                                    placeholder="Specialty Name">
 
                                 @error('formData.name')
                                     <span class="text-danger">
