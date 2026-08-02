@@ -609,11 +609,9 @@
                         @forelse($emails as $email)
                             <tr>
                                 <td>
-                                    <span class="badge bg-label-{{ $email->direction === 'inbound' ? 'info' : 'primary' }}">
-                                        {{ ucfirst($email->direction ?? 'unknown') }}
-                                    </span>
+                                    <span class="badge bg-label-secondary">Linked</span>
                                 </td>
-                                <td class="fw-semibold">{{ $email->subject ?: '(No subject)' }}</td>
+                                <td class="fw-semibold text-break"><code class="small">{{ $email->message_id }}</code></td>
                                 <td>
                                     @if ($email->credentialingCase)
                                         <small>{{ $email->credentialingCase->case_number }}</small>
@@ -621,15 +619,11 @@
                                         <span class="badge bg-label-warning">Unlinked</span>
                                     @endif
                                 </td>
-                                <td>
-                                    <small class="d-block">{{ $email->from_address ?: '—' }}</small>
-                                    <small class="text-muted">{{ $email->to_address ?: '—' }}</small>
+                                <td colspan="2">
+                                    <a href="{{ route('admin.email.dashboard') }}" class="small">Open Email Center to view live message</a>
                                 </td>
-                                <td><span class="badge bg-label-secondary">{{ ucfirst($email->status ?? 'unknown') }}</span></td>
                                 <td>
-                                    <small>
-                                        {{ ($email->received_at ?? $email->sent_at)?->format('m/d/Y g:i A') ?: '—' }}
-                                    </small>
+                                    <small>{{ $email->created_at?->format('m/d/Y g:i A') ?: '—' }}</small>
                                 </td>
                             </tr>
                         @empty

@@ -1,9 +1,10 @@
 <?php
 
+use App\Data\SentEmailResult;
 use App\Livewire\Admin\Email\EmailDashboardPage;
 use App\Models\Admin;
-use App\Models\EmailMessage;
 use App\Services\CredentialingEmailService;
+use App\Services\GraphMailboxService;
 use Database\Seeders\AdminPermissionSeeder;
 use Database\Seeders\AdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +20,11 @@ beforeEach(function () {
 test('compose modal opens with empty fields', function () {
     $admin = Admin::where('username', 'superadmin')->first();
 
+    $this->mock(GraphMailboxService::class, function ($mock) {
+        $mock->shouldReceive('isConfigured')->andReturn(false);
+        $mock->shouldReceive('normalizeFolder')->andReturnUsing(fn ($f) => $f === 'sent' ? 'sentitems' : 'inbox');
+    });
+
     Livewire::actingAs($admin, 'admin')
         ->test(EmailDashboardPage::class)
         ->call('openComposeModal')
@@ -31,6 +37,11 @@ test('compose modal opens with empty fields', function () {
 test('compose modal closes cleanly', function () {
     $admin = Admin::where('username', 'superadmin')->first();
 
+    $this->mock(GraphMailboxService::class, function ($mock) {
+        $mock->shouldReceive('isConfigured')->andReturn(false);
+        $mock->shouldReceive('normalizeFolder')->andReturnUsing(fn ($f) => $f === 'sent' ? 'sentitems' : 'inbox');
+    });
+
     Livewire::actingAs($admin, 'admin')
         ->test(EmailDashboardPage::class)
         ->call('openComposeModal')
@@ -42,24 +53,21 @@ test('compose modal closes cleanly', function () {
 test('send email does not error when optional ids are empty strings', function () {
     $admin = Admin::where('username', 'superadmin')->first();
 
-    $sentMessage = new EmailMessage([
-        'status' => 'sent',
-        'subject' => 'Test Subject',
-        'to_address' => 'test@example.com',
-    ]);
+    $this->mock(GraphMailboxService::class, function ($mock) {
+        $mock->shouldReceive('isConfigured')->andReturn(false);
+        $mock->shouldReceive('normalizeFolder')->andReturnUsing(fn ($f) => $f === 'sent' ? 'sentitems' : 'inbox');
+        $mock->shouldReceive('clearCache')->andReturnNull();
+    });
 
-    $this->mock(CredentialingEmailService::class, function ($mock) use ($sentMessage) {
+    $this->mock(CredentialingEmailService::class, function ($mock) {
         $mock->shouldReceive('stats')->andReturn([
             'total_sent' => 0,
             'inbox_count' => 0,
-            'pending_replies' => 0,
-            'unlinked_inbound' => 0,
-            'bounced_failed' => 0,
-            'reminders_sent' => 0,
+            'graph_configured' => false,
         ]);
         $mock->shouldReceive('send')
             ->once()
-            ->andReturn($sentMessage);
+            ->andReturn(new SentEmailResult(true, 'id@example.com'));
     });
 
     Livewire::actingAs($admin, 'admin')
@@ -72,62 +80,26 @@ test('send email does not error when optional ids are empty strings', function (
         ->set('composeTemplateId', '')
         ->call('sendEmail')
         ->assertSet('showComposeModal', false)
-        ->assertSet('filter', 'sent')
-        ->assertSet('search', '');
+        ->assertSet('filter', 'sent');
 });
 
-test('failed compose send keeps modal open and switches to failed filter', function () {
+test('failed compose send keeps modal open', function () {
     $admin = Admin::where('username', 'superadmin')->first();
 
-    $failedMessage = new EmailMessage([
-        'status' => 'failed',
-        'error_message' => 'SMTP auth failed',
-        'subject' => 'Test Subject',
-        'to_address' => 'test@example.com',
-    ]);
-
-    $this->mock(CredentialingEmailService::class, function ($mock) use ($failedMessage) {
-        $mock->shouldReceive('stats')->andReturn([
-            'total_sent' => 0,
-            'inbox_count' => 0,
-            'pending_replies' => 0,
-            'unlinked_inbound' => 0,
-            'bounced_failed' => 0,
-            'reminders_sent' => 0,
-        ]);
-        $mock->shouldReceive('send')
-            ->once()
-            ->andReturn($failedMessage);
+    $this->mock(GraphMailboxService::class, function ($mock) {
+        $mock->shouldReceive('isConfigured')->andReturn(false);
+        $mock->shouldReceive('normalizeFolder')->andReturnUsing(fn ($f) => $f === 'sent' ? 'sentitems' : 'inbox');
     });
-
-    Livewire::actingAs($admin, 'admin')
-        ->test(EmailDashboardPage::class)
-        ->set('search', 'hidden-term')
-        ->call('openComposeModal')
-        ->set('composeTo', 'test@example.com')
-        ->set('composeSubject', 'Test Subject')
-        ->set('composeBody', 'Test body')
-        ->call('sendEmail')
-        ->assertSet('showComposeModal', true)
-        ->assertSet('filter', 'failed')
-        ->assertSet('search', '');
-});
-
-test('compose send surfaces configuration exceptions', function () {
-    $admin = Admin::where('username', 'superadmin')->first();
 
     $this->mock(CredentialingEmailService::class, function ($mock) {
         $mock->shouldReceive('stats')->andReturn([
             'total_sent' => 0,
             'inbox_count' => 0,
-            'pending_replies' => 0,
-            'unlinked_inbound' => 0,
-            'bounced_failed' => 0,
-            'reminders_sent' => 0,
+            'graph_configured' => false,
         ]);
         $mock->shouldReceive('send')
             ->once()
-            ->andThrow(new RuntimeException('SMTP is not configured.'));
+            ->andReturn(new SentEmailResult(false, 'id@example.com', 'SMTP failed'));
     });
 
     Livewire::actingAs($admin, 'admin')
@@ -138,42 +110,4 @@ test('compose send surfaces configuration exceptions', function () {
         ->set('composeBody', 'Test body')
         ->call('sendEmail')
         ->assertSet('showComposeModal', true);
-});
-
-test('reset filters clears search and sets filter to all', function () {
-    $admin = Admin::where('username', 'superadmin')->first();
-
-    Livewire::actingAs($admin, 'admin')
-        ->test(EmailDashboardPage::class)
-        ->set('filter', 'sent')
-        ->set('search', 'test query')
-        ->call('resetFilters')
-        ->assertSet('filter', 'all')
-        ->assertSet('search', '');
-});
-
-test('setFilter updates active filter', function () {
-    $admin = Admin::where('username', 'superadmin')->first();
-
-    Livewire::actingAs($admin, 'admin')
-        ->test(EmailDashboardPage::class)
-        ->call('setFilter', 'inbox')
-        ->assertSet('filter', 'inbox');
-});
-
-test('compose shows permission error for users without send access', function () {
-    $admin = Admin::create([
-        'name' => 'View Only',
-        'username' => 'viewonly',
-        'email' => 'viewonly@test.com',
-        'phone' => '0000000099',
-        'status' => 'active',
-        'password' => 'password',
-    ]);
-    $admin->givePermissionTo('admin.emails.view');
-
-    Livewire::actingAs($admin, 'admin')
-        ->test(EmailDashboardPage::class)
-        ->call('openComposeModal')
-        ->assertSet('showComposeModal', false);
 });

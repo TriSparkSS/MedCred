@@ -432,7 +432,7 @@ class CredentialListPage extends Component
                 'activities.admin', 'activities.user',
                 'documentItems.documentType', 'documentItems.document.versions',
                 'tasks' => fn ($q) => $q->with('assignedAdmin')->orderByRaw('completed_at IS NOT NULL')->orderBy('due_date'),
-                'emailMessages' => fn ($q) => $q->latest()->limit(5),
+                'emailCaseLinks' => fn ($q) => $q->latest()->limit(10),
                 'slaTimers' => fn ($q) => $q->where('status', 'active'),
             ])->find($this->selectedCaseId)
             : null;

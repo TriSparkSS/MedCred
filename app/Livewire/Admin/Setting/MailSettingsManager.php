@@ -87,12 +87,12 @@ class MailSettingsManager extends Component
             'from_address' => 'required|email|max:255',
             'from_name' => 'required|string|max:255',
             'imap_enabled' => 'boolean',
-            'imap_host' => 'required_if:imap_enabled,true|nullable|string|max:255',
-            'imap_port' => 'required_if:imap_enabled,true|nullable|integer|min:1|max:65535',
-            'imap_encryption' => 'required_if:imap_enabled,true|nullable|in:ssl,tls,none',
+            'imap_host' => 'nullable|string|max:255',
+            'imap_port' => 'nullable|integer|min:1|max:65535',
+            'imap_encryption' => 'nullable|in:ssl,tls,none',
             'imap_folder' => 'nullable|string|max:255',
             'imap_sent_enabled' => 'boolean',
-            'imap_sent_folder' => 'required_if:imap_sent_enabled,true|nullable|string|max:255',
+            'imap_sent_folder' => 'nullable|string|max:255',
             'imap_username' => 'nullable|email|max:255',
             'testEmailTo' => 'nullable|email|max:255',
         ];
@@ -173,13 +173,13 @@ class MailSettingsManager extends Component
 
             $message = $mailSettings->sendTestEmail($this->testEmailTo);
 
-            if ($message->status === 'failed') {
-                flash()->error('Test email failed: ' . ($message->error_message ?? 'Unknown error'));
+            if ($message->failed()) {
+                flash()->error('Test email failed: ' . ($message->errorMessage ?? 'Unknown error'));
 
                 return;
             }
 
-            flash()->success('Test email sent to ' . $this->testEmailTo . '. It appears in Email Center under Sent.');
+            flash()->success('Test email sent to ' . $this->testEmailTo . '. Check Sent Items in Email Center after Refresh.');
         } catch (\Throwable $e) {
             flash()->error('Test email failed: ' . $e->getMessage());
         }
@@ -187,21 +187,7 @@ class MailSettingsManager extends Component
 
     public function testImap(MailSettingsService $mailSettings): void
     {
-        $this->validate($this->rules());
-
-        try {
-            if (! $this->persistSettingsBeforeTest($mailSettings)) {
-                return;
-            }
-
-            $result = $mailSettings->testImapConnection();
-            $folderSummary = collect($result['folders'] ?? [])
-                ->map(fn (array $folder) => "\"{$folder['folder']}\" ({$folder['message_count']})")
-                ->implode(', ');
-            flash()->success('IMAP connected. Folders: ' . $folderSummary . '.');
-        } catch (\Throwable $e) {
-            flash()->error('IMAP test failed: ' . $mailSettings->formatImapError($e));
-        }
+        flash()->warning('IMAP sync has been removed. Email Center reads the mailbox live via Microsoft Graph.');
     }
 
     public function testGraph(GraphMailboxService $graphMailbox): void

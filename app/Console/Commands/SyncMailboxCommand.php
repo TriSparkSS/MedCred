@@ -2,40 +2,25 @@
 
 namespace App\Console\Commands;
 
-use App\Services\CredentialingEmailService;
+use App\Services\GraphMailboxService;
 use Illuminate\Console\Command;
 
 class SyncMailboxCommand extends Command
 {
     protected $signature = 'mailbox:sync';
 
-    protected $description = 'Sync the credentialing mailbox via Microsoft Graph (OAuth) or IMAP fallback';
+    protected $description = 'Clear the Microsoft Graph mailbox cache so Email Center loads fresh data';
 
-    public function handle(CredentialingEmailService $emailService): int
+    public function handle(GraphMailboxService $graph): int
     {
-        @set_time_limit(300);
+        if (! $graph->isConfigured()) {
+            $this->error('Microsoft Graph is not configured. Set GRAPH_* env vars.');
 
-        $via = app(\App\Services\GraphMailboxService::class)->isConfigured()
-            ? 'Microsoft Graph'
-            : 'IMAP';
-
-        $this->info("Syncing mailbox via {$via}...");
-
-        $maxPerFolder = app(\App\Services\GraphMailboxService::class)->isConfigured()
-            ? (int) config('services.microsoft_graph.sync_batch_size', 50)
-            : null;
-
-        $result = $emailService->syncInbox($maxPerFolder);
-
-        $this->info("Imported: {$result['imported']}, Skipped: {$result['skipped']}, Errors: " . count($result['errors']));
-
-        if (! empty($result['has_more'])) {
-            $this->info('More messages remain — run mailbox:sync again or wait for the scheduler.');
+            return self::FAILURE;
         }
 
-        foreach ($result['errors'] as $error) {
-            $this->warn($error);
-        }
+        $graph->clearCache();
+        $this->info('Graph mailbox cache cleared. Email Center will fetch live data on the next request.');
 
         return self::SUCCESS;
     }

@@ -207,6 +207,11 @@ class CredentialingCase extends Model
         return $this->hasMany(EmailMessage::class);
     }
 
+    public function emailCaseLinks(): HasMany
+    {
+        return $this->hasMany(EmailCaseLink::class);
+    }
+
     public function slaTimers(): HasMany
     {
         return $this->hasMany(CaseSlaTimer::class);

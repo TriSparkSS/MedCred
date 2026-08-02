@@ -2,24 +2,22 @@
 
 namespace App\Services;
 
-use App\Models\EmailAttachment;
-use App\Models\EmailMessage;
-use App\Models\Setting;
+use App\Data\MailFolderPage;
+use App\Data\MailMessageDto;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class GraphMailboxService
 {
-    public const KEY_INBOX_SINCE = 'mail.graph.inbox_since';
+    public const CACHE_TTL_SECONDS = 45;
 
-    public const KEY_SENT_SINCE = 'mail.graph.sent_since';
+    public const LIST_SELECT = 'id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,conversationId,internetMessageId,isRead';
+
+    public const DETAIL_SELECT = 'id,internetMessageId,conversationId,subject,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,internetMessageHeaders,isRead';
 
     public function __construct(
         protected MicrosoftGraphTokenService $tokenService,
-        protected MailSettingsService $mailSettings,
-        protected CredentialingEmailService $emailService,
-        protected EmailMatchingService $matchingService,
     ) {}
 
     public function isConfigured(): bool
@@ -27,55 +25,18 @@ class GraphMailboxService
         return $this->tokenService->isConfigured();
     }
 
-    /**
-     * @return array{imported: int, skipped: int, errors: array<int, string>, has_more: bool}
-     */
-    public function sync(?int $maxMessagesPerFolder = null): array
+    public function clearCache(): void
     {
-        if (! $this->isConfigured()) {
-            throw new \RuntimeException(
-                'Microsoft Graph is not configured. Set GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, and GRAPH_MAILBOX in .env.'
-            );
-        }
+        Cache::forget($this->folderCountCacheKey('inbox'));
+        Cache::forget($this->folderCountCacheKey('sentitems'));
 
-        $maxMessagesPerFolder ??= (int) config('services.microsoft_graph.sync_batch_size', 50);
-        $settings = $this->mailSettings->getSettings();
-        $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'has_more' => false];
-
-        $folders = [
-            [
-                'folder' => 'inbox',
-                'label' => 'Inbox',
-                'direction' => 'inbound',
-                'since_key' => self::KEY_INBOX_SINCE,
-                'date_field' => 'receivedDateTime',
-            ],
-        ];
-
-        if ($settings['imap_sent_enabled']) {
-            $folders[] = [
-                'folder' => 'sentitems',
-                'label' => 'Sent Items',
-                'direction' => 'outbound',
-                'since_key' => self::KEY_SENT_SINCE,
-                'date_field' => 'sentDateTime',
-            ];
-        }
-
-        foreach ($folders as $folderConfig) {
-            $folderResult = $this->syncFolder($folderConfig, $maxMessagesPerFolder);
-            $result['imported'] += $folderResult['imported'];
-            $result['skipped'] += $folderResult['skipped'];
-            $result['errors'] = array_merge($result['errors'], $folderResult['errors']);
-
-            if ($folderResult['has_more']) {
-                $result['has_more'] = true;
+        // Bust common list pages (1–20) for inbox/sent with empty search.
+        foreach (['inbox', 'sentitems'] as $folder) {
+            for ($page = 1; $page <= 20; $page++) {
+                Cache::forget($this->listCacheKey($folder, $page, 15, null));
+                Cache::forget($this->listCacheKey($folder, $page, 25, null));
             }
         }
-
-        Setting::set(MailSettingsService::KEY_IMAP_LAST_SYNC_AT, now()->toIso8601String());
-
-        return $result;
     }
 
     /**
@@ -111,149 +72,176 @@ class GraphMailboxService
         ];
     }
 
-    /**
-     * @param  array{folder: string, label: string, direction: string, since_key: string, date_field: string}  $folderConfig
-     * @return array{imported: int, skipped: int, errors: array<int, string>, has_more: bool}
-     */
-    protected function syncFolder(array $folderConfig, int $maxMessages): array
+    public function folderTotal(string $folder): int
     {
-        $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'has_more' => false];
+        $this->assertConfigured();
+        $folder = $this->normalizeFolder($folder);
+
+        return (int) Cache::remember(
+            $this->folderCountCacheKey($folder),
+            self::CACHE_TTL_SECONDS,
+            function () use ($folder) {
+                $response = $this->graphGet("/users/{$this->mailbox()}/mailFolders/{$folder}", [
+                    '$select' => 'totalItemCount',
+                ]);
+
+                return (int) ($response['totalItemCount'] ?? 0);
+            }
+        );
+    }
+
+    public function listFolder(string $folder, int $page = 1, int $perPage = 15, ?string $search = null): MailFolderPage
+    {
+        $this->assertConfigured();
+        $folder = $this->normalizeFolder($folder);
+        $page = max(1, $page);
+        $perPage = max(1, min(50, $perPage));
+        $search = filled($search) ? trim($search) : null;
+
+        $cacheKey = $this->listCacheKey($folder, $page, $perPage, $search);
+
+        /** @var array{items: list<array<string, mixed>>, total: int} $cached */
+        $cached = Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($folder, $page, $perPage, $search) {
+            return $this->fetchFolderPage($folder, $page, $perPage, $search);
+        });
+
         $mailbox = $this->mailbox();
-        $since = Setting::getDecrypted($folderConfig['since_key']);
-        $dateField = $folderConfig['date_field'];
+        $items = collect($cached['items'])
+            ->map(fn (array $raw) => MailMessageDto::fromGraph($raw, $folder, $mailbox));
 
-        if (blank($since)) {
-            $since = now()->subDays(30)->utc()->format('Y-m-d\TH:i:s\Z');
+        return new MailFolderPage(
+            items: $items,
+            page: $page,
+            perPage: $perPage,
+            total: (int) $cached['total'],
+            folder: $folder,
+            search: $search,
+        );
+    }
+
+    public function getMessage(string $graphId, ?string $folderHint = null, bool $withAttachments = true): MailMessageDto
+    {
+        $this->assertConfigured();
+        $raw = $this->fetchMessage($graphId);
+        $folder = $folderHint ? $this->normalizeFolder($folderHint) : $this->inferFolder($raw);
+        $dto = MailMessageDto::fromGraph($raw, $folder, $this->mailbox());
+
+        if ($withAttachments && $dto->hasAttachments && $dto->attachments === []) {
+            $attachments = $this->listAttachmentMeta($graphId);
+            $merged = array_merge($raw, ['attachments' => $attachments]);
+
+            return MailMessageDto::fromGraph($merged, $folder, $this->mailbox());
         }
 
-        $filter = "{$dateField} ge {$since}";
-        $url = $this->graphUrl("/users/{$mailbox}/mailFolders/{$folderConfig['folder']}/messages");
-        $query = [
-            '$filter' => $filter,
-            '$orderby' => "{$dateField} asc",
-            '$top' => (string) min($maxMessages, 50),
-            '$select' => 'id,internetMessageId,receivedDateTime,sentDateTime,hasAttachments',
-        ];
-
-        $latestSeen = $since;
-        $isFirstPage = true;
-        $processed = 0;
-
-        while ($url) {
-            $payload = $this->graphGetAbsolute($url, $isFirstPage ? $query : []);
-            $isFirstPage = false;
-            $messages = $payload['value'] ?? [];
-            $existingIds = $this->existingMessageIdLookup($messages);
-
-            foreach ($messages as $graphMessage) {
-                if ($processed >= $maxMessages) {
-                    $result['has_more'] = true;
-                    break 2;
-                }
-
-                try {
-                    $messageDate = $graphMessage[$dateField] ?? null;
-                    if ($messageDate && strcmp((string) $messageDate, (string) $latestSeen) > 0) {
-                        $latestSeen = $messageDate;
-                    }
-
-                    $normalizedId = $this->normalizeMessageIdForComparison($graphMessage['internetMessageId'] ?? null);
-
-                    if ($normalizedId && isset($existingIds[$normalizedId])) {
-                        $result['skipped']++;
-                        $processed++;
-
-                        continue;
-                    }
-
-                    $fullMessage = $this->fetchMessage((string) $graphMessage['id']);
-                    $parsed = $this->parseMessage($fullMessage);
-
-                    if ($this->isDuplicate($parsed)) {
-                        $result['skipped']++;
-                        $processed++;
-
-                        continue;
-                    }
-
-                    $threadData = $this->resolveThread($parsed);
-                    $parsed = array_merge($parsed, $threadData);
-
-                    if ($folderConfig['direction'] === 'outbound') {
-                        $emailMessage = $this->emailService->logOutboundFromImap($parsed);
-                    } else {
-                        $emailMessage = $this->emailService->logInbound($parsed);
-                    }
-
-                    if (! empty($fullMessage['hasAttachments'])) {
-                        $this->storeAttachments((string) $fullMessage['id'], $emailMessage);
-                    }
-
-                    $result['imported']++;
-                    $processed++;
-                } catch (\Throwable $e) {
-                    $result['errors'][] = $folderConfig['label'].': '.$e->getMessage();
-                    $processed++;
-                }
-            }
-
-            $url = $payload['@odata.nextLink'] ?? null;
-
-            if ($url && $processed >= $maxMessages) {
-                $result['has_more'] = true;
-                break;
-            }
-        }
-
-        if (strcmp((string) $latestSeen, (string) $since) > 0 || $processed > 0) {
-            $cursor = \Carbon\Carbon::parse($latestSeen)->utc()->addSecond()->format('Y-m-d\TH:i:s\Z');
-            Setting::set($folderConfig['since_key'], $cursor);
-        }
-
-        return $result;
+        return $dto;
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $messages
-     * @return array<string, true>
+     * @return Collection<int, MailMessageDto>
      */
-    protected function existingMessageIdLookup(array $messages): array
+    public function getConversation(?string $conversationId, string $anchorGraphId, ?string $folderHint = null): Collection
     {
-        $variants = [];
+        $this->assertConfigured();
+        $anchor = $this->getMessage($anchorGraphId, $folderHint, true);
 
-        foreach ($messages as $message) {
-            $normalized = $this->normalizeMessageIdForComparison($message['internetMessageId'] ?? null);
+        $messages = collect();
 
-            if (blank($normalized)) {
-                continue;
-            }
-
-            $variants[] = $normalized;
-            $variants[] = '<'.$normalized.'>';
-        }
-
-        if ($variants === []) {
-            return [];
-        }
-
-        $existing = EmailMessage::query()
-            ->where(function ($query) use ($variants) {
-                $query->whereIn('message_id', $variants)
-                    ->orWhereIn('external_message_id', $variants);
-            })
-            ->get(['message_id', 'external_message_id']);
-
-        $lookup = [];
-
-        foreach ($existing as $row) {
-            foreach ([$row->message_id, $row->external_message_id] as $id) {
-                if (filled($id)) {
-                    $lookup[trim((string) $id, '<>')] = true;
-                }
+        if (filled($conversationId ?: $anchor->conversationId)) {
+            $cid = $conversationId ?: $anchor->conversationId;
+            try {
+                $messages = $this->fetchByConversationId((string) $cid);
+            } catch (\Throwable) {
+                // Fall back to header-based / standalone threading below.
+                $messages = collect();
             }
         }
 
-        return $lookup;
+        if ($messages->isEmpty()) {
+            try {
+                $messages = $this->fetchByThreadHeaders($anchor);
+            } catch (\Throwable) {
+                $messages = collect();
+            }
+        }
+
+        if ($messages->isEmpty() || ! $messages->contains(fn (MailMessageDto $m) => $m->id === $anchor->id)) {
+            $messages = $messages->push($anchor)->unique(fn (MailMessageDto $m) => $m->id);
+        }
+
+        return $messages
+            ->sortBy(fn (MailMessageDto $m) => $m->date?->timestamp ?? 0)
+            ->values();
+    }
+
+    /**
+     * @return array{name: string, contentType: string|null, content: string}
+     */
+    public function downloadAttachment(string $messageId, string $attachmentId): array
+    {
+        $this->assertConfigured();
+        $mailbox = $this->mailbox();
+        $attachment = $this->graphGet("/users/{$mailbox}/messages/{$messageId}/attachments/{$attachmentId}");
+
+        $odataType = (string) ($attachment['@odata.type'] ?? '');
+        if (! str_contains($odataType, 'fileAttachment') || empty($attachment['contentBytes'])) {
+            throw new \RuntimeException('Attachment is not downloadable.');
+        }
+
+        $content = base64_decode((string) $attachment['contentBytes'], true);
+        if ($content === false) {
+            throw new \RuntimeException('Failed to decode attachment.');
+        }
+
+        return [
+            'name' => (string) ($attachment['name'] ?? 'attachment'),
+            'contentType' => $attachment['contentType'] ?? 'application/octet-stream',
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * @return array{items: list<array<string, mixed>>, total: int}
+     */
+    protected function fetchFolderPage(string $folder, int $page, int $perPage, ?string $search): array
+    {
+        $mailbox = $this->mailbox();
+        $skip = ($page - 1) * $perPage;
+        $total = $this->folderTotal($folder);
+
+        $query = [
+            '$orderby' => $folder === 'sentitems' ? 'sentDateTime desc' : 'receivedDateTime desc',
+            '$top' => (string) $perPage,
+            '$skip' => (string) $skip,
+            '$select' => self::LIST_SELECT,
+            '$count' => 'true',
+        ];
+
+        if (filled($search)) {
+            // Graph $search cannot combine with $filter/$orderby on some tenants; use $search alone.
+            unset($query['$orderby'], $query['$count']);
+            $query['$search'] = '"'.str_replace('"', '', $search).'"';
+        }
+
+        $headers = filled($search) ? ['ConsistencyLevel' => 'eventual'] : [];
+        $payload = $this->graphGet(
+            "/users/{$mailbox}/mailFolders/{$folder}/messages",
+            $query,
+            $headers
+        );
+
+        if (isset($payload['@odata.count'])) {
+            $total = (int) $payload['@odata.count'];
+        } elseif (filled($search)) {
+            $total = count($payload['value'] ?? []) + $skip;
+            if (! empty($payload['@odata.nextLink'])) {
+                $total += $perPage;
+            }
+        }
+
+        return [
+            'items' => $payload['value'] ?? [],
+            'total' => $total,
+        ];
     }
 
     /**
@@ -264,164 +252,160 @@ class GraphMailboxService
         $mailbox = $this->mailbox();
 
         return $this->graphGet("/users/{$mailbox}/messages/{$messageId}", [
-            '$select' => 'id,internetMessageId,conversationId,subject,body,from,toRecipients,receivedDateTime,sentDateTime,hasAttachments,internetMessageHeaders',
+            '$select' => self::DETAIL_SELECT,
         ]);
-    }
-
-    protected function parseMessage(array $graphMessage): array
-    {
-        $fromAddress = data_get($graphMessage, 'from.emailAddress.address', '');
-        $toAddress = data_get($graphMessage, 'toRecipients.0.emailAddress.address', '');
-
-        if (blank($toAddress)) {
-            $toAddress = config('credentialing.mailbox.from_address')
-                ?: (string) config('services.microsoft_graph.mailbox');
-        }
-
-        $messageId = $this->normalizeMessageId($graphMessage['internetMessageId'] ?? null);
-        $headers = collect($graphMessage['internetMessageHeaders'] ?? []);
-        $inReplyTo = $this->normalizeMessageId(
-            $headers->first(fn ($h) => strcasecmp((string) ($h['name'] ?? ''), 'In-Reply-To') === 0)['value'] ?? null
-        );
-        $references = $headers->first(fn ($h) => strcasecmp((string) ($h['name'] ?? ''), 'References') === 0)['value'] ?? null;
-
-        $bodyContent = (string) data_get($graphMessage, 'body.content', '');
-        $bodyType = strtolower((string) data_get($graphMessage, 'body.contentType', 'text'));
-        $body = $bodyType === 'html'
-            ? trim(html_entity_decode(strip_tags($bodyContent), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
-            : trim(html_entity_decode($bodyContent, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-        $body = preg_replace("/[ \t]+\n/", "\n", $body) ?? $body;
-        $body = preg_replace("/\n{3,}/", "\n\n", $body) ?? $body;
-
-        $receivedAt = isset($graphMessage['receivedDateTime'])
-            ? \Carbon\Carbon::parse($graphMessage['receivedDateTime'])
-            : now();
-        $sentAt = isset($graphMessage['sentDateTime'])
-            ? \Carbon\Carbon::parse($graphMessage['sentDateTime'])
-            : $receivedAt;
-
-        return [
-            'message_id' => $messageId,
-            'external_message_id' => $messageId ?: ($graphMessage['id'] ?? null),
-            'in_reply_to' => $inReplyTo,
-            'references' => filled($references) ? trim((string) $references) : null,
-            'from_address' => (string) $fromAddress,
-            'to_address' => (string) $toAddress,
-            'subject' => (string) ($graphMessage['subject'] ?? ''),
-            'body' => $body,
-            'received_at' => $receivedAt,
-            'sent_at' => $sentAt,
-        ];
-    }
-
-    protected function storeAttachments(string $graphMessageId, EmailMessage $emailMessage): void
-    {
-        $mailbox = $this->mailbox();
-        $payload = $this->graphGet("/users/{$mailbox}/messages/{$graphMessageId}/attachments");
-        $hasAttachments = false;
-
-        foreach ($payload['value'] ?? [] as $attachment) {
-            $odataType = (string) ($attachment['@odata.type'] ?? '');
-
-            if (! str_contains($odataType, 'fileAttachment') || empty($attachment['contentBytes'])) {
-                continue;
-            }
-
-            $name = $attachment['name'] ?: 'attachment-'.Str::random(8);
-            $content = base64_decode((string) $attachment['contentBytes'], true);
-
-            if ($content === false) {
-                continue;
-            }
-
-            $path = 'email-attachments/'.$emailMessage->id.'/'.$name;
-            Storage::disk('public')->put($path, $content);
-
-            EmailAttachment::create([
-                'email_message_id' => $emailMessage->id,
-                'file_path' => $path,
-                'original_name' => $name,
-                'file_size' => strlen($content),
-                'mime_type' => $attachment['contentType'] ?? null,
-            ]);
-
-            $hasAttachments = true;
-        }
-
-        if ($hasAttachments) {
-            $emailMessage->update(['has_pending_attachments' => true]);
-            $category = $this->matchingService->categorizeQueue($emailMessage->fresh());
-            $emailMessage->update(['queue_category' => $category]);
-        }
-    }
-
-    protected function isDuplicate(array $parsed): bool
-    {
-        $normalized = $this->normalizeMessageIdForComparison($parsed['message_id'] ?? null);
-
-        if (blank($normalized)) {
-            return false;
-        }
-
-        $bracketed = '<'.$normalized.'>';
-
-        return EmailMessage::where('message_id', $normalized)
-            ->orWhere('message_id', $bracketed)
-            ->orWhere('external_message_id', $normalized)
-            ->orWhere('external_message_id', $bracketed)
-            ->exists();
     }
 
     /**
-     * @return array{credentialing_case_id: ?int, provider_id: ?int, thread_id: ?string}
+     * @return list<array<string, mixed>>
      */
-    protected function resolveThread(array $parsed): array
+    protected function listAttachmentMeta(string $messageId): array
     {
-        $parentIds = array_filter([
-            $parsed['in_reply_to'],
-            ...preg_split('/\s+/', (string) ($parsed['references'] ?? '')) ?: [],
+        $mailbox = $this->mailbox();
+        $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageId}/attachments", [
+            '$select' => 'id,name,size,contentType,@odata.type',
         ]);
 
-        foreach ($parentIds as $parentId) {
-            $normalized = $this->normalizeMessageIdForComparison($parentId);
-            $bracketed = $normalized ? '<'.$normalized.'>' : null;
+        return $payload['value'] ?? [];
+    }
 
-            $parent = EmailMessage::query()
-                ->when($normalized, function ($query) use ($normalized, $bracketed) {
-                    $query->where(function ($q) use ($normalized, $bracketed) {
-                        $q->where('message_id', $normalized)
-                            ->orWhere('message_id', $bracketed)
-                            ->orWhere('external_message_id', $normalized)
-                            ->orWhere('external_message_id', $bracketed);
-                    });
-                })
-                ->first();
+    /**
+     * @return Collection<int, MailMessageDto>
+     */
+    protected function fetchByConversationId(string $conversationId): Collection
+    {
+        $mailbox = $this->mailbox();
+        $escaped = str_replace("'", "''", $conversationId);
+        $items = collect();
 
-            if ($parent) {
-                return [
-                    'credentialing_case_id' => $parent->credentialing_case_id,
-                    'provider_id' => $parent->provider_id,
-                    'thread_id' => $parent->thread_id,
-                ];
+        // Do not combine conversationId $filter with $orderby — Graph returns
+        // "The restriction or sort order is too complex for this operation."
+        // Sort chronologically in PHP after fetch instead.
+        $url = $this->graphUrl("/users/{$mailbox}/messages");
+        $query = [
+            '$filter' => "conversationId eq '{$escaped}'",
+            '$select' => self::DETAIL_SELECT,
+            '$top' => '50',
+        ];
+
+        $isFirst = true;
+        while ($url) {
+            $payload = $this->graphGetAbsolute($url, $isFirst ? $query : []);
+            $isFirst = false;
+
+            foreach ($payload['value'] ?? [] as $raw) {
+                $folder = $this->inferFolder($raw);
+                $dto = MailMessageDto::fromGraph($raw, $folder, $mailbox);
+                if ($dto->hasAttachments && $dto->attachments === []) {
+                    $meta = $this->listAttachmentMeta($dto->id);
+                    $dto = MailMessageDto::fromGraph(array_merge($raw, ['attachments' => $meta]), $folder, $mailbox);
+                }
+                $items->push($dto);
+            }
+
+            $url = $payload['@odata.nextLink'] ?? null;
+            if ($items->count() >= 100) {
+                break;
             }
         }
 
-        $match = $this->matchingService->match(
-            $parsed['subject'],
-            $parsed['body'],
-            $parsed['from_address']
-        );
+        return $items->unique(fn (MailMessageDto $m) => $m->id)->values();
+    }
 
-        return [
-            'credentialing_case_id' => $match['case']?->id,
-            'provider_id' => $match['provider']?->id,
-            'thread_id' => $match['case'] ? 'case-'.$match['case']->id : null,
-        ];
+    /**
+     * @return Collection<int, MailMessageDto>
+     */
+    protected function fetchByThreadHeaders(MailMessageDto $anchor): Collection
+    {
+        $mailbox = $this->mailbox();
+        $ids = collect();
+
+        if ($anchor->internetMessageId) {
+            $ids->push($anchor->normalizedMessageId());
+        }
+        if ($anchor->inReplyTo) {
+            $ids->push(trim($anchor->inReplyTo, '<>'));
+        }
+        if ($anchor->references) {
+            foreach (preg_split('/\s+/', $anchor->references) ?: [] as $ref) {
+                $normalized = trim($ref, '<>');
+                if ($normalized !== '') {
+                    $ids->push($normalized);
+                }
+            }
+        }
+
+        $ids = $ids->filter()->unique()->values();
+        if ($ids->isEmpty()) {
+            return collect([$anchor]);
+        }
+
+        $found = collect([$anchor]);
+
+        foreach ($ids->take(10) as $messageId) {
+            try {
+                $escaped = str_replace("'", "''", $messageId);
+                // Search both bracketed and bare forms.
+                foreach ([$escaped, '<'.$escaped.'>'] as $variant) {
+                    $payload = $this->graphGet("/users/{$mailbox}/messages", [
+                        '$filter' => "internetMessageId eq '".str_replace("'", "''", $variant)."'",
+                        '$select' => self::DETAIL_SELECT,
+                        '$top' => '5',
+                    ]);
+
+                    foreach ($payload['value'] ?? [] as $raw) {
+                        $folder = $this->inferFolder($raw);
+                        $found->push(MailMessageDto::fromGraph($raw, $folder, $mailbox));
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignore lookup failures for individual header IDs.
+            }
+        }
+
+        return $found->unique(fn (MailMessageDto $m) => $m->id)->values();
+    }
+
+    protected function inferFolder(array $graphMessage): string
+    {
+        $mailbox = strtolower($this->mailbox());
+        $from = strtolower((string) data_get($graphMessage, 'from.emailAddress.address', ''));
+
+        return ($mailbox !== '' && $from === $mailbox) ? 'sentitems' : 'inbox';
+    }
+
+    public function normalizeFolder(string $folder): string
+    {
+        $folder = strtolower(trim($folder));
+
+        return match ($folder) {
+            'sent', 'sentitems', 'sent items' => 'sentitems',
+            default => 'inbox',
+        };
+    }
+
+    protected function assertConfigured(): void
+    {
+        if (! $this->isConfigured()) {
+            $missing = implode(', ', $this->tokenService->missingConfigKeys());
+
+            throw new \RuntimeException('Microsoft Graph is not configured. Set in .env: '.$missing);
+        }
     }
 
     protected function mailbox(): string
     {
         return (string) config('services.microsoft_graph.mailbox');
+    }
+
+    protected function listCacheKey(string $folder, int $page, int $perPage, ?string $search): string
+    {
+        return 'graph.mail.list.'.md5($folder.'|'.$page.'|'.$perPage.'|'.($search ?? ''));
+    }
+
+    protected function folderCountCacheKey(string $folder): string
+    {
+        return 'graph.mail.count.'.$folder;
     }
 
     protected function graphUrl(string $path): string
@@ -431,22 +415,25 @@ class GraphMailboxService
 
     /**
      * @param  array<string, mixed>  $query
+     * @param  array<string, string>  $headers
      * @return array<string, mixed>
      */
-    protected function graphGet(string $path, array $query = []): array
+    protected function graphGet(string $path, array $query = [], array $headers = []): array
     {
-        return $this->graphGetAbsolute($this->graphUrl($path), $query);
+        return $this->graphGetAbsolute($this->graphUrl($path), $query, $headers);
     }
 
     /**
      * @param  array<string, mixed>  $query
+     * @param  array<string, string>  $headers
      * @return array<string, mixed>
      */
-    protected function graphGetAbsolute(string $url, array $query = []): array
+    protected function graphGetAbsolute(string $url, array $query = [], array $headers = []): array
     {
         $request = Http::withToken($this->tokenService->getAccessToken())
             ->acceptJson()
-            ->timeout(60);
+            ->timeout(60)
+            ->withHeaders($headers);
 
         $response = $query === []
             ? $request->get($url)
@@ -456,7 +443,8 @@ class GraphMailboxService
             $this->tokenService->forgetCachedToken();
             $request = Http::withToken($this->tokenService->getAccessToken())
                 ->acceptJson()
-                ->timeout(60);
+                ->timeout(60)
+                ->withHeaders($headers);
             $response = $query === []
                 ? $request->get($url)
                 : $request->get($url, $query);
@@ -471,29 +459,5 @@ class GraphMailboxService
         }
 
         return $response->json() ?? [];
-    }
-
-    protected function normalizeMessageId(mixed $id): ?string
-    {
-        if (blank($id)) {
-            return null;
-        }
-
-        $id = trim((string) $id);
-
-        if (! str_starts_with($id, '<')) {
-            $id = '<'.trim($id, '<>').'>';
-        }
-
-        return $id;
-    }
-
-    protected function normalizeMessageIdForComparison(?string $id): ?string
-    {
-        if (blank($id)) {
-            return null;
-        }
-
-        return trim($id, '<>');
     }
 }

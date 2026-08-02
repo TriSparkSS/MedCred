@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\EmailMessage;
 use App\Models\Setting;
 use Webklex\PHPIMAP\ClientManager;
 
@@ -271,21 +270,17 @@ class MailSettingsService
 
     public function isMailboxSyncConfigured(): bool
     {
-        return app(GraphMailboxService::class)->isConfigured() || $this->isImapConfigured();
+        return app(GraphMailboxService::class)->isConfigured();
     }
 
     public function mailboxSyncDriver(): string
     {
-        return app(GraphMailboxService::class)->isConfigured() ? 'graph' : 'imap';
+        return 'graph';
     }
 
     public function formatMailboxSyncError(\Throwable $e): string
     {
-        if ($this->mailboxSyncDriver() === 'graph') {
-            return $e->getMessage();
-        }
-
-        return $this->formatImapError($e);
+        return $e->getMessage();
     }
 
     public function imapClientConfig(): array
@@ -379,7 +374,7 @@ class MailSettingsService
         ];
     }
 
-    public function sendTestEmail(string $toAddress): EmailMessage
+    public function sendTestEmail(string $toAddress): \App\Data\SentEmailResult
     {
         $this->assertConfigured();
 

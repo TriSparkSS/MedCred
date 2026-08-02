@@ -2,22 +2,20 @@
 
 namespace App\Services;
 
+use App\Data\SentEmailResult;
 use App\Mail\CredentialingTemplateMail;
-use App\Events\ProviderResponseReceived;
 use App\Models\AuditLog;
-use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
-use App\Models\Document;
-use App\Models\EmailAttachment;
-use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class CredentialingEmailService
 {
+    public function __construct(
+        protected EmailCaseLinkService $caseLinks,
+    ) {}
+
     public function sendFromTemplate(
         CredentialingCase $case,
         NotificationTemplate $template,
@@ -27,7 +25,7 @@ class CredentialingEmailService
         array $extraVariables = [],
         ?string $inReplyTo = null,
         ?string $threadId = null,
-    ): EmailMessage {
+    ): SentEmailResult {
         $variables = array_merge($this->caseVariables($case), $extraVariables);
         $rendered = $template->render($variables);
 
@@ -54,7 +52,7 @@ class CredentialingEmailService
         ?string $ccAddress = null,
         ?string $inReplyTo = null,
         ?string $threadId = null,
-    ): EmailMessage {
+    ): SentEmailResult {
         $mailSettings = app(MailSettingsService::class);
         $mailSettings->applyToConfig();
         $mailSettings->assertConfigured();
@@ -70,25 +68,7 @@ class CredentialingEmailService
             throw new \RuntimeException('Recipient email address is required.');
         }
 
-        $resolvedThreadId = $threadId ?? ($case ? 'case-' . $case->id : Str::uuid()->toString());
         $messageId = $this->generateMessageId();
-
-        $message = EmailMessage::create([
-            'credentialing_case_id' => $case?->id,
-            'notification_template_id' => $template?->id,
-            'sent_by_admin_id' => $adminId,
-            'direction' => 'outbound',
-            'thread_id' => $resolvedThreadId,
-            'message_id' => $messageId,
-            'in_reply_to' => $inReplyTo,
-            'from_address' => $from,
-            'to_address' => $toAddress,
-            'cc_address' => $ccAddress,
-            'subject' => $subject,
-            'body' => $body,
-            'status' => 'pending',
-            'queue_category' => 'sent',
-        ]);
 
         try {
             Mail::to($toAddress)->send(new CredentialingTemplateMail(
@@ -99,184 +79,80 @@ class CredentialingEmailService
                 $from,
                 $fromName,
             ));
-
-            $message->update([
-                'status' => 'sent',
-                'sent_at' => now(),
-            ]);
         } catch (\Throwable $e) {
-            $message->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-                'queue_category' => 'failed',
-            ]);
-
-            return $message->fresh();
+            return new SentEmailResult(
+                success: false,
+                messageId: $messageId,
+                errorMessage: $e->getMessage(),
+                caseId: $case?->id,
+            );
         }
 
         try {
             if ($case) {
-                $case->addActivity('email', 'Email sent: ' . $subject, $adminId);
+                $this->caseLinks->link($messageId, $case->id);
+                $case->addActivity('email', 'Email sent: '.$subject, $adminId);
             }
 
-            AuditLog::record('email_sent', $message, $adminId, ['case_id' => $case?->id]);
+            AuditLog::record('email_sent', $case, $adminId, [
+                'case_id' => $case?->id,
+                'message_id' => $messageId,
+                'to' => $toAddress,
+                'subject' => $subject,
+                'template_id' => $template?->id,
+            ]);
         } catch (\Throwable) {
             // Post-send logging must not mark the email as failed.
         }
 
-        return $message->fresh();
+        return new SentEmailResult(
+            success: true,
+            messageId: $messageId,
+            caseId: $case?->id,
+        );
     }
 
-    public function logInbound(array $data, ?int $adminId = null): EmailMessage
+    public function linkMessageToCase(string $messageId, CredentialingCase $case, ?int $adminId = null): void
     {
-        $message = EmailMessage::create([
-            'credentialing_case_id' => $data['credentialing_case_id'] ?? null,
-            'provider_id' => $data['provider_id'] ?? null,
-            'direction' => 'inbound',
-            'thread_id' => $data['thread_id'] ?? null,
-            'external_message_id' => $data['external_message_id'] ?? $data['message_id'] ?? null,
-            'message_id' => $data['message_id'] ?? null,
-            'in_reply_to' => $data['in_reply_to'] ?? null,
-            'references' => $data['references'] ?? null,
-            'imap_uid' => $data['imap_uid'] ?? null,
-            'from_address' => $data['from_address'],
-            'to_address' => $data['to_address'] ?? config('credentialing.mailbox.from_address'),
-            'subject' => $data['subject'],
-            'body' => $data['body'],
-            'status' => 'received',
-            'received_at' => $data['received_at'] ?? now(),
-            'has_pending_attachments' => $data['has_pending_attachments'] ?? false,
-            'is_unlinked' => empty($data['credentialing_case_id']),
+        $this->caseLinks->link($messageId, $case->id);
+        $case->addActivity('email', 'Email linked to case (Message-ID '.$messageId.')', $adminId);
+        AuditLog::record('email_linked', $case, $adminId, [
+            'case_id' => $case->id,
+            'message_id' => $messageId,
         ]);
-
-        if ($message->credentialing_case_id) {
-            $message->credentialingCase?->addActivity(
-                'email',
-                'Inbound email received: ' . $message->subject,
-                $adminId
-            );
-        }
-
-        $category = app(EmailMatchingService::class)->categorizeQueue($message);
-        $message->update(['queue_category' => $category]);
-
-        if ($category === 'provider_responses' && $message->credentialingCase) {
-            ProviderResponseReceived::dispatch($message->fresh(), $message->credentialingCase, $adminId);
-        }
-
-        return $message->fresh();
-    }
-
-    public function logOutboundFromImap(array $data, ?int $adminId = null): EmailMessage
-    {
-        $message = EmailMessage::create([
-            'credentialing_case_id' => $data['credentialing_case_id'] ?? null,
-            'provider_id' => $data['provider_id'] ?? null,
-            'direction' => 'outbound',
-            'thread_id' => $data['thread_id'] ?? null,
-            'external_message_id' => $data['external_message_id'] ?? $data['message_id'] ?? null,
-            'message_id' => $data['message_id'] ?? null,
-            'in_reply_to' => $data['in_reply_to'] ?? null,
-            'references' => $data['references'] ?? null,
-            'imap_uid' => $data['imap_uid'] ?? null,
-            'from_address' => $data['from_address'],
-            'to_address' => $data['to_address'] ?? config('credentialing.mailbox.from_address'),
-            'subject' => $data['subject'],
-            'body' => $data['body'],
-            'status' => 'sent',
-            'queue_category' => 'sent',
-            'sent_at' => $data['sent_at'] ?? now(),
-            'has_pending_attachments' => $data['has_pending_attachments'] ?? false,
-            'is_unlinked' => empty($data['credentialing_case_id']),
-        ]);
-
-        if ($message->credentialing_case_id) {
-            $message->credentialingCase?->addActivity(
-                'email',
-                'Sent email imported from mailbox: ' . $message->subject,
-                $adminId
-            );
-        }
-
-        return $message->fresh();
     }
 
     /**
-     * @return array{imported: int, skipped: int, errors: array<int, string>, has_more?: bool}
+     * @return array{inbox_count: int, total_sent: int, graph_configured: bool}
      */
-    public function syncInbox(?int $maxMessagesPerFolder = null): array
+    public function stats(GraphMailboxService $graph): array
     {
-        $graph = app(GraphMailboxService::class);
-
-        if ($graph->isConfigured()) {
-            return $graph->sync($maxMessagesPerFolder);
+        if (! $graph->isConfigured()) {
+            return [
+                'inbox_count' => 0,
+                'total_sent' => 0,
+                'graph_configured' => false,
+            ];
         }
 
-        return app(ImapMailboxService::class)->sync();
-    }
-
-    public function linkToCase(EmailMessage $message, CredentialingCase $case, ?int $adminId = null): void
-    {
-        $message->update([
-            'credentialing_case_id' => $case->id,
-            'thread_id' => $message->thread_id ?: 'case-' . $case->id,
-            'is_unlinked' => false,
-        ]);
-
-        $category = app(EmailMatchingService::class)->categorizeQueue($message->fresh());
-        $message->update(['queue_category' => $category]);
-
-        $case->addActivity('email', 'Email linked to case: ' . $message->subject, $adminId);
-        AuditLog::record('email_linked', $message, $adminId, ['case_id' => $case->id]);
-    }
-
-    public function saveAttachmentToDocument(EmailAttachment $attachment, CredentialingCase $case, ?int $adminId = null): Document
-    {
-        $document = Document::create([
-            'credentialing_case_id' => $case->id,
-            'provider_id' => $case->provider_id,
-            'practice_id' => $case->practice_id,
-            'title' => pathinfo($attachment->original_name, PATHINFO_FILENAME),
-            'uploaded_by_admin_id' => $adminId,
-            'status' => 'active',
-        ]);
-
-        $newPath = 'documents/' . $document->id . '/' . $attachment->original_name;
-        Storage::disk('public')->copy($attachment->file_path, $newPath);
-
-        $document->addVersion(
-            new UploadedFile(Storage::disk('public')->path($newPath), $attachment->original_name),
-            $adminId,
-            'Imported from email attachment'
-        );
-
-        $attachment->update(['document_id' => $document->id]);
-        $case->syncChecklistFromDocument($document);
-        $case->addActivity('system', 'Document imported from email: ' . $attachment->original_name, $adminId);
-
-        return $document;
-    }
-
-    public function stats(): array
-    {
-        return [
-            'total_sent' => EmailMessage::outbound()->where('status', 'sent')->count(),
-            'inbox_count' => EmailMessage::inbound()->count(),
-            'pending_replies' => EmailMessage::outbound()
-                ->where('status', 'sent')
-                ->whereDoesntHave('credentialingCase', fn ($q) => $q)
-                ->count(),
-            'unlinked_inbound' => EmailMessage::inbound()->unlinked()->count(),
-            'bounced_failed' => EmailMessage::whereIn('status', ['failed', 'bounced'])->count(),
-            'reminders_sent' => EmailMessage::outbound()
-                ->whereHas('notificationTemplate', fn ($q) => $q->where('category', 'reminder'))
-                ->count(),
-        ];
+        try {
+            return [
+                'inbox_count' => $graph->folderTotal('inbox'),
+                'total_sent' => $graph->folderTotal('sentitems'),
+                'graph_configured' => true,
+            ];
+        } catch (\Throwable) {
+            return [
+                'inbox_count' => 0,
+                'total_sent' => 0,
+                'graph_configured' => true,
+            ];
+        }
     }
 
     protected function generateMessageId(): string
     {
-        return Str::uuid() . '@' . $this->messageIdDomain();
+        return Str::uuid().'@'.$this->messageIdDomain();
     }
 
     protected function messageIdDomain(): string

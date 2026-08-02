@@ -4,7 +4,7 @@ namespace App\Livewire\Admin\Provider;
 
 use App\Enums\TaskStatus;
 use App\Models\DelayOwnerHistory;
-use App\Models\EmailMessage;
+use App\Models\EmailCaseLink;
 use App\Models\ProviderDetails;
 use App\Models\Task;
 use App\Services\BillingReadinessService;
@@ -125,8 +125,10 @@ class ProviderDetailsPage extends Component
             ->sortByDesc('created_at')
             ->take(100);
 
-        $emails = EmailMessage::whereHas('credentialingCase', fn ($q) => $q->where('provider_id', $this->provider->id))
-            ->orWhere('provider_id', $this->provider->id)
+        $caseIds = $cases->pluck('id')->all();
+        $emails = EmailCaseLink::query()
+            ->with('credentialingCase:id,case_number')
+            ->whereIn('credentialing_case_id', $caseIds)
             ->latest()
             ->limit(50)
             ->get();

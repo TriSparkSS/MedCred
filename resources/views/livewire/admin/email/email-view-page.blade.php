@@ -1,306 +1,320 @@
 <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
     <style>
-        .ev-wrap { max-width: 880px; margin: 0 auto; }
-        .ev-top {
+        .ev-wrap {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 10rem);
+        }
+        .ev-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+        .ev-header {
             background: #fff;
-            border: 1px solid #e6e8ec;
-            border-radius: 14px;
-            padding: 1.1rem 1.35rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+            border: 1px solid #e8eaef;
+            border-radius: 16px 16px 0 0;
+            padding: 1rem 1.25rem;
+            border-bottom: 0;
         }
         .ev-subject {
-            font-size: 1.2rem;
+            font-size: 1.05rem;
             font-weight: 700;
             color: #2f2b3d;
-            line-height: 1.4;
-            margin: 0.65rem 0 0.35rem;
+            margin: 0 0 0.25rem;
+            line-height: 1.35;
             word-break: break-word;
         }
-        .ev-submeta { color: #8592a3; font-size: 0.8125rem; }
-        .ev-card {
-            background: #fff;
-            border: 1px solid #e6e8ec;
-            border-radius: 14px;
-            overflow: hidden;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06);
+        .ev-submeta {
+            color: #8592a3;
+            font-size: 0.8125rem;
         }
-        .ev-card-head {
-            padding: 1.35rem 1.5rem 1.15rem;
-            border-bottom: 1px solid #eef0f3;
-            background: linear-gradient(180deg, #fbfbfc 0%, #fff 100%);
-        }
-        .ev-sender-row {
+        .ev-chat-shell {
+            background: linear-gradient(180deg, #f4f5f9 0%, #eef0f5 100%);
+            border: 1px solid #e8eaef;
+            border-top: 0;
+            border-radius: 0 0 16px 16px;
             display: flex;
-            gap: 0.9rem;
-            align-items: flex-start;
+            flex-direction: column;
+            flex: 1;
+            min-height: 420px;
+            overflow: hidden;
         }
+        .ev-thread {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem 1.5rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+        .ev-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.55rem;
+            max-width: 100%;
+        }
+        .ev-row.in { justify-content: flex-start; }
+        .ev-row.out { justify-content: flex-end; }
         .ev-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.72rem;
             color: #fff;
             flex-shrink: 0;
+            margin-bottom: 1.15rem;
         }
         .ev-avatar.in { background: linear-gradient(135deg, #03c3ec, #0d6efd); }
         .ev-avatar.out { background: linear-gradient(135deg, #696cff, #8592ff); }
-        .ev-sender-name {
-            font-weight: 700;
-            color: #2f2b3d;
-            font-size: 1rem;
-            margin: 0;
-            line-height: 1.3;
+        .ev-row.out .ev-avatar { order: 2; }
+        .ev-bubble-wrap {
+            max-width: min(78%, 920px);
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
         }
-        .ev-sender-email { color: #8592a3; font-size: 0.8125rem; }
-        .ev-time {
+        .ev-row.out .ev-bubble-wrap { align-items: flex-end; }
+        .ev-row.in .ev-bubble-wrap { align-items: flex-start; }
+        .ev-name-line {
+            display: flex;
+            align-items: baseline;
+            gap: 0.45rem;
+            padding: 0 0.35rem;
+            font-size: 0.75rem;
             color: #8592a3;
-            font-size: 0.8125rem;
-            white-space: nowrap;
-            margin-left: auto;
-            padding-top: 0.15rem;
         }
-        .ev-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.7rem;
+        .ev-row.out .ev-name-line { flex-direction: row-reverse; }
+        .ev-name-line strong {
+            color: #5d596c;
+            font-weight: 600;
+            font-size: 0.78rem;
+        }
+        .ev-bubble {
+            border-radius: 18px;
+            padding: 0.75rem 0.95rem;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+            position: relative;
+        }
+        .ev-bubble.in {
+            background: #fff;
+            border: 1px solid #e6e8ec;
+            border-bottom-left-radius: 6px;
+        }
+        .ev-bubble.out {
+            background: #091572;
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+        .ev-bubble.out .ev-body,
+        .ev-bubble.out .ev-body a {
+            color: #f5f6ff;
+        }
+        .ev-bubble.out .ev-quote {
+            border-left-color: rgba(255,255,255,0.35);
+            color: rgba(255,255,255,0.82);
+        }
+        .ev-body {
+            font-size: 0.9rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+        }
+        .ev-body :where(p, ul, ol) { margin-bottom: 0.5rem; }
+        .ev-body :where(p:last-child, ul:last-child, ol:last-child) { margin-bottom: 0; }
+        .ev-quote {
+            margin-top: 0.65rem;
+            padding-left: 0.65rem;
+            border-left: 2px solid #d9dde7;
+            color: #8592a3;
+            font-size: 0.82rem;
+        }
+        .ev-attach {
+            margin-top: 0.65rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .ev-bubble.out .ev-attach .btn {
+            border-color: rgba(255,255,255,0.35);
+            color: #fff;
+        }
+        .ev-bubble.out .ev-attach .btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+        .ev-meta-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.45rem;
+        }
+        .ev-chip {
+            font-size: 0.68rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.03em;
-            padding: 0.2rem 0.55rem;
-            border-radius: 6px;
-            margin-top: 0.4rem;
+            padding: 0.12rem 0.45rem;
+            border-radius: 999px;
+            background: #eef0f4;
+            color: #6f6b7d;
         }
-        .ev-badge.in { background: #e7f8fd; color: #03c3ec; }
-        .ev-badge.out { background: #e7e7ff; color: #696cff; }
-        .ev-fields {
-            margin-top: 1rem;
+        .ev-bubble.out .ev-chip {
+            background: rgba(255,255,255,0.16);
+            color: #fff;
+        }
+        .ev-chip.case { background: #e8fadf; color: #28c76f; }
+        .ev-bubble.out .ev-chip.case { background: rgba(40, 199, 111, 0.25); color: #b8f0d0; }
+        .ev-reply-bar {
+            background: #fff;
+            border-top: 1px solid #e8eaef;
             padding: 0.85rem 1rem;
-            background: #f8f9fb;
-            border: 1px solid #eef0f3;
-            border-radius: 10px;
-        }
-        .ev-field {
-            display: grid;
-            grid-template-columns: 64px 1fr;
-            gap: 0.35rem 0.75rem;
-            font-size: 0.85rem;
-            padding: 0.28rem 0;
-        }
-        .ev-field + .ev-field { border-top: 1px dashed #e6e8ec; padding-top: 0.45rem; margin-top: 0.2rem; }
-        .ev-field .k { color: #a1acb8; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 0.1rem; }
-        .ev-field .v { color: #566a7f; word-break: break-word; }
-        .ev-field .v.strong { color: #2f2b3d; font-weight: 600; }
-        .ev-body {
-            padding: 1.6rem 1.75rem 1.75rem;
-            font-size: 0.95rem;
-            line-height: 1.75;
-            color: #433f54;
-            white-space: pre-wrap;
-            word-break: break-word;
-            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #fff;
-        }
-        .ev-body-empty { color: #a1acb8; font-style: italic; }
-        .ev-attach {
-            padding: 1rem 1.5rem 1.35rem;
-            border-top: 1px solid #eef0f3;
-            background: #fbfbfc;
-        }
-        .ev-attach-title {
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #a1acb8;
-            margin-bottom: 0.65rem;
-        }
-        .ev-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.45rem;
-            padding: 0.45rem 0.8rem;
-            border: 1px solid #e6e8ec;
-            border-radius: 8px;
-            background: #fff;
-            font-size: 0.8125rem;
-            color: #566a7f;
-            margin: 0 0.4rem 0.4rem 0;
-            box-shadow: 0 1px 2px rgba(16,24,40,0.03);
-        }
-        .ev-sep {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 0.75rem;
-            color: #a1acb8;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            margin: 0.15rem 0 1rem;
+            gap: 0.65rem;
         }
-        .ev-sep::before, .ev-sep::after {
-            content: "";
+        .ev-reply-hint {
             flex: 1;
-            height: 1px;
-            background: #e6e8ec;
+            min-width: 180px;
+            color: #8592a3;
+            font-size: 0.875rem;
+            padding: 0.65rem 0.9rem;
+            background: #f5f5f9;
+            border: 1px dashed #d9dde7;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
         }
-        .ev-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+        .ev-reply-hint:hover {
+            background: #eef0ff;
+            border-color: #c5caf5;
+            color: #5d596c;
+        }
         @media (max-width: 576px) {
-            .ev-card-head, .ev-body { padding-left: 1.1rem; padding-right: 1.1rem; }
-            .ev-sender-row { flex-wrap: wrap; }
-            .ev-time { margin-left: 0; width: 100%; padding-left: 3.7rem; }
-            .ev-field { grid-template-columns: 56px 1fr; }
+            .ev-bubble-wrap { max-width: 92%; }
+            .ev-thread { padding-inline: 0.75rem; }
+            .ev-avatar { display: none; }
         }
     </style>
 
     <div class="ev-wrap">
-        <div class="ev-top">
-            <a href="{{ route('admin.email.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+        <div class="ev-topbar">
+            <a href="{{ route('admin.email.dashboard') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="ti tabler-arrow-left me-1"></i>Back to Email Center
             </a>
-
-            <h1 class="ev-subject">{{ $email->subject ?: '(no subject)' }}</h1>
-            <div class="ev-submeta">
-                Thread · {{ $threadMessages->count() }} message{{ $threadMessages->count() === 1 ? '' : 's' }}
-                @if ($email->credentialingCase)
-                    · Linked to case
-                    <span class="badge bg-label-secondary ms-1">{{ $email->credentialingCase->case_number }}</span>
-                @endif
-            </div>
-
-            <div class="ev-actions">
-                @if ($email->direction === 'inbound' && $canSend)
-                    <button type="button" class="btn btn-primary" wire:click="openReplyModal">
-                        <i class="ti tabler-arrow-back-up me-1"></i>Reply
-                    </button>
-                @endif
-                @if ($canLink && ! $email->credentialing_case_id)
-                    <button type="button" class="btn btn-outline-primary" wire:click="openLinkModal">
-                        <i class="ti tabler-link me-1"></i>Link to Case
-                    </button>
-                @elseif ($email->credentialingCase)
-                    <a href="{{ route('admin.credentials', ['search' => $email->credentialingCase->case_number]) }}"
-                       class="btn btn-outline-secondary">
-                        <i class="ti tabler-clipboard me-1"></i>Open Case
-                    </a>
-                @endif
-            </div>
+            @if ($anchor?->internetMessageId && ($canLink ?? false))
+                <button type="button" class="btn btn-outline-secondary btn-sm" wire:click="openLinkModal({{ json_encode($anchor->internetMessageId) }})">
+                    <i class="ti tabler-link me-1"></i>Link to Case
+                </button>
+            @endif
         </div>
 
-        @foreach ($threadMessages as $msg)
-            @if (! $loop->first)
-                <div class="ev-sep">Earlier message</div>
-            @endif
+        @if ($loadError)
+            <div class="alert alert-danger">{{ $loadError }}</div>
+        @elseif ($anchor)
+            @php
+                $latest = $threadMessages->last() ?? $anchor;
+                $replyTo = $latest->direction === 'inbound' ? $latest->fromAddress : $latest->toAddress;
+                $replyCase = $caseMap[$latest->normalizedMessageId() ?? ''] ?? ($caseMap[$anchor->normalizedMessageId() ?? ''] ?? '');
+                $replySubject = $anchor->subject;
+                $replyInReplyTo = $latest->internetMessageId ?? $anchor->internetMessageId ?? '';
+                $primaryCaseId = $caseMap[$anchor->normalizedMessageId() ?? ''] ?? null;
+            @endphp
 
-            <article class="ev-card" wire:key="full-msg-{{ $msg->id }}">
-                <header class="ev-card-head">
-                    <div class="ev-sender-row">
-                        <div class="ev-avatar {{ $msg->direction === 'outbound' ? 'out' : 'in' }}">
-                            {{ $msg->fromInitials() }}
-                        </div>
-                        <div class="flex-grow-1 min-w-0">
-                            <p class="ev-sender-name">{{ $msg->fromDisplayName() }}</p>
-                            <div class="ev-sender-email">{{ $msg->from_address }}</div>
-                            <span class="ev-badge {{ $msg->direction === 'outbound' ? 'out' : 'in' }}">
-                                <i class="ti tabler-{{ $msg->direction === 'outbound' ? 'send' : 'inbox' }}"></i>
-                                {{ $msg->direction === 'outbound' ? 'Sent' : 'Received' }}
-                            </span>
-                        </div>
-                        <time class="ev-time">
-                            {{ ($msg->sent_at ?? $msg->received_at ?? $msg->created_at)?->format('M j, Y · g:i A') }}
-                        </time>
-                    </div>
+            <div class="ev-header">
+                <h1 class="ev-subject">{{ $anchor->subject }}</h1>
+                <div class="ev-submeta">
+                    {{ $threadMessages->count() }} message{{ $threadMessages->count() === 1 ? '' : 's' }}
+                    @if ($primaryCaseId && isset($linkedCases[$primaryCaseId]))
+                        · Linked to <span class="badge bg-label-success">{{ $linkedCases[$primaryCaseId]->case_number }}</span>
+                    @endif
+                </div>
+            </div>
 
-                    <div class="ev-fields">
-                        <div class="ev-field">
-                            <span class="k">To</span>
-                            <span class="v">{{ $msg->to_address }}</span>
-                        </div>
-                        @if ($msg->cc_address)
-                            <div class="ev-field">
-                                <span class="k">Cc</span>
-                                <span class="v">{{ $msg->cc_address }}</span>
+            <div class="ev-chat-shell">
+                <div class="ev-thread" id="ev-thread-scroll">
+                    @foreach ($threadMessages as $msg)
+                        @php
+                            $dir = $msg->direction === 'outbound' ? 'out' : 'in';
+                            $norm = $msg->normalizedMessageId();
+                            $msgCaseId = $norm ? ($caseMap[$norm] ?? null) : null;
+                            $encodedMsg = \App\Livewire\Admin\Email\EmailViewPage::encodeId($msg->id);
+                        @endphp
+                        <div class="ev-row {{ $dir }}" wire:key="thread-{{ $msg->id }}">
+                            <div class="ev-avatar {{ $dir }}">{{ $msg->fromInitials() }}</div>
+                            <div class="ev-bubble-wrap">
+                                <div class="ev-name-line">
+                                    <strong>{{ $msg->fromName ?: $msg->fromAddress }}</strong>
+                                    <span>{{ $msg->date?->timezone(config('app.timezone'))->format('M j, g:i A') }}</span>
+                                </div>
+                                <div class="ev-bubble {{ $dir }}">
+                                    <div class="ev-body">
+                                        @if (filled($msg->bodyHtml))
+                                            {!! strip_tags($msg->bodyHtml, '<p><br><b><strong><i><em><u><ul><ol><li><a><span><div><blockquote><pre><code>') !!}
+                                        @else
+                                            {{ $msg->displayBody() ?: '—' }}
+                                        @endif
+                                    </div>
+
+                                    @if ($msg->attachments !== [])
+                                        <div class="ev-attach">
+                                            @foreach ($msg->attachments as $attachment)
+                                                @if (! empty($attachment['id']))
+                                                    <a class="btn btn-sm btn-outline-secondary"
+                                                        href="{{ route('admin.email.attachment', [
+                                                            'folder' => $folder,
+                                                            'messageId' => $encodedMsg,
+                                                            'attachmentId' => \App\Livewire\Admin\Email\EmailViewPage::encodeId($attachment['id']),
+                                                        ]) }}">
+                                                        <i class="ti tabler-paperclip me-1"></i>{{ $attachment['name'] }}
+                                                    </a>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @endif
+
+                                    <div class="ev-meta-chips">
+                                        <span class="ev-chip">{{ $msg->direction === 'outbound' ? 'Sent' : 'Received' }}</span>
+                                        @if ($msgCaseId && isset($linkedCases[$msgCaseId]))
+                                            <span class="ev-chip case">{{ $linkedCases[$msgCaseId]->case_number }}</span>
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
-                        @endif
-                        <div class="ev-field">
-                            <span class="k">Subject</span>
-                            <span class="v strong">{{ $msg->subject ?: '(no subject)' }}</span>
                         </div>
-                    </div>
-                </header>
-
-                @php $bodyText = $msg->displayBody(); @endphp
-                <div class="ev-body {{ $bodyText === '' ? 'ev-body-empty' : '' }}">
-                    {{ $bodyText !== '' ? $bodyText : 'No message content.' }}
+                    @endforeach
                 </div>
 
-                @if ($msg->attachments->isNotEmpty())
-                    <div class="ev-attach">
-                        <div class="ev-attach-title">
-                            <i class="ti tabler-paperclip me-1"></i>
-                            Attachments · {{ $msg->attachments->count() }}
-                        </div>
-                        <div>
-                            @foreach ($msg->attachments as $attachment)
-                                <span class="ev-chip">
-                                    <i class="ti tabler-file"></i>
-                                    {{ $attachment->original_name }}
-                                    @if ($msg->credentialing_case_id)
-                                        <button type="button" class="btn btn-link btn-sm p-0 text-primary"
-                                            wire:click="saveAttachment({{ $attachment->id }})">
-                                            Save to case
-                                        </button>
-                                    @endif
-                                </span>
-                            @endforeach
-                        </div>
+                @if ($canSend ?? false)
+                    <div class="ev-reply-bar">
+                        <button type="button"
+                            class="ev-reply-hint text-start border-0"
+                            wire:click="openReplyModal({{ json_encode($replyTo) }}, {{ json_encode($replySubject) }}, {{ json_encode($replyInReplyTo) }}, {{ json_encode((string) $replyCase) }})">
+                            <i class="ti tabler-message me-1"></i>Reply to this conversation…
+                        </button>
+                        <button type="button"
+                            class="btn btn-primary"
+                            wire:click="openReplyModal({{ json_encode($replyTo) }}, {{ json_encode($replySubject) }}, {{ json_encode($replyInReplyTo) }}, {{ json_encode((string) $replyCase) }})">
+                            <i class="ti tabler-arrow-back-up me-1"></i>Reply
+                        </button>
                     </div>
                 @endif
-            </article>
-        @endforeach
+            </div>
+        @endif
     </div>
 
-    @if ($showLinkModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.45);">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Link to Case</h5>
-                        <button type="button" class="btn-close" wire:click="closeLinkModal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <label class="form-label">Credentialing Case</label>
-                        <select wire:model="linkCaseId" class="form-select @error('linkCaseId') is-invalid @enderror">
-                            <option value="">Select case...</option>
-                            @foreach ($cases as $case)
-                                <option value="{{ $case->id }}">{{ $case->case_number }} — {{ $case->provider->user->name ?? 'Provider' }}</option>
-                            @endforeach
-                        </select>
-                        @error('linkCaseId')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="closeLinkModal">Cancel</button>
-                        <button type="button" class="btn btn-primary" wire:click="linkToCase">Link</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    @if ($showComposeModal)
-        @include('livewire.admin.email.partials.compose-modal', [
-            'smtpConfigured' => $smtpConfigured,
-            'canSend' => $canSend,
-            'canManageMail' => $canManageMail,
-            'templates' => $templates,
-            'cases' => $cases,
-        ])
-    @endif
+    @include('livewire.admin.email.partials.compose-modal')
+    @include('livewire.admin.email.partials.link-modal')
 </div>

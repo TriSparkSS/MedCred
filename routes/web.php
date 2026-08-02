@@ -1,5 +1,6 @@
 ﻿<?php
 
+use App\Http\Controllers\Admin\EmailAttachmentDownloadController;
 use App\Http\Controllers\CredentialPacketController;
 use App\Http\Controllers\ReportExportController;
 use App\Livewire\Admin\Analytics\ProductivityDashboardPage;
@@ -109,7 +110,10 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('credentials/{case}/packet', [CredentialPacketController::class, 'download'])->middleware('admin.permission:admin.credentials.view')->name('credentials.packet');
 
     Route::get('emails', EmailDashboardPage::class)->middleware('admin.permission:admin.emails.view')->name('email.dashboard');
-    Route::get('emails/{email}', EmailViewPage::class)->middleware('admin.permission:admin.emails.view')->name('email.show');
+    Route::get('emails/view/{folder}/{messageId}', EmailViewPage::class)->middleware('admin.permission:admin.emails.view')->name('email.show');
+    Route::get('emails/attachment/{folder}/{messageId}/{attachmentId}', EmailAttachmentDownloadController::class)
+        ->middleware('admin.permission:admin.emails.view')
+        ->name('email.attachment');
     Route::get('documents', DocumentListPage::class)->middleware('admin.permission:admin.documents.view')->name('documents');
     Route::get('tasks/kanban', TaskBoardPage::class)->middleware('admin.permission:admin.tasks.view')->name('tasks.kanban');
 

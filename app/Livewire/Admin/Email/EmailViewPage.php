@@ -2,24 +2,31 @@
 
 namespace App\Livewire\Admin\Email;
 
+use App\Data\MailMessageDto;
 use App\Models\CredentialingCase;
-use App\Models\EmailAttachment;
-use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
 use App\Services\CredentialingEmailService;
+use App\Services\EmailCaseLinkService;
+use App\Services\EmailMatchingService;
+use App\Services\GraphMailboxService;
 use App\Services\MailSettingsService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-#[Layout('layouts::admin', ['title' => 'Email'])]
+#[Layout('layouts::admin', ['title' => 'Email Conversation'])]
 class EmailViewPage extends Component
 {
-    public EmailMessage $email;
+    public string $folder = 'inbox';
+
+    public string $messageId = '';
 
     public bool $showLinkModal = false;
 
     public string $linkCaseId = '';
+
+    public string $linkMessageId = '';
 
     public bool $showComposeModal = false;
 
@@ -35,16 +42,23 @@ class EmailViewPage extends Component
 
     public string $composeInReplyTo = '';
 
-    public string $composeThreadId = '';
+    public ?string $loadError = null;
 
-    public function mount(EmailMessage $email): void
+    public function mount(string $folder, string $messageId): void
     {
-        $this->email = $email->load(['credentialingCase', 'attachments', 'notificationTemplate', 'sentByAdmin']);
+        $this->folder = app(GraphMailboxService::class)->normalizeFolder($folder);
+        $padded = strtr($messageId, '-_', '+/');
+        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+        $decoded = base64_decode($padded, true);
+        if ($decoded === false || $decoded === '') {
+            abort(404);
+        }
+        $this->messageId = $decoded;
     }
 
-    public function openLinkModal(): void
+    public function openLinkModal(?string $internetMessageId = null): void
     {
-        $this->linkCaseId = (string) ($this->email->credentialing_case_id ?? '');
+        $this->linkMessageId = $internetMessageId ?: $this->linkMessageId;
         $this->showLinkModal = true;
     }
 
@@ -56,26 +70,29 @@ class EmailViewPage extends Component
 
     public function linkToCase(CredentialingEmailService $emailService): void
     {
-        $this->validate(['linkCaseId' => 'required|exists:credentialing_cases,id']);
+        $this->validate([
+            'linkCaseId' => 'required|exists:credentialing_cases,id',
+            'linkMessageId' => 'required|string',
+        ]);
+
         $case = CredentialingCase::findOrFail((int) $this->linkCaseId);
-        $emailService->linkToCase($this->email, $case, Auth::guard('admin')->id());
-        $this->email->refresh();
+        $emailService->linkMessageToCase($this->linkMessageId, $case, Auth::guard('admin')->id());
         $this->closeLinkModal();
         flash()->success('Email linked to case '.$case->case_number);
     }
 
-    public function openReplyModal(): void
+    public function linkEmail(CredentialingEmailService $emailService): void
     {
-        $this->composeCaseId = (string) ($this->email->credentialing_case_id ?? '');
-        $this->composeTo = $this->email->direction === 'inbound'
-            ? (string) $this->email->from_address
-            : (string) $this->email->to_address;
-        $this->composeSubject = str_starts_with(strtolower((string) $this->email->subject), 're:')
-            ? (string) $this->email->subject
-            : 'Re: '.$this->email->subject;
+        $this->linkToCase($emailService);
+    }
+
+    public function openReplyModal(string $to, string $subject, string $inReplyTo = '', string $caseId = ''): void
+    {
+        $this->composeTo = $to;
+        $this->composeSubject = str_starts_with(strtolower($subject), 're:') ? $subject : 'Re: '.$subject;
         $this->composeBody = '';
-        $this->composeInReplyTo = (string) ($this->email->message_id ?? '');
-        $this->composeThreadId = (string) ($this->email->thread_id ?? '');
+        $this->composeInReplyTo = $inReplyTo;
+        $this->composeCaseId = $caseId;
         $this->composeTemplateId = '';
         $this->showComposeModal = true;
     }
@@ -85,7 +102,7 @@ class EmailViewPage extends Component
         $this->showComposeModal = false;
     }
 
-    public function sendEmail(CredentialingEmailService $emailService, MailSettingsService $mailSettings): void
+    public function sendEmail(CredentialingEmailService $emailService, MailSettingsService $mailSettings, GraphMailboxService $graph): void
     {
         $this->validate([
             'composeTo' => 'required|email',
@@ -96,16 +113,11 @@ class EmailViewPage extends Component
 
         $mailSettings->assertConfigured();
 
-        $case = $this->composeCaseId
-            ? CredentialingCase::find((int) $this->composeCaseId)
-            : null;
-
-        $template = $this->composeTemplateId
-            ? NotificationTemplate::find((int) $this->composeTemplateId)
-            : null;
+        $case = $this->composeCaseId ? CredentialingCase::find((int) $this->composeCaseId) : null;
+        $template = $this->composeTemplateId ? NotificationTemplate::find((int) $this->composeTemplateId) : null;
 
         if ($template && $case) {
-            $emailService->sendFromTemplate(
+            $result = $emailService->sendFromTemplate(
                 $case,
                 $template,
                 $this->composeTo,
@@ -113,10 +125,9 @@ class EmailViewPage extends Component
                 null,
                 [],
                 $this->composeInReplyTo ?: null,
-                $this->composeThreadId ?: null,
             );
         } else {
-            $emailService->send(
+            $result = $emailService->send(
                 $case,
                 $this->composeTo,
                 $this->composeSubject,
@@ -125,41 +136,71 @@ class EmailViewPage extends Component
                 $template,
                 null,
                 $this->composeInReplyTo ?: null,
-                $this->composeThreadId ?: null,
             );
         }
 
-        flash()->success('Reply sent.');
-        $this->closeComposeModal();
-    }
-
-    public function saveAttachment(int $attachmentId, CredentialingEmailService $emailService): void
-    {
-        $attachment = EmailAttachment::where('email_message_id', $this->email->id)->findOrFail($attachmentId);
-
-        if (! $this->email->credentialing_case_id) {
-            flash()->error('Link the email to a case before importing attachments.');
+        if ($result->failed()) {
+            flash()->error('Email failed: '.($result->errorMessage ?? 'Unknown error'));
 
             return;
         }
 
-        $case = CredentialingCase::findOrFail($this->email->credentialing_case_id);
-        $emailService->saveAttachmentToDocument($attachment, $case, Auth::guard('admin')->id());
-        flash()->success('Attachment saved to document repository.');
+        $graph->clearCache();
+        flash()->success('Reply sent.');
+        $this->closeComposeModal();
     }
 
-    public function render(MailSettingsService $mailSettings)
-    {
-        $threadId = $this->email->thread_id;
-        $threadMessages = $threadId
-            ? EmailMessage::with(['attachments', 'credentialingCase', 'sentByAdmin'])
-                ->where('thread_id', $threadId)
-                ->orderByRaw('COALESCE(sent_at, received_at, created_at) asc')
-                ->get()
-            : collect([$this->email->load('attachments')]);
+    public function render(
+        GraphMailboxService $graph,
+        EmailCaseLinkService $caseLinks,
+        EmailMatchingService $matching,
+        MailSettingsService $mailSettings,
+    ) {
+        /** @var Collection<int, MailMessageDto> $threadMessages */
+        $threadMessages = collect();
+        $this->loadError = null;
+        $anchor = null;
+        $caseMap = [];
+
+        if (! $graph->isConfigured()) {
+            $this->loadError = 'Microsoft Graph is not configured.';
+        } else {
+            try {
+                $anchor = $graph->getMessage($this->messageId, $this->folder, true);
+                $threadMessages = $graph->getConversation($anchor->conversationId, $this->messageId, $this->folder);
+                $this->linkMessageId = $anchor->internetMessageId ?? '';
+
+                $caseMap = $caseLinks->caseIdsForMessageIds(
+                    $threadMessages->map(fn (MailMessageDto $m) => $m->internetMessageId)->all()
+                );
+
+                $existingCaseId = $caseMap[$anchor->normalizedMessageId() ?? ''] ?? null;
+                if (! $existingCaseId && $this->linkCaseId === '') {
+                    $match = $matching->match($anchor->subject, $anchor->displayBody(), $anchor->fromAddress);
+                    if ($match['case']) {
+                        $this->linkCaseId = (string) $match['case']->id;
+                    }
+                } elseif ($existingCaseId && $this->linkCaseId === '') {
+                    $this->linkCaseId = (string) $existingCaseId;
+                }
+            } catch (\Throwable $e) {
+                $this->loadError = $e->getMessage();
+            }
+        }
+
+        $linkedCases = [];
+        if ($caseMap !== []) {
+            $linkedCases = CredentialingCase::query()
+                ->whereIn('id', array_values($caseMap))
+                ->get(['id', 'case_number'])
+                ->keyBy('id');
+        }
 
         return view('livewire.admin.email.email-view-page', [
             'threadMessages' => $threadMessages,
+            'anchor' => $anchor,
+            'caseMap' => $caseMap,
+            'linkedCases' => $linkedCases,
             'cases' => CredentialingCase::with('provider.user')->latest()->limit(100)->get(['id', 'case_number', 'provider_id']),
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'smtpConfigured' => $mailSettings->isConfigured(),
@@ -167,5 +208,10 @@ class EmailViewPage extends Component
             'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.manage') ?? false,
             'canLink' => Auth::guard('admin')->user()?->can('admin.emails.link') ?? false,
         ]);
+    }
+
+    public static function encodeId(string $id): string
+    {
+        return rtrim(strtr(base64_encode($id), '+/', '-_'), '=');
     }
 }

@@ -449,14 +449,17 @@
                                 <button type="button" wire:click="sendDocumentRequest" class="btn btn-sm btn-primary mb-3">
                                     <i class="ti tabler-mail me-1"></i>Send to Provider
                                 </button>
-                                @forelse($selectedCase->emailMessages as $msg)
+                                @forelse($selectedCase->emailCaseLinks as $link)
                                     <div class="small border-bottom py-2">
-                                        <strong>{{ $msg->subject }}</strong>
-                                        <div class="text-muted">{{ $msg->created_at->format('m/d/Y g:i A') }}</div>
+                                        <strong class="text-break">{{ $link->message_id }}</strong>
+                                        <div class="text-muted">Linked {{ $link->created_at->format('m/d/Y g:i A') }}</div>
                                     </div>
                                 @empty
-                                    <p class="text-muted small">No emails linked to this case.</p>
+                                    <p class="text-muted small mb-2">No Message-ID links yet. Link emails from Email Center.</p>
                                 @endforelse
+                                <a href="{{ route('admin.email.dashboard') }}" class="btn btn-sm btn-outline-secondary mt-2">
+                                    <i class="ti tabler-mail me-1"></i>Open Email Center
+                                </a>
                             </div>
 
                             @elseif ($drawerTab === 'billing')

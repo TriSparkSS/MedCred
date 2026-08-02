@@ -1,12 +1,16 @@
 <?php
 
+use App\Data\MailMessageDto;
+use App\Models\EmailCaseLink;
 use App\Models\EmailMessage;
 use App\Services\CredentialingEmailService;
 use App\Services\GraphMailboxService;
 use App\Services\MailSettingsService;
 use App\Services\MicrosoftGraphTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 
 uses(RefreshDatabase::class);
 
@@ -18,18 +22,13 @@ function configureGraphForTests(): void
         'services.microsoft_graph.client_secret' => 'test-secret-value',
         'services.microsoft_graph.mailbox' => 'credentialing@revantagehbs.com',
     ]);
+
+    Cache::flush();
 }
 
-function fakeGraphToken(): void
-{
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-            'token_type' => 'Bearer',
-        ], 200),
-    ]);
-}
+beforeEach(function () {
+    Http::preventStrayRequests();
+});
 
 test('microsoft graph token service reports configured when env present', function () {
     configureGraphForTests();
@@ -40,20 +39,104 @@ test('microsoft graph token service reports configured when env present', functi
         ->and($service->missingConfigKeys())->toBe([]);
 });
 
-test('microsoft graph token service caches access token', function () {
+test('graph listFolder returns live messages without persisting email_messages', function () {
     configureGraphForTests();
-    fakeGraphToken();
 
-    $service = app(MicrosoftGraphTokenService::class);
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        $url = $request->url();
 
-    expect($service->getAccessToken())->toBe('fake-graph-token')
-        ->and($service->getAccessToken())->toBe('fake-graph-token');
+        if (str_contains($url, 'login.microsoftonline.com')) {
+            return Http::response([
+                'access_token' => 'fake-graph-token',
+                'expires_in' => 3600,
+                'token_type' => 'Bearer',
+            ], 200);
+        }
 
-    Http::assertSentCount(1);
+        if (str_contains($url, '/mailFolders/inbox') && ! str_contains($url, '/messages')) {
+            return Http::response(['totalItemCount' => 1], 200);
+        }
+
+        if (str_contains($url, '/mailFolders/inbox/messages')) {
+            return Http::response([
+                '@odata.count' => 1,
+                'value' => [[
+                    'id' => 'msg-1',
+                    'subject' => 'Hello from Graph',
+                    'from' => ['emailAddress' => ['address' => 'provider@example.com', 'name' => 'Provider']],
+                    'toRecipients' => [['emailAddress' => ['address' => 'credentialing@revantagehbs.com']]],
+                    'receivedDateTime' => now()->toIso8601String(),
+                    'hasAttachments' => false,
+                    'conversationId' => 'conv-1',
+                    'internetMessageId' => '<hello@example.com>',
+                    'isRead' => true,
+                ]],
+            ], 200);
+        }
+
+        return Http::response(['error' => ['message' => 'Unexpected URL: '.$url]], 500);
+    });
+
+    $page = app(GraphMailboxService::class)->listFolder('inbox', 1, 15);
+
+    expect($page->items)->toHaveCount(1)
+        ->and($page->items->first())->toBeInstanceOf(MailMessageDto::class)
+        ->and($page->items->first()->subject)->toBe('Hello from Graph')
+        ->and(EmailMessage::count())->toBe(0);
 });
 
-test('graph mailbox sync imports inbox and sent messages', function () {
+test('graph getMessage returns standalone conversation when no peers found', function () {
     configureGraphForTests();
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        $url = $request->url();
+
+        if (str_contains($url, 'login.microsoftonline.com')) {
+            return Http::response([
+                'access_token' => 'fake-graph-token',
+                'expires_in' => 3600,
+                'token_type' => 'Bearer',
+            ], 200);
+        }
+
+        if (str_contains($url, '/messages/msg-solo')) {
+            return Http::response([
+                'id' => 'msg-solo',
+                'subject' => 'Standalone',
+                'body' => ['contentType' => 'text', 'content' => 'Only me'],
+                'from' => ['emailAddress' => ['address' => 'provider@example.com', 'name' => 'Provider']],
+                'toRecipients' => [['emailAddress' => ['address' => 'credentialing@revantagehbs.com']]],
+                'receivedDateTime' => now()->toIso8601String(),
+                'hasAttachments' => false,
+                'conversationId' => null,
+                'internetMessageId' => '<solo@example.com>',
+                'internetMessageHeaders' => [],
+                'isRead' => true,
+            ], 200);
+        }
+
+        if (str_contains($url, 'internetMessageId')) {
+            return Http::response(['value' => []], 200);
+        }
+
+        return Http::response(['value' => []], 200);
+    });
+
+    $thread = app(GraphMailboxService::class)->getConversation(null, 'msg-solo', 'inbox');
+
+    expect($thread)->toHaveCount(1)
+        ->and($thread->first()->subject)->toBe('Standalone')
+        ->and(EmailMessage::count())->toBe(0);
+});
+
+test('email case link normalizes message ids', function () {
+    expect(EmailCaseLink::normalizeMessageId('<Abc@Example.com>'))->toBe('Abc@Example.com')
+        ->and(EmailCaseLink::normalizeMessageId('plain@example.com'))->toBe('plain@example.com')
+        ->and(EmailCaseLink::normalizeMessageId(null))->toBeNull();
+});
+
+test('send does not create email_messages rows', function () {
+    Mail::fake();
 
     app(MailSettingsService::class)->saveSettings([
         'enabled' => true,
@@ -65,202 +148,7 @@ test('graph mailbox sync imports inbox and sent messages', function () {
         'password' => 'smtp-password',
         'from_address' => 'credentialing@revantagehbs.com',
         'from_name' => 'Revantage Credentialing',
-        'imap_enabled' => true,
-        'imap_host' => 'outlook.office365.com',
-        'imap_port' => 993,
-        'imap_encryption' => 'ssl',
-        'imap_folder' => 'INBOX',
-        'imap_sent_enabled' => true,
-        'imap_sent_folder' => 'Sent Items',
-        'imap_username' => 'credentialing@revantagehbs.com',
-    ]);
-
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-        ], 200),
-        'graph.microsoft.com/v1.0/users/credentialing@revantagehbs.com/mailFolders/inbox/messages*' => Http::response([
-            'value' => [
-                [
-                    'id' => 'inbox-msg-1',
-                    'internetMessageId' => '<inbound-1@example.com>',
-                    'receivedDateTime' => '2026-07-18T10:00:00Z',
-                    'sentDateTime' => '2026-07-18T10:00:00Z',
-                    'hasAttachments' => false,
-                ],
-            ],
-        ], 200),
-        'graph.microsoft.com/v1.0/users/credentialing@revantagehbs.com/messages/inbox-msg-1*' => Http::response([
-            'id' => 'inbox-msg-1',
-            'internetMessageId' => '<inbound-1@example.com>',
-            'subject' => 'Provider reply',
-            'body' => ['contentType' => 'text', 'content' => 'Hello from provider'],
-            'from' => ['emailAddress' => ['address' => 'provider@example.com']],
-            'toRecipients' => [
-                ['emailAddress' => ['address' => 'credentialing@revantagehbs.com']],
-            ],
-            'receivedDateTime' => '2026-07-18T10:00:00Z',
-            'sentDateTime' => '2026-07-18T10:00:00Z',
-            'hasAttachments' => false,
-            'internetMessageHeaders' => [],
-        ], 200),
-        'graph.microsoft.com/v1.0/users/credentialing@revantagehbs.com/mailFolders/sentitems/messages*' => Http::response([
-            'value' => [
-                [
-                    'id' => 'sent-msg-1',
-                    'internetMessageId' => '<outbound-1@revantagehbs.com>',
-                    'receivedDateTime' => '2026-07-18T09:00:00Z',
-                    'sentDateTime' => '2026-07-18T09:00:00Z',
-                    'hasAttachments' => false,
-                ],
-            ],
-        ], 200),
-        'graph.microsoft.com/v1.0/users/credentialing@revantagehbs.com/messages/sent-msg-1*' => Http::response([
-            'id' => 'sent-msg-1',
-            'internetMessageId' => '<outbound-1@revantagehbs.com>',
-            'subject' => 'Credentialing request',
-            'body' => ['contentType' => 'html', 'content' => '<p>Please respond</p>'],
-            'from' => ['emailAddress' => ['address' => 'credentialing@revantagehbs.com']],
-            'toRecipients' => [
-                ['emailAddress' => ['address' => 'provider@example.com']],
-            ],
-            'receivedDateTime' => '2026-07-18T09:00:00Z',
-            'sentDateTime' => '2026-07-18T09:00:00Z',
-            'hasAttachments' => false,
-            'internetMessageHeaders' => [],
-        ], 200),
-    ]);
-
-    $result = app(GraphMailboxService::class)->sync();
-
-    expect($result['imported'])->toBe(2)
-        ->and($result['skipped'])->toBe(0)
-        ->and(EmailMessage::where('direction', 'inbound')->where('subject', 'Provider reply')->exists())->toBeTrue()
-        ->and(EmailMessage::where('direction', 'outbound')->where('subject', 'Credentialing request')->exists())->toBeTrue();
-});
-
-test('graph mailbox sync skips duplicate message ids', function () {
-    configureGraphForTests();
-
-    EmailMessage::create([
-        'direction' => 'inbound',
-        'from_address' => 'provider@example.com',
-        'to_address' => 'credentialing@revantagehbs.com',
-        'subject' => 'Already imported',
-        'body' => 'Body',
-        'status' => 'received',
-        'queue_category' => 'inbox',
-        'message_id' => 'dup-1@example.com',
-        'received_at' => now(),
-    ]);
-
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/inbox/messages*' => Http::response([
-            'value' => [
-                [
-                    'id' => 'inbox-msg-dup',
-                    'internetMessageId' => '<dup-1@example.com>',
-                    'receivedDateTime' => '2026-07-18T10:00:00Z',
-                    'sentDateTime' => '2026-07-18T10:00:00Z',
-                    'hasAttachments' => false,
-                ],
-            ],
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/sentitems/messages*' => Http::response([
-            'value' => [],
-        ], 200),
-    ]);
-
-    app(MailSettingsService::class)->saveSettings([
-        'enabled' => true,
-        'host' => 'smtp.office365.com',
-        'port' => 587,
-        'encryption' => 'tls',
-        'scheme' => 'smtp',
-        'username' => 'credentialing@revantagehbs.com',
-        'password' => 'smtp-password',
-        'from_address' => 'credentialing@revantagehbs.com',
-        'from_name' => 'Revantage',
-        'imap_enabled' => true,
-        'imap_host' => 'outlook.office365.com',
-        'imap_port' => 993,
-        'imap_encryption' => 'ssl',
-        'imap_folder' => 'INBOX',
-        'imap_sent_enabled' => true,
-        'imap_sent_folder' => 'Sent Items',
-        'imap_username' => 'credentialing@revantagehbs.com',
-    ]);
-
-    $result = app(GraphMailboxService::class)->sync();
-
-    expect($result['imported'])->toBe(0)
-        ->and($result['skipped'])->toBe(1)
-        ->and(EmailMessage::count())->toBe(1);
-});
-
-test('syncInbox prefers graph when configured', function () {
-    configureGraphForTests();
-
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/inbox/messages*' => Http::response(['value' => []], 200),
-        'graph.microsoft.com/*/mailFolders/sentitems/messages*' => Http::response(['value' => []], 200),
-    ]);
-
-    app(MailSettingsService::class)->saveSettings([
-        'enabled' => true,
-        'host' => 'smtp.office365.com',
-        'port' => 587,
-        'encryption' => 'tls',
-        'scheme' => 'smtp',
-        'username' => 'credentialing@revantagehbs.com',
-        'password' => 'smtp-password',
-        'from_address' => 'credentialing@revantagehbs.com',
-        'from_name' => 'Revantage',
-        'imap_enabled' => true,
-        'imap_host' => 'outlook.office365.com',
-        'imap_port' => 993,
-        'imap_encryption' => 'ssl',
-        'imap_folder' => 'INBOX',
-        'imap_sent_enabled' => true,
-        'imap_sent_folder' => 'Sent Items',
-        'imap_username' => 'credentialing@revantagehbs.com',
-    ]);
-
-    $mailSettings = app(MailSettingsService::class);
-
-    expect($mailSettings->mailboxSyncDriver())->toBe('graph')
-        ->and($mailSettings->isMailboxSyncConfigured())->toBeTrue();
-
-    $result = app(CredentialingEmailService::class)->syncInbox();
-
-    expect($result)->toHaveKeys(['imported', 'skipped', 'errors', 'has_more']);
-
-    Http::assertSent(fn ($request) => str_contains($request->url(), 'graph.microsoft.com'));
-});
-
-test('graph mailbox sync reports has_more when batch limit reached', function () {
-    configureGraphForTests();
-
-    app(MailSettingsService::class)->saveSettings([
-        'enabled' => true,
-        'host' => 'smtp.office365.com',
-        'port' => 587,
-        'encryption' => 'tls',
-        'scheme' => 'smtp',
-        'username' => 'credentialing@revantagehbs.com',
-        'password' => 'smtp-password',
-        'from_address' => 'credentialing@revantagehbs.com',
-        'from_name' => 'Revantage',
-        'imap_enabled' => true,
+        'imap_enabled' => false,
         'imap_host' => 'outlook.office365.com',
         'imap_port' => 993,
         'imap_encryption' => 'ssl',
@@ -270,81 +158,23 @@ test('graph mailbox sync reports has_more when batch limit reached', function ()
         'imap_username' => 'credentialing@revantagehbs.com',
     ]);
 
-    $messages = collect(range(1, 3))->map(fn (int $i) => [
-        'id' => "inbox-msg-{$i}",
-        'internetMessageId' => "<batch-{$i}@example.com>",
-        'receivedDateTime' => "2026-07-18T10:0{$i}:00Z",
-        'sentDateTime' => "2026-07-18T10:0{$i}:00Z",
-        'hasAttachments' => false,
-    ])->all();
+    $result = app(CredentialingEmailService::class)->send(
+        null,
+        'provider@example.com',
+        'Subject line',
+        'Body text',
+    );
 
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/inbox/messages*' => Http::response([
-            'value' => $messages,
-            '@odata.nextLink' => 'https://graph.microsoft.com/v1.0/next-page',
-        ], 200),
-        'graph.microsoft.com/v1.0/next-page' => Http::response(['value' => []], 200),
-        'graph.microsoft.com/*/messages/inbox-msg-*' => Http::response([
-            'id' => 'inbox-msg-1',
-            'internetMessageId' => '<batch-1@example.com>',
-            'subject' => 'Batch message',
-            'body' => ['contentType' => 'text', 'content' => 'Body'],
-            'from' => ['emailAddress' => ['address' => 'provider@example.com']],
-            'toRecipients' => [
-                ['emailAddress' => ['address' => 'credentialing@revantagehbs.com']],
-            ],
-            'receivedDateTime' => '2026-07-18T10:01:00Z',
-            'sentDateTime' => '2026-07-18T10:01:00Z',
-            'hasAttachments' => false,
-            'internetMessageHeaders' => [],
-        ], 200),
-    ]);
+    expect($result->success)->toBeTrue()
+        ->and(EmailMessage::count())->toBe(0)
+        ->and(EmailCaseLink::count())->toBe(0);
 
-    $result = app(GraphMailboxService::class)->sync(1);
-
-    expect($result['has_more'])->toBeTrue()
-        ->and($result['imported'] + $result['skipped'])->toBe(1);
+    Mail::assertSent(\App\Mail\CredentialingTemplateMail::class);
 });
 
-test('graph test connection returns folder counts', function () {
+test('mailbox sync driver is always graph', function () {
     configureGraphForTests();
 
-    Http::fake([
-        'login.microsoftonline.com/*' => Http::response([
-            'access_token' => 'fake-graph-token',
-            'expires_in' => 3600,
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/inbox*' => Http::response([
-            'displayName' => 'Inbox',
-            'totalItemCount' => 12,
-        ], 200),
-        'graph.microsoft.com/*/mailFolders/sentitems*' => Http::response([
-            'displayName' => 'Sent Items',
-            'totalItemCount' => 5,
-        ], 200),
-    ]);
-
-    $result = app(GraphMailboxService::class)->testConnection();
-
-    expect($result['success'])->toBeTrue()
-        ->and($result['mailbox'])->toBe('credentialing@revantagehbs.com')
-        ->and($result['folders'])->toHaveCount(2);
-});
-
-test('mailbox sync falls back to imap when graph is not configured', function () {
-    config([
-        'services.microsoft_graph.tenant_id' => null,
-        'services.microsoft_graph.client_id' => null,
-        'services.microsoft_graph.client_secret' => null,
-        'services.microsoft_graph.mailbox' => null,
-    ]);
-
-    $mailSettings = app(MailSettingsService::class);
-
-    expect(app(GraphMailboxService::class)->isConfigured())->toBeFalse()
-        ->and($mailSettings->mailboxSyncDriver())->toBe('imap');
+    expect(app(MailSettingsService::class)->mailboxSyncDriver())->toBe('graph')
+        ->and(app(MailSettingsService::class)->isMailboxSyncConfigured())->toBeTrue();
 });

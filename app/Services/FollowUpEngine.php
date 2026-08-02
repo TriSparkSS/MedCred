@@ -164,10 +164,9 @@ class FollowUpEngine
         CredentialingCase::query()
             ->active()
             ->whereHas('status', fn ($q) => $q->where('dashboard_category', 'payer'))
-            ->whereDoesntHave('emailMessages', fn ($q) => $q
-                ->where('direction', 'inbound')
-                ->where('queue_category', 'payer_responses')
-                ->where('received_at', '>=', now()->subDays(14)))
+            ->whereDoesntHave('activities', fn ($q) => $q
+                ->where('type', 'email')
+                ->where('created_at', '>=', now()->subDays(14)))
             ->where('last_action_at', '<=', now()->subDays(14))
             ->each(function (CredentialingCase $case) use (&$count) {
                 $this->onPayerNoResponse($case);
