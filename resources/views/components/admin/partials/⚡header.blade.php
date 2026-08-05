@@ -24,7 +24,7 @@ new class extends Component {
 
     public function clearSearch(): void
     {
-        if ($this->search === '' && ! $this->showSearchResults) {
+        if ($this->search === '' && !$this->showSearchResults) {
             return;
         }
 
@@ -47,7 +47,7 @@ new class extends Component {
     #[Computed]
     public function searchResults(): array
     {
-        if (! $this->showSearchResults) {
+        if (!$this->showSearchResults) {
             return ['providers' => collect(), 'cases' => collect(), 'payers' => collect()];
         }
 
@@ -80,16 +80,15 @@ new class extends Component {
         <a class="nav-item nav-link px-0 me-xl-6" href="javascript:void(0)">
             <i class="icon-base ti tabler-menu-2 icon-md"></i>
         </a>
+        {{-- {{ dd('asdasdas')}} --}}
     </div>
 
     <div class="navbar-nav align-items-center flex-grow-1 me-3 d-none d-md-flex" style="max-width: 480px;">
         <div class="w-100 position-relative">
             <div class="input-group input-group-sm">
                 <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
-                <input type="search" wire:model.live.debounce.300ms="search"
-                    class="form-control border-start-0"
-                    placeholder="Search provider, NPI, payer, or application ID..."
-                    autocomplete="off"
+                <input type="search" wire:model.live.debounce.300ms="search" class="form-control border-start-0"
+                    placeholder="Search provider, NPI, payer, or application ID..." autocomplete="off"
                     wire:keydown.escape="clearSearch">
                 @if ($search)
                     <button type="button" class="btn btn-outline-secondary" wire:click="clearSearch">
@@ -107,7 +106,9 @@ new class extends Component {
                             @foreach ($this->searchResults['providers'] as $result)
                                 <a href="{{ $result['url'] }}" class="dropdown-item py-2">
                                     <div class="fw-medium">{{ $result['label'] }}</div>
-                                    @if ($result['meta'])<small class="text-muted">{{ $result['meta'] }}</small>@endif
+                                    @if ($result['meta'])
+                                        <small class="text-muted">{{ $result['meta'] }}</small>
+                                    @endif
                                 </a>
                             @endforeach
                         @endif
@@ -116,7 +117,9 @@ new class extends Component {
                             @foreach ($this->searchResults['cases'] as $result)
                                 <a href="{{ $result['url'] }}" class="dropdown-item py-2">
                                     <div class="fw-medium">{{ $result['label'] }}</div>
-                                    @if ($result['meta'])<small class="text-muted">{{ $result['meta'] }}</small>@endif
+                                    @if ($result['meta'])
+                                        <small class="text-muted">{{ $result['meta'] }}</small>
+                                    @endif
                                 </a>
                             @endforeach
                         @endif
@@ -152,25 +155,30 @@ new class extends Component {
                 <ul class="dropdown-menu dropdown-menu-end" style="min-width: 280px;">
                     <li class="dropdown-header">Notifications</li>
                     <li>
-                        <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.documents', ['filterExpiry' => 'expiring']) }}">
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.documents', ['filterExpiry' => 'expiring']) }}">
                             <span><i class="ti tabler-file-alert me-2"></i>Expiring documents</span>
-                            <span class="badge bg-label-warning">{{ $this->notifications['expiring_documents'] }}</span>
+                            <span
+                                class="badge bg-label-warning">{{ $this->notifications['expiring_documents'] }}</span>
                         </a>
                     </li>
                     <li>
-                        <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.tasks.kanban') }}">
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.tasks.kanban') }}">
                             <span><i class="ti tabler-user-check me-2"></i>New task assignments</span>
                             <span class="badge bg-label-primary">{{ $this->notifications['task_assignments'] }}</span>
                         </a>
                     </li>
                     <li>
-                        <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.tasks.kanban') }}">
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.tasks.kanban') }}">
                             <span><i class="ti tabler-checklist me-2"></i>Overdue tasks</span>
                             <span class="badge bg-label-danger">{{ $this->notifications['overdue_tasks'] }}</span>
                         </a>
                     </li>
                     <li>
-                        <a class="dropdown-item d-flex justify-content-between" href="{{ route('admin.credentials', ['category' => 'overdue']) }}">
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.credentials', ['category' => 'overdue']) }}">
                             <span><i class="ti tabler-clock-exclamation me-2"></i>Overdue follow-ups</span>
                             <span class="badge bg-label-danger">{{ $this->notifications['overdue_cases'] }}</span>
                         </a>
@@ -179,18 +187,20 @@ new class extends Component {
             </li>
 
             <li class="nav-item navbar-dropdown dropdown-user dropdown">
-                <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown" aria-expanded="false">
+                <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown"
+                    aria-expanded="false">
                     <div class="avatar avatar-online">
                         <img src="{{ $admin->avatar ?? '' }}" alt="Admin avatar" class="rounded-circle" />
                     </div>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li>
+
                         <a class="dropdown-item" href="#">
                             <div class="d-flex">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="avatar avatar-online">
-                                        <img src="{{ $admin->avatar ?? '' }}" alt="Admin avatar"
+                                        <img src="{{ $admin->avatar ?? getUserImageInitial($admin->id, $admin->name) }}" alt="Admin avatar"
                                             class="w-px-40 h-auto rounded-circle" />
                                     </div>
                                 </div>
@@ -201,7 +211,9 @@ new class extends Component {
                             </div>
                         </a>
                     </li>
-                    <li><div class="dropdown-divider my-1 mx-n2"></div></li>
+                    <li>
+                        <div class="dropdown-divider my-1 mx-n2"></div>
+                    </li>
                     <li>
                         <a class="dropdown-item" href="#" wire:click.prevent="logout">
                             <i class="icon-base ti tabler-power icon-md me-3"></i>
