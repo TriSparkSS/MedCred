@@ -1,58 +1,151 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Revantage CRM
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel + Livewire admin CRM for healthcare credentialing: practices, providers, payer applications, documents, tasks, reports, and a live Microsoft Graph Email Center.
 
-## About Laravel
+## Requirements
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP **8.3+** with extensions: `bcmath`, `ctype`, `curl`, `dom`, `fileinfo`, `json`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`
+- [Composer](https://getcomposer.org/) 2.x
+- Node.js **18+** and npm (for Vite assets)
+- Optional: [Laravel Herd](https://herd.laravel.com/) (recommended on Windows/macOS)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Quick start
 
 ```bash
-composer require laravel/boost --dev
+# 1. Install PHP dependencies
+composer install
 
-php artisan boost:install
+# 2. Environment
+cp .env.example .env
+php artisan key:generate
+
+# 3. Database (default: SQLite)
+# Ensure database/database.sqlite exists, or set DB_* in .env for MySQL/SQL Server
+touch database/database.sqlite   # Unix / Git Bash
+# Windows PowerShell: New-Item -ItemType File -Path database/database.sqlite -Force
+
+php artisan migrate --force
+php artisan db:seed --force
+
+# 4. Storage symlink (uploads / public files)
+php artisan storage:link
+
+# 5. Frontend assets
+npm install
+npm run build
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Or use the Composer setup script (installs deps, `.env`, key, migrate, npm build):
 
-## Contributing
+```bash
+composer run setup
+php artisan db:seed --force
+php artisan storage:link
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Configure `.env`
 
-## Code of Conduct
+| Variable | Purpose |
+|----------|---------|
+| `APP_URL` | Exact URL you open in the browser (e.g. `http://revantage-crm.test` with Herd, or `http://127.0.0.1:8000`). **Must match** or Livewire actions can fail. |
+| `DB_CONNECTION` | `sqlite` (local default), `mysql`, or `sqlsrv` (production target) |
+| `GRAPH_TENANT_ID` | Entra tenant ID (Email Center) |
+| `GRAPH_CLIENT_ID` | Application (client) ID — GUID, **not** the secret |
+| `GRAPH_CLIENT_SECRET` | Client secret value |
+| `GRAPH_MAILBOX` | Mailbox to read (e.g. `credentialing@yourdomain.com`) |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+SMTP for **sending** mail is configured in Admin → **Settings → Mail** (stored encrypted), not only via `MAIL_*` env.
 
-## Security Vulnerabilities
+After changing `.env`:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan config:clear
+```
+
+### Microsoft Graph (Email Center)
+
+Email Center loads Inbox / Sent **live** from Graph (messages are not stored in the DB). Create an Entra app with application permission **`Mail.Read`** + admin consent, then set the `GRAPH_*` variables above.
+
+Optional SMTP-only local work: leave Graph empty; Email Center will show a configuration notice until Graph is set.
+
+## Run the app
+
+### Option A — Laravel Herd (recommended)
+
+1. Park or link the project in Herd.
+2. Open `http://revantage-crm.test` (or your Herd site URL).
+3. Set `APP_URL` to that same URL.
+4. Build assets once (`npm run build`) or run Vite in another terminal: `npm run dev`.
+
+### Option B — Artisan + Vite
+
+```bash
+# Terminal 1 — app
+php artisan serve
+
+# Terminal 2 — assets (hot reload)
+npm run dev
+```
+
+Open `http://127.0.0.1:8000` and set `APP_URL=http://127.0.0.1:8000`.
+
+### Option C — All-in-one (server + queue + Vite)
+
+```bash
+composer run dev
+```
+
+Starts `php artisan serve`, `queue:listen`, and `npm run dev` together.
+
+### Queue worker (optional)
+
+If you use background jobs (imports, mail sync cache clear, etc.):
+
+```bash
+php artisan queue:work
+```
+
+Ensure `QUEUE_CONNECTION=database` (default in `.env.example`) and migrations have been run.
+
+## Default admin login
+
+After seeding:
+
+| Field | Value |
+|-------|--------|
+| Login URL | `/sp/login` |
+| Username | `superadmin` |
+| Email | `admin@hrm.com` |
+| Password | `112233` |
+
+Change this password in production.
+
+Other portals:
+
+- Provider: `/provider/login`
+- Practice: `/practice/login`
+
+## Useful Artisan commands
+
+```bash
+php artisan migrate              # Run migrations
+php artisan db:seed              # Seed roles, permissions, master data
+php artisan db:seed --class=DummyContentSeeder   # Optional demo data
+php artisan db:seed --class=AdminPermissionSeeder # Re-seed admin permissions only
+php artisan storage:link
+php artisan config:clear
+php artisan view:clear
+php artisan mailbox:sync         # Clear Graph mailbox list cache
+php artisan test                 # Run Pest tests
+```
+
+## Project notes
+
+- **Stack:** Laravel 13, Livewire 4, Spatie Permission, Vuexy-style admin assets under `public/assets`.
+- **Email Center:** Live Graph read + SMTP send; case links stored as Message-ID → case only (`email_case_links`).
+- **Credentialing cases:** Practices need a 3-letter `client_code` for case numbers like `RVA-2026-0001`.
+- **Production DB:** Prefer SQL Server (`DB_CONNECTION=sqlsrv`) per deployment target; local default is SQLite.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Proprietary — Revantage / project owners. Laravel framework components remain under the [MIT license](https://opensource.org/licenses/MIT).

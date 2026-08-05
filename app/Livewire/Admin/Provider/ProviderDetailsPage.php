@@ -14,6 +14,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 #[Layout('layouts::admin', ['title' => 'Provider Workbench'])]
@@ -23,6 +24,7 @@ class ProviderDetailsPage extends Component
 
     public ProviderDetails $provider;
 
+    #[Url(as: 'tab', history: true)]
     public string $activeTab = 'overview';
 
     public string $taskSection = 'open';
@@ -30,6 +32,20 @@ class ProviderDetailsPage extends Component
     public bool $showTaskModal = false;
 
     public array $taskForm = [];
+
+    /** @var list<string> */
+    protected array $allowedTabs = [
+        'overview',
+        'practice_ids',
+        'licenses',
+        'documents',
+        'payer_applications',
+        'communication',
+        'tasks',
+        'delay',
+        'timeline',
+        'billing',
+    ];
 
     public function mount(ProviderDetails $provider): void
     {
@@ -40,11 +56,15 @@ class ProviderDetailsPage extends Component
             'credentialingCases.assignedAdmin', 'credentialingCases.practice',
             'documents.documentType', 'documents.versions',
         ]);
+
+        if (! in_array($this->activeTab, $this->allowedTabs, true)) {
+            $this->activeTab = 'overview';
+        }
     }
 
     public function setTab(string $tab): void
     {
-        $this->activeTab = $tab;
+        $this->activeTab = in_array($tab, $this->allowedTabs, true) ? $tab : 'overview';
     }
 
     public function setTaskSection(string $section): void

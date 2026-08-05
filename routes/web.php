@@ -5,6 +5,7 @@ use App\Http\Controllers\CredentialPacketController;
 use App\Http\Controllers\ReportExportController;
 use App\Livewire\Admin\Analytics\ProductivityDashboardPage;
 use App\Livewire\Admin\Credential\CredentialCreatePage;
+use App\Livewire\Admin\Credential\CredentialDetailsPage;
 use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\DashboardPage;
 use App\Livewire\Admin\Documents\DocumentListPage;
@@ -108,6 +109,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('credentials', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials');
     Route::get('credentials/create', CredentialCreatePage::class)->middleware('admin.permission:admin.credentials.create')->name('credentials.create');
     Route::get('credentials/{case}/packet', [CredentialPacketController::class, 'download'])->middleware('admin.permission:admin.credentials.view')->name('credentials.packet');
+    Route::get('credentials/{case}', CredentialDetailsPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials.show');
 
     Route::get('emails', EmailDashboardPage::class)->middleware('admin.permission:admin.emails.view')->name('email.dashboard');
     Route::get('emails/view/{folder}/{messageId}', EmailViewPage::class)->middleware('admin.permission:admin.emails.view')->name('email.show');

@@ -440,6 +440,7 @@
                                 <th>Primary</th>
                                 <th>Start Date</th>
                                 <th>End Date</th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -462,10 +463,17 @@
                                     </td>
                                     <td><small>{{ $provider->pivot->end_date ? \Illuminate\Support\Carbon::parse($provider->pivot->end_date)->format('m/d/Y') : 'Present' }}</small>
                                     </td>
+                                    <td class="text-end text-nowrap">
+                                        <a href="{{ route('admin.providers.show', ['provider' => $provider->id, 'tab' => 'documents']) }}"
+                                            class="btn btn-sm btn-outline-primary"
+                                            title="View provider documents">
+                                            <i class="ti tabler-files me-1"></i>Documents
+                                        </a>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
+                                    <td colspan="7" class="text-center py-5 text-muted">
                                         <i class="ti tabler-user-off d-block mb-2" style="font-size: 2rem;"></i>
                                         No providers assigned to this practice.
                                     </td>
