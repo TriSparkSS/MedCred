@@ -54,6 +54,22 @@
                             </button>
                         </div>
                     </form>
+                    <div class="mt-5">
+                        <div class="p-3 rounded-2" style="border: 1px solid #f5c2c7; background-color: #fff5f5;">
+                            
+                            <p class="mb-2 fw-bold" style="color: #b91c1c; font-size: 14px;">
+                                ⚠️ IMPORTANT NOTICE
+                            </p>
+
+                            <p class="mb-0" style="font-size: 13px; color: #374151; line-height: 1.5;">
+                                This system is operated by <strong>Revantage Healthcare Business Solutions LLC</strong> and may contain
+                                <strong>Protected Health Information (PHI)</strong>. Access is strictly limited to authorized users.
+                                Unauthorized access, use, or disclosure is prohibited and may result in disciplinary action and legal consequences.
+                                All activities are monitored and audited in compliance with <strong>HIPAA</strong> and applicable security regulations.
+                            </p>
+
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
