@@ -64,6 +64,7 @@
                         @enderror
                     </div>
 
+                    @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                     <div class="col-md-4">
                         <label class="form-label fw-medium">New Password</label>
                         <input type="password" wire:model="userData.password"
@@ -78,6 +79,7 @@
                     <div class="col-12">
                         <small class="text-muted">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
                     </div>
+                    @endif
                 </div>
 
                 {{-- Professional Details --}}

@@ -5,13 +5,19 @@ namespace App\Services;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class ProductivityDashboardService
 {
+    public function __construct(
+        protected AdminScopeService $scope
+    ) {}
+
     public function executiveMetrics(): Collection
     {
         return Admin::orderBy('name')->get()->map(function (Admin $admin) {
             $cases = CredentialingCase::where('assigned_admin_id', $admin->id);
+            $this->applyCaseScope($cases);
             $closedCategories = ['approved', 'closed'];
 
             $approved = (clone $cases)->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))->count();
@@ -24,13 +30,22 @@ class ProductivityDashboardService
                 ->get()
                 ->avg(fn ($case) => $case->submission_date->diffInDays($case->effective_date));
 
+            $overdueQuery = CredentialingCase::where('assigned_admin_id', $admin->id)->filterCategory('overdue');
+            $this->applyCaseScope($overdueQuery);
+
+            $taskQuery = \App\Models\Task::open()->where('assigned_admin_id', $admin->id);
+            $viewer = Auth::guard('admin')->user();
+            if ($viewer) {
+                $this->scope->scopeTasks($taskQuery, $viewer);
+            }
+
             return [
                 'admin_id' => $admin->id,
                 'name' => $admin->name,
                 'active_cases' => $active,
                 'approved_cases' => $approved,
-                'overdue_cases' => CredentialingCase::where('assigned_admin_id', $admin->id)->filterCategory('overdue')->count(),
-                'open_tasks' => $admin->id ? \App\Models\Task::open()->where('assigned_admin_id', $admin->id)->count() : 0,
+                'overdue_cases' => $overdueQuery->count(),
+                'open_tasks' => $taskQuery->count(),
                 'avg_turnaround_days' => $avgTurnaround ? round($avgTurnaround) : null,
             ];
         });
@@ -38,11 +53,13 @@ class ProductivityDashboardService
 
     public function payerTurnaround(): Collection
     {
-        return CredentialingCase::whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))
+        $query = CredentialingCase::whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))
             ->whereNotNull('submission_date')
             ->whereNotNull('effective_date')
-            ->with('payer')
-            ->get()
+            ->with('payer');
+        $this->applyCaseScope($query);
+
+        return $query->get()
             ->groupBy('payer_id')
             ->map(function ($cases, $payerId) {
                 $payer = $cases->first()->payer;
@@ -59,11 +76,21 @@ class ProductivityDashboardService
 
     public function recredentialingUpcoming(int $days = 90): Collection
     {
-        return CredentialingCase::whereNotNull('revalidation_due_date')
+        $query = CredentialingCase::whereNotNull('revalidation_due_date')
             ->whereDate('revalidation_due_date', '<=', now()->addDays($days))
             ->whereDate('revalidation_due_date', '>=', now())
             ->with(['provider.user', 'payer'])
-            ->orderBy('revalidation_due_date')
-            ->get();
+            ->orderBy('revalidation_due_date');
+        $this->applyCaseScope($query);
+
+        return $query->get();
+    }
+
+    protected function applyCaseScope($query): void
+    {
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            $this->scope->scopeCredentialingCases($query, $admin);
+        }
     }
 }

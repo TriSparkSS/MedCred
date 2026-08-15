@@ -20,11 +20,13 @@
                 </p>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                @if ($canEscalateTasks)
                 <button type="button"
                     wire:click="toggleEscalation"
                     class="btn {{ $case->is_escalated ? 'btn-danger' : 'btn-outline-danger' }}">
                     <i class="ti tabler-flag me-1"></i>{{ $case->is_escalated ? 'De-escalate' : 'Escalate' }}
                 </button>
+                @endif
                 <a href="{{ route('admin.credentials') }}" class="btn btn-outline-secondary">
                     <i class="ti tabler-arrow-left me-1"></i>Back to Tracker
                 </a>
@@ -48,12 +50,16 @@
                 <div class="row g-4">
                     <div class="col-lg-6">
                         <h6 class="fw-semibold mb-3">Status</h6>
-                        <select wire:model="statusId" class="form-select mb-2">
-                            @foreach ($statuses as $status)
-                                <option value="{{ $status->id }}">{{ $status->name }}</option>
-                            @endforeach
-                        </select>
-                        <button type="button" wire:click="saveStatus" class="btn btn-sm btn-primary">Update Status</button>
+                        @if ($canEditCredentials)
+                            <select wire:model="statusId" class="form-select mb-2">
+                                @foreach ($statuses as $status)
+                                    <option value="{{ $status->id }}">{{ $status->name }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" wire:click="saveStatus" class="btn btn-sm btn-primary">Update Status</button>
+                        @else
+                            <span class="badge bg-label-secondary">{{ $case->status?->name ?? 'N/A' }}</span>
+                        @endif
 
                         <h6 class="fw-semibold mb-3 mt-4">Case Details</h6>
                         <div class="row g-2 small">
@@ -77,20 +83,24 @@
                                 @endforeach
                             </div>
                         @endif
-                        <select wire:model="delayOwnerId" class="form-select form-select-sm mb-2">
-                            <option value="">Select delay owner...</option>
-                            @foreach ($delayOwners as $owner)
-                                <option value="{{ $owner->id }}">{{ $owner->name }}</option>
-                            @endforeach
-                        </select>
-                        <input type="text" wire:model="overrideReason" class="form-control form-control-sm mb-2" placeholder="Override reason (required)">
-                        @error('overrideReason')<div class="text-danger small">{{ $message }}</div>@enderror
-                        <button type="button" wire:click="saveDelayOverride" class="btn btn-sm btn-outline-secondary">Override Delay Owner</button>
+                        @if ($canOverrideDelay)
+                            <select wire:model="delayOwnerId" class="form-select form-select-sm mb-2">
+                                <option value="">Select delay owner...</option>
+                                @foreach ($delayOwners as $owner)
+                                    <option value="{{ $owner->id }}">{{ $owner->name }}</option>
+                                @endforeach
+                            </select>
+                            <input type="text" wire:model="overrideReason" class="form-control form-control-sm mb-2" placeholder="Override reason (required)">
+                            @error('overrideReason')<div class="text-danger small">{{ $message }}</div>@enderror
+                            <button type="button" wire:click="saveDelayOverride" class="btn btn-sm btn-outline-secondary">Override Delay Owner</button>
+                        @endif
 
+                        @if ($canEditCredentials)
                         <h6 class="fw-semibold mb-3 mt-4">Add Note</h6>
                         <textarea wire:model="newNote" rows="3" class="form-control mb-2" placeholder="Log a call, follow-up, or note..."></textarea>
                         @error('newNote')<div class="text-danger small">{{ $message }}</div>@enderror
                         <button type="button" wire:click="addNote" class="btn btn-sm btn-outline-primary">Add Note</button>
+                        @endif
                     </div>
                 </div>
 
@@ -133,17 +143,19 @@
             @elseif ($activeTab === 'communication')
                 <div class="row g-4">
                     <div class="col-lg-5">
-                        <h6 class="fw-semibold mb-3">Send Email</h6>
-                        <select wire:model="emailTemplateId" class="form-select mb-2">
-                            <option value="">Select template...</option>
-                            @foreach ($emailTemplates as $template)
-                                <option value="{{ $template->id }}">{{ $template->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('emailTemplateId')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
-                        <button type="button" wire:click="sendDocumentRequest" class="btn btn-sm btn-primary mb-3">
-                            <i class="ti tabler-mail me-1"></i>Send to Provider
-                        </button>
+                        @if ($canSendEmails)
+                            <h6 class="fw-semibold mb-3">Send Email</h6>
+                            <select wire:model="emailTemplateId" class="form-select mb-2">
+                                <option value="">Select template...</option>
+                                @foreach ($emailTemplates as $template)
+                                    <option value="{{ $template->id }}">{{ $template->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('emailTemplateId')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                            <button type="button" wire:click="sendDocumentRequest" class="btn btn-sm btn-primary mb-3">
+                                <i class="ti tabler-mail me-1"></i>Send to Provider
+                            </button>
+                        @endif
                         <div>
                             <a href="{{ route('admin.email.dashboard') }}" class="btn btn-sm btn-outline-secondary">
                                 <i class="ti tabler-mail me-1"></i>Open Email Center
@@ -190,7 +202,7 @@
                                         · {{ $task->due_date?->format('m/d/Y') ?: 'No due date' }}
                                     </small>
                                 </div>
-                                @if(! $task->isCompleted())
+                                @if(! $task->isCompleted() && $canManageTasks)
                                     <button type="button" wire:click="completeTask({{ $task->id }})"
                                         class="btn btn-sm btn-outline-success" title="Mark complete">
                                         <i class="ti tabler-check"></i>
@@ -201,6 +213,7 @@
                             <p class="text-muted small mb-0">No tasks linked to this case.</p>
                         @endforelse
                     </div>
+                    @if ($canManageTasks)
                     <div class="col-lg-5">
                         <div class="border rounded p-3">
                             <label class="form-label small fw-medium mb-1">Create Follow-up Task</label>
@@ -224,6 +237,7 @@
                             </button>
                         </div>
                     </div>
+                    @endif
                 </div>
 
             @elseif ($activeTab === 'billing')
@@ -237,36 +251,40 @@
                 <div class="row g-3" style="max-width: 720px;">
                     <div class="col-md-6">
                         <label class="form-label">Approval Date</label>
-                        <input type="date" wire:model="billingForm.approval_date" class="form-control form-control-sm">
+                        <input type="date" wire:model="billingForm.approval_date" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Effective Date</label>
-                        <input type="date" wire:model="billingForm.effective_date" class="form-control form-control-sm">
+                        <input type="date" wire:model="billingForm.effective_date" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Payer Provider ID</label>
-                        <input type="text" wire:model="billingForm.payer_provider_id" class="form-control form-control-sm">
+                        <input type="text" wire:model="billingForm.payer_provider_id" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Group ID</label>
-                        <input type="text" wire:model="billingForm.payer_group_id" class="form-control form-control-sm">
+                        <input type="text" wire:model="billingForm.payer_group_id" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">EFT Status</label>
-                        <input type="text" wire:model="billingForm.eft_status" class="form-control form-control-sm">
+                        <input type="text" wire:model="billingForm.eft_status" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">ERA Status</label>
-                        <input type="text" wire:model="billingForm.era_status" class="form-control form-control-sm">
+                        <input type="text" wire:model="billingForm.era_status" class="form-control form-control-sm" @disabled(! $canEditCredentials)>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Billing Notes</label>
-                        <textarea wire:model="billingForm.billing_notes" rows="3" class="form-control form-control-sm"></textarea>
+                        <textarea wire:model="billingForm.billing_notes" rows="3" class="form-control form-control-sm" @disabled(! $canEditCredentials)></textarea>
                     </div>
                 </div>
                 <div class="d-flex gap-2 mt-3">
+                    @if ($canEditCredentials)
                     <button type="button" wire:click="saveBillingFields" class="btn btn-sm btn-primary">Save</button>
+                    @endif
+                    @if ($canNotifyBilling)
                     <button type="button" wire:click="notifyBilling" class="btn btn-sm btn-outline-success">Notify Billing</button>
+                    @endif
                 </div>
 
             @elseif ($activeTab === 'timeline')

@@ -14,13 +14,13 @@
                             <p class="text-muted mb-0">Oversee and maintain credentialing compliance across your network.
                             </p>
                         </div>
-                        @can('admin.providers.create')
+                        @if (auth('admin')->user()?->can('admin.providers.create'))
                             <div class="d-flex flex-column flex-sm-row gap-2">
                                 <a href="{{ route('admin.providers.create') }}" class="btn btn-primary">
                                     <i class="ti tabler-plus me-1"></i> New Provider
                                 </a>
                             </div>
-                        @endcan
+                        @endif
                     </div>
                 </div>
             </div>
@@ -169,14 +169,18 @@
                                             class="btn btn-sm btn-outline-info" title="View">
                                             <i class="ti tabler-eye"></i>
                                         </a>
-                                        <a href="{{ route('admin.providers.edit', $provider->id) }}"
-                                            class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="ti tabler-edit"></i>
-                                        </a>
+                                        @if (auth('admin')->user()?->can('admin.providers.edit'))
+                                            <a href="{{ route('admin.providers.edit', $provider->id) }}"
+                                                class="btn btn-sm btn-outline-primary" title="Edit">
+                                                <i class="ti tabler-edit"></i>
+                                            </a>
+                                        @endif
+                                        @if (auth('admin')->user()?->can('admin.providers.delete'))
                                         <button wire:click="delete({{ $provider->id }})"
                                             class="btn btn-sm btn-outline-danger" title="Delete">
                                             <i class="ti tabler-trash"></i>
                                         </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

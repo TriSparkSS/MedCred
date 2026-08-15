@@ -5,7 +5,9 @@ namespace App\Livewire\Admin\Practices;
 use App\Livewire\Admin\Practices\Concerns\ManagesPracticeForm;
 use App\Models\Practice;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -63,14 +65,25 @@ class PracticeCreatePage extends Component
 
     public function save()
     {
-        $this->validate();
+        $canManagePortalCredentials = Auth::guard('admin')->user()?->can('admin.portal-credentials.manage') ?? false;
+        $rules = $this->rules();
 
-        DB::transaction(function () {
+        if (! $canManagePortalCredentials) {
+            $rules['userData.password'] = 'nullable|string|min:6';
+        }
+
+        $this->validate($rules);
+
+        DB::transaction(function () use ($canManagePortalCredentials) {
+            $password = $canManagePortalCredentials && filled($this->userData['password'])
+                ? $this->userData['password']
+                : Str::password(16);
+
             $user = User::create([
                 'name' => $this->formData['legal_name'],
                 'email' => $this->formData['email'],
                 'phone' => $this->formData['phone'] ?? null,
-                'password' => $this->userData['password'],
+                'password' => $password,
             ]);
 
             if (method_exists($user, 'assignRole')) {
@@ -89,6 +102,11 @@ class PracticeCreatePage extends Component
             $this->syncPracticeAddress($practice, 'alternative', $this->alternativeAddressData);
             $this->syncPracticeAddress($practice, 'mailing', $this->mailingAddressData);
             $this->syncPracticeAddress($practice, 'billing', $this->billingAddressData);
+
+            $admin = Auth::guard('admin')->user();
+            if ($admin && app(\App\Services\AdminScopeService::class)->isPracticeScoped($admin)) {
+                $admin->practices()->syncWithoutDetaching([$practice->id]);
+            }
         });
 
         flash()->success('Practice and user created successfully!');

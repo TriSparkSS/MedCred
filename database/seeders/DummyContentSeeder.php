@@ -87,9 +87,27 @@ class DummyContentSeeder extends Seeder
         $cases = $this->seedCredentialingCases($providers, $practices, $payers, $statuses, $priorities, $caseTypes, $admin);
         $this->seedCaseActivities($cases, $admin);
         $this->seedTasks($cases, $providers, $priorities, $admin);
+        $this->assignPracticesToDemoAdmins($practices);
 
         $this->command->info('Dummy content seeded: 10 specialties, practices, providers, payers, cases, and tasks.');
         $this->command->line('Portal login password for all dummy users: ' . self::PASSWORD);
+    }
+
+    private function assignPracticesToDemoAdmins(array $practices): void
+    {
+        $ids = collect($practices)->pluck('id')->all();
+        if ($ids === []) {
+            return;
+        }
+
+        $manager = Admin::where('username', 'manager')->first();
+        $executive = Admin::where('username', 'executive')->first();
+        $billing = Admin::where('username', 'billing')->first();
+
+        $manager?->practices()->sync($ids);
+        $first = [$ids[0]];
+        $executive?->practices()->sync($first);
+        $billing?->practices()->sync($first);
     }
 
     private function ensurePrerequisites(): void

@@ -7,6 +7,7 @@ use Livewire\Attributes\Layout;
 use App\Models\ProviderDetails;
 use App\Models\User;
 use App\Models\Specialty;
+use Illuminate\Support\Facades\Auth;
 
 #[Layout('layouts::admin', ['title' => 'Edit Provider'])]
 class ProviderEditPage extends Component
@@ -55,6 +56,10 @@ class ProviderEditPage extends Component
         $this->specialties = Specialty::all();
 
         $providerModel = ProviderDetails::with('user')->findOrFail($this->providerId);
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessProvider($admin, $providerModel)) {
+            abort(403, 'You do not have access to this provider.');
+        }
 
         $this->formData = [
             'specialty_id' => $providerModel->specialty_id,
@@ -111,7 +116,9 @@ class ProviderEditPage extends Component
         ];
 
         if (filled($this->userData['password'])) {
-            $userPayload['password'] = $this->userData['password'];
+            if (Auth::guard('admin')->user()?->can('admin.portal-credentials.manage')) {
+                $userPayload['password'] = $this->userData['password'];
+            }
         }
 
         $user->update($userPayload);

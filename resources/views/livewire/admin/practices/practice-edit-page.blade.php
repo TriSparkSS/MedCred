@@ -118,6 +118,7 @@
                 </div>
 
                 {{-- Portal Account --}}
+                @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-lock me-2"></i>Portal Account
@@ -142,6 +143,7 @@
                         <small class="text-muted mb-0">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
                     </div>
                 </div>
+                @endif
 
                 {{-- Primary Location --}}
                 <div class="mb-3 pb-3 border-bottom">

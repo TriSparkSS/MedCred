@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ProviderStatus;
+use App\Models\Admin;
 use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
@@ -13,32 +14,93 @@ use Illuminate\Support\Collection;
 
 class DashboardService
 {
+    public function __construct(
+        protected AdminScopeService $scope
+    ) {}
+
     protected array $closedCategories = ['approved', 'closed'];
+
+    protected function admin(): ?Admin
+    {
+        return auth()->guard('admin')->user();
+    }
 
     public function stats(): array
     {
-        $rushCount = CredentialingCase::active()
+        $admin = $this->admin();
+
+        $providerQuery = ProviderDetails::query()->where('status', ProviderStatus::APPROVED);
+        if ($admin) {
+            $this->scope->scopeProviders($providerQuery, $admin);
+        }
+
+        $caseQuery = fn () => tap(CredentialingCase::query(), function ($q) use ($admin) {
+            if ($admin) {
+                $this->scope->scopeCredentialingCases($q, $admin);
+            }
+        });
+
+        $rushCount = $caseQuery()
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories))
             ->whereHas('priority', fn ($q) => $q->where('name', 'like', '%rush%'))
             ->count();
 
+        $activeCases = $caseQuery()->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories));
+
+        $documentQuery = Document::expiringSoon(30);
+        if ($admin && $this->scope->isPracticeScoped($admin)) {
+            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
+            if ($ids === []) {
+                $documentQuery->whereRaw('0 = 1');
+            } else {
+                $documentQuery->where(function ($q) use ($ids) {
+                    $q->whereIn('practice_id', $ids)
+                        ->orWhereHas('credentialingCase', fn ($cq) => $cq->whereIn('practice_id', $ids))
+                        ->orWhereHas('provider.practices', fn ($pq) => $pq->whereIn('practices.id', $ids));
+                });
+            }
+        }
+
+        $taskOverdueQuery = Task::open()->forColumn('overdue');
+        if ($admin && $this->scope->isPracticeScoped($admin)) {
+            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
+            if ($ids === []) {
+                $taskOverdueQuery->whereRaw('0 = 1');
+            } else {
+                $taskOverdueQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
+            }
+        }
+
         return [
-            'active_providers' => ProviderDetails::where('status', ProviderStatus::APPROVED)->count(),
-            'apps_in_progress' => CredentialingCase::active()->count(),
-            'pending_payer' => CredentialingCase::filterCategory('payer')->count(),
-            'pending_provider' => CredentialingCase::filterCategory('provider')->count(),
-            'overdue_followups' => CredentialingCase::filterCategory('overdue')->count()
-                + Task::open()->forColumn('overdue')->count(),
-            'expiring_documents' => Document::expiringSoon(30)->count(),
+            'active_providers' => $providerQuery->count(),
+            'apps_in_progress' => (clone $activeCases)->count(),
+            'pending_payer' => $this->scopedCategoryCount('payer', $admin),
+            'pending_provider' => $this->scopedCategoryCount('provider', $admin),
+            'overdue_followups' => $this->scopedCategoryCount('overdue', $admin) + $taskOverdueQuery->count(),
+            'expiring_documents' => $documentQuery->count(),
             'rush_cases' => $rushCount,
         ];
     }
 
+    protected function scopedCategoryCount(string $category, ?Admin $admin): int
+    {
+        $query = CredentialingCase::filterCategory($category);
+        if ($admin) {
+            $this->scope->scopeCredentialingCases($query, $admin);
+        }
+
+        return $query->count();
+    }
+
     public function delayBreakdown(): array
     {
-        $activeCases = CredentialingCase::active()
-            ->with('delayOwner')
-            ->get();
+        $admin = $this->admin();
+        $query = CredentialingCase::active()->with('delayOwner');
+        if ($admin) {
+            $this->scope->scopeCredentialingCases($query, $admin);
+        }
 
+        $activeCases = $query->get();
         $total = $activeCases->count();
 
         if ($total === 0) {
@@ -74,13 +136,25 @@ class DashboardService
 
     public function workQueue(int $limit = 15): Collection
     {
-        $tasks = Task::open()
+        $admin = $this->admin();
+
+        $taskQuery = Task::open()
             ->with(['provider.user', 'credentialingCase', 'priority'])
             ->where(function ($q) {
                 $q->whereDate('due_date', '<=', now())
                     ->orWhereDate('due_date', now());
-            })
-            ->orderBy('due_date')
+            });
+
+        if ($admin && $this->scope->isPracticeScoped($admin)) {
+            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
+            if ($ids === []) {
+                $taskQuery->whereRaw('0 = 1');
+            } else {
+                $taskQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
+            }
+        }
+
+        $tasks = $taskQuery->orderBy('due_date')
             ->limit($limit)
             ->get()
             ->map(fn (Task $task) => [
@@ -96,10 +170,15 @@ class DashboardService
                 'due_date' => $task->due_date,
             ]);
 
-        $cases = CredentialingCase::filterCategory('overdue')
+        $caseQuery = CredentialingCase::filterCategory('overdue')
             ->with(['provider.user', 'payer', 'status'])
-            ->orderBy('next_follow_up_date')
-            ->limit($limit)
+            ->orderBy('next_follow_up_date');
+
+        if ($admin) {
+            $this->scope->scopeCredentialingCases($caseQuery, $admin);
+        }
+
+        $cases = $caseQuery->limit($limit)
             ->get()
             ->map(fn (CredentialingCase $case) => [
                 'type' => 'case',
@@ -122,27 +201,58 @@ class DashboardService
 
     public function recentActivity(int $limit = 20): Collection
     {
-        return CaseActivity::with([
+        $admin = $this->admin();
+        $query = CaseActivity::with([
             'credentialingCase.provider.user',
             'credentialingCase.payer',
             'admin',
-        ])
-            ->latest()
-            ->limit($limit)
-            ->get();
+        ])->latest();
+
+        if ($admin && $this->scope->isPracticeScoped($admin)) {
+            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
+            if ($ids === []) {
+                $query->whereRaw('0 = 1');
+            } else {
+                $query->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
+            }
+        }
+
+        return $query->limit($limit)->get();
     }
 
     public function notificationCounts(): array
     {
-        $adminId = auth()->guard('admin')->id();
+        $admin = $this->admin();
+        $adminId = $admin?->id;
         $taskNotifications = $adminId
             ? app(\App\Services\TaskNotificationService::class)->unreadAssignmentCountForAdmin($adminId)
             : 0;
 
+        $documentQuery = Document::expiringSoon(30);
+        $taskOverdueQuery = Task::open()->forColumn('overdue');
+        $overdueCasesQuery = CredentialingCase::filterCategory('overdue');
+
+        if ($admin && $this->scope->isPracticeScoped($admin)) {
+            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
+            if ($ids === []) {
+                $documentQuery->whereRaw('0 = 1');
+                $taskOverdueQuery->whereRaw('0 = 1');
+                $overdueCasesQuery->whereRaw('0 = 1');
+            } else {
+                $documentQuery->where(function ($q) use ($ids) {
+                    $q->whereIn('practice_id', $ids)
+                        ->orWhereHas('credentialingCase', fn ($cq) => $cq->whereIn('practice_id', $ids))
+                        ->orWhereHas('provider.practices', fn ($pq) => $pq->whereIn('practices.id', $ids));
+                });
+                $taskOverdueQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
+                $this->scope->scopeCredentialingCases($overdueCasesQuery, $admin);
+            }
+        }
+
         return [
-            'expiring_documents' => Document::expiringSoon(30)->count(),
-            'overdue_tasks' => Task::open()->forColumn('overdue')->count(),
-            'overdue_cases' => CredentialingCase::filterCategory('overdue')->count(),
+            'expiring_documents' => $documentQuery->count(),
+            'overdue_tasks' => $taskOverdueQuery->count(),
+            'overdue_cases' => $overdueCasesQuery->count(),
             'task_assignments' => $taskNotifications,
         ];
     }

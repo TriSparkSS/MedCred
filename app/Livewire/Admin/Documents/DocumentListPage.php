@@ -203,7 +203,12 @@ class DocumentListPage extends Component
 
     public function render()
     {
+        $admin = Auth::guard('admin')->user();
+        $scope = app(\App\Services\AdminScopeService::class);
         $query = Document::with(['documentType', 'provider.user', 'practice', 'versions' => fn ($q) => $q->where('is_current', true)]);
+        if ($admin) {
+            $scope->scopeDocuments($query, $admin);
+        }
 
         if ($this->search) {
             $search = '%' . $this->search . '%';
@@ -225,19 +230,30 @@ class DocumentListPage extends Component
 
         $documents = $query->latest()->paginate(15);
 
+        $statsBase = Document::query();
+        $providerQuery = ProviderDetails::with('user');
+        $practiceQuery = Practice::orderBy('legal_name');
+        $caseQuery = CredentialingCase::with('provider.user')->latest();
+        if ($admin) {
+            $scope->scopeDocuments($statsBase, $admin);
+            $scope->scopeProviders($providerQuery, $admin);
+            $scope->scopePractices($practiceQuery, $admin);
+            $scope->scopeCredentialingCases($caseQuery, $admin);
+        }
+
         $stats = [
-            'total' => Document::count(),
-            'expiring' => Document::expiringSoon(30)->count(),
-            'expired' => Document::expired()->count(),
+            'total' => (clone $statsBase)->count(),
+            'expiring' => (clone $statsBase)->expiringSoon(30)->count(),
+            'expired' => (clone $statsBase)->expired()->count(),
         ];
 
         return view('livewire.admin.documents.document-list-page', [
             'documents' => $documents,
             'stats' => $stats,
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
-            'providers' => ProviderDetails::with('user')->get(),
-            'practices' => Practice::orderBy('legal_name')->get(['id', 'legal_name']),
-            'cases' => CredentialingCase::with('provider.user')->latest()->limit(50)->get(),
+            'providers' => $providerQuery->get(),
+            'practices' => $practiceQuery->get(['id', 'legal_name']),
+            'cases' => $caseQuery->limit(50)->get(),
         ]);
     }
 }

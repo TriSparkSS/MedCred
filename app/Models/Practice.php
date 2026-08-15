@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PracticeStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable([
     'user_id',
@@ -110,5 +111,10 @@ class Practice extends Model
     public function documents()
     {
         return $this->hasMany(Document::class, 'practice_id');
+    }
+
+    public function assignedAdmins(): BelongsToMany
+    {
+        return $this->belongsToMany(Admin::class, 'admin_practice')->withTimestamps();
     }
 }

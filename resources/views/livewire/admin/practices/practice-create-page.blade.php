@@ -110,6 +110,7 @@
                         </select>
                         @error('formData.status')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
                         <input type="password" wire:model="userData.password"
@@ -117,6 +118,11 @@
                             placeholder="Minimum 6 characters">
                         @error('userData.password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    @else
+                    <div class="col-md-4">
+                        <p class="text-muted small mb-0 mt-4">Portal login credentials are managed by a system administrator.</p>
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Primary Location --}}

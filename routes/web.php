@@ -104,7 +104,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('practices/{practice}/show', PracticeDetailsPage::class)->middleware('admin.permission:admin.practices.view')->name('practices.show');
     Route::get('practices/{practice}/edit', PracticeEditPage::class)->middleware('admin.permission:admin.practices.manage')->name('practices.edit');
 
-    Route::get('provider-practices', ProviderPracticeAssignmentPage::class)->middleware('admin.permission:admin.practices.view')->name('provider-practices');
+    Route::get('provider-practices', ProviderPracticeAssignmentPage::class)->middleware('admin.permission:admin.practices.manage')->name('provider-practices');
 
     Route::get('credentials', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials');
     Route::get('credentials/create', CredentialCreatePage::class)->middleware('admin.permission:admin.credentials.create')->name('credentials.create');
@@ -126,7 +126,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('imports/bulk', BulkImportPage::class)->middleware('admin.permission:admin.imports.manage')->name('imports.bulk');
 
     Route::get('settings/specialties', SpecialtyListPage::class)->middleware('admin.permission:admin.settings.manage')->name('settings.specialties');
-    Route::get('settings/mail', MailSettingsManager::class)->middleware('admin.permission:admin.settings.manage')->name('settings.mail');
+    Route::get('settings/mail', MailSettingsManager::class)->middleware('admin.permission:admin.settings.mail')->name('settings.mail');
     Route::get('settings/users', AdminUserManager::class)->middleware('admin.permission:admin.users.manage')->name('settings.users');
 
     Route::get('payers', PayerListPage::class)->middleware('admin.permission:admin.settings.manage')->name('payers');

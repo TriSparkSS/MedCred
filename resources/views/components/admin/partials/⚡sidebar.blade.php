@@ -119,7 +119,7 @@ new class extends Component {
             </li>
             @endif
 
-            @if ($canAdmin('admin.settings.manage') || $canAdmin('admin.users.manage'))
+            @if ($canAdmin('admin.settings.manage') || $canAdmin('admin.users.manage') || $canAdmin('admin.settings.mail'))
             <li class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.master*') || request()->routeIs('admin.payers*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="menu-link menu-toggle">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
@@ -130,9 +130,13 @@ new class extends Component {
                     <li class="menu-item {{ request()->routeIs('admin.settings.specialties*') ? 'active' : '' }}">
                         <a href="{{ route('admin.settings.specialties') }}" class="menu-link"><div>Specialty</div></a>
                     </li>
+                    @endif
+                    @if ($canAdmin('admin.settings.mail'))
                     <li class="menu-item {{ request()->routeIs('admin.settings.mail') ? 'active' : '' }}">
                         <a href="{{ route('admin.settings.mail') }}" class="menu-link"><div>Mail / SMTP</div></a>
                     </li>
+                    @endif
+                    @if ($canAdmin('admin.settings.manage'))
                     <li class="menu-item {{ request()->routeIs('admin.payers*') ? 'active' : '' }}">
                         <a href="{{ route('admin.payers') }}" class="menu-link"><div>Payers</div></a>
                     </li>

@@ -35,9 +35,10 @@ class AdminSeeder extends Seeder
             ]
         );
 
-        if ($superadmin->roles()->count() === 0) {
+        if (! $superadmin->hasRole(AdminRole::SystemAdmin->value)) {
             $superadmin->assignRole(AdminRole::SystemAdmin->value);
         }
+        $superadmin->syncRoles([AdminRole::SystemAdmin->value]);
 
         $manager = Admin::updateOrCreate(
             ['username' => 'manager'],
@@ -52,7 +53,7 @@ class AdminSeeder extends Seeder
             ]
         );
 
-        if ($manager->roles()->count() === 0) {
+        if (! $manager->hasRole(AdminRole::CredentialingManager->value)) {
             $manager->assignRole(AdminRole::CredentialingManager->value);
         }
 
@@ -69,8 +70,33 @@ class AdminSeeder extends Seeder
             ]
         );
 
-        if ($executive->roles()->count() === 0) {
+        if (! $executive->hasRole(AdminRole::CredentialingExecutive->value)) {
             $executive->assignRole(AdminRole::CredentialingExecutive->value);
+        }
+
+        $billing = Admin::updateOrCreate(
+            ['username' => 'billing'],
+            [
+                'name' => 'Billing Manager',
+                'email' => 'billing@example.com',
+                'phone' => '0000000003',
+                'status' => 'active',
+                'email_verified_at' => now(),
+                'password' => 'password',
+                'remember_token' => Str::random(10),
+            ]
+        );
+
+        if (! $billing->hasRole(AdminRole::BillingReadonly->value)) {
+            $billing->assignRole(AdminRole::BillingReadonly->value);
+        }
+
+        $practiceIds = \App\Models\Practice::query()->pluck('id')->all();
+        if ($practiceIds !== []) {
+            $manager->practices()->syncWithoutDetaching($practiceIds);
+            $first = [$practiceIds[0]];
+            $executive->practices()->syncWithoutDetaching($first);
+            $billing->practices()->syncWithoutDetaching($first);
         }
     }
 }

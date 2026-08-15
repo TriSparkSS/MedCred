@@ -30,7 +30,7 @@ class TaskPolicy
 
     public function delete(Admin $admin, Task $task): bool
     {
-        return $admin->can('admin.tasks.manage');
+        return $admin->can('admin.tasks.delete');
     }
 
     public function assign(Admin $admin, Task $task): bool

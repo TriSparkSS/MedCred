@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Practices;
 use App\Livewire\Admin\Practices\Concerns\ManagesPracticeForm;
 use App\Models\Practice;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -42,6 +43,10 @@ class PracticeEditPage extends Component
     public function mount($practice): void
     {
         $practiceModel = Practice::with('addresses')->findOrFail($practice);
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessPractice($admin, (int) $practiceModel->id)) {
+            abort(403, 'You do not have access to this practice.');
+        }
         $this->practiceId = $practiceModel->id;
 
         $addresses = $practiceModel->addresses->keyBy('type');
@@ -107,8 +112,9 @@ class PracticeEditPage extends Component
         $this->validate();
 
         $practice = Practice::findOrFail($this->practiceId);
+        $canManagePortalCredentials = Auth::guard('admin')->user()?->can('admin.portal-credentials.manage') ?? false;
 
-        DB::transaction(function () use ($practice) {
+        DB::transaction(function () use ($practice, $canManagePortalCredentials) {
             $documentData = $this->storePracticeDocument(
                 $this->document,
                 $this->existingDocumentPath,
@@ -127,7 +133,7 @@ class PracticeEditPage extends Component
                 'phone' => $this->formData['phone'] ?? null,
             ];
 
-            if (filled($this->userData['password'])) {
+            if ($canManagePortalCredentials && filled($this->userData['password'])) {
                 $userPayload['password'] = $this->userData['password'];
             }
 

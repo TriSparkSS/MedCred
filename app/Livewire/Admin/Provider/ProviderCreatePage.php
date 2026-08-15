@@ -7,6 +7,8 @@ use Livewire\Attributes\Layout;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 #[Layout('layouts::admin', ['title' => 'Add Provider'])]
 class ProviderCreatePage extends Component
@@ -71,14 +73,24 @@ class ProviderCreatePage extends Component
 
     public function save()
     {
+        $canManagePortalCredentials = Auth::guard('admin')->user()?->can('admin.portal-credentials.manage') ?? false;
+
+        if (! $canManagePortalCredentials) {
+            $this->rules['userData.password'] = 'nullable|string|min:6';
+        }
+
         $this->validate();
+
+        $password = $canManagePortalCredentials && filled($this->userData['password'])
+            ? $this->userData['password']
+            : Str::password(16);
 
         // Create user
         $user = User::create([
             'name' => $this->userData['name'],
             'email' => $this->userData['email'],
             'phone' => $this->userData['phone'] ?? null,
-            'password' => $this->userData['password'],
+            'password' => $password,
         ]);
 
         // Assign provider role

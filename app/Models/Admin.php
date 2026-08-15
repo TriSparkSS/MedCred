@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -39,5 +40,10 @@ class Admin extends Authenticatable
     public function displayLabel(): string
     {
         return $this->name . ' (' . $this->username . ')';
+    }
+
+    public function practices(): BelongsToMany
+    {
+        return $this->belongsToMany(Practice::class, 'admin_practice')->withTimestamps();
     }
 }

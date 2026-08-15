@@ -18,10 +18,10 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call([
-            AdminSeeder::class,
             RoleSeeder::class,
             PermissionSeeder::class,
             AdminPermissionSeeder::class,
+            AdminSeeder::class,
             MasterDataSeeder::class,
             PdfRefactorSeeder::class,
         ]);

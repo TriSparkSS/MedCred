@@ -14,11 +14,13 @@
                             <p class="text-muted mb-0">Oversee and maintain credentialing compliance across your network.
                             </p>
                         </div>
-                        <div>
-                            <a href="{{ route('admin.practices.create') }}" class="btn btn-primary">
-                                <i class="ti tabler-plus me-1"></i> New Practice
-                            </a>
-                        </div>
+                        @if (auth('admin')->user()?->can('admin.practices.manage'))
+                            <div>
+                                <a href="{{ route('admin.practices.create') }}" class="btn btn-primary">
+                                    <i class="ti tabler-plus me-1"></i> New Practice
+                                </a>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -154,14 +156,18 @@
                                             class="btn btn-sm btn-outline-info" title="View">
                                             <i class="ti tabler-eye"></i>
                                         </a>
-                                        <a href="{{ route('admin.practices.edit', $practice->id) }}"
-                                            class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="ti tabler-edit"></i>
-                                        </a>
+                                        @if (auth('admin')->user()?->can('admin.practices.manage'))
+                                            <a href="{{ route('admin.practices.edit', $practice->id) }}"
+                                                class="btn btn-sm btn-outline-primary" title="Edit">
+                                                <i class="ti tabler-edit"></i>
+                                            </a>
+                                        @endif
+                                        @if (auth('admin')->user()?->can('admin.practices.delete'))
                                         <button wire:click="delete({{ $practice->id }})"
                                             class="btn btn-sm btn-outline-danger" title="Delete">
                                             <i class="ti tabler-trash"></i>
                                         </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

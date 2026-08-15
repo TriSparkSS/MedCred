@@ -120,6 +120,21 @@ After seeding:
 
 Change this password in production.
 
+### Demo admin roles (after seeding)
+
+| Role | Username | Password | Notes |
+|------|----------|----------|--------|
+| Super Admin | `superadmin` | `112233` | Full access |
+| Credentialing Manager | `manager` | `password` | Create providers/practices; no admin settings or portal credentials |
+| Credentialing Executive | `executive` | `password` | Assigned practices only; no create/delete |
+| Billing Manager | `billing` | `password` | Read-only; assign practices in **Admin Settings → User Management** |
+
+Re-sync permissions after role changes:
+
+```bash
+php artisan db:seed --class=AdminPermissionSeeder
+```
+
 Other portals:
 
 - Provider: `/provider/login`

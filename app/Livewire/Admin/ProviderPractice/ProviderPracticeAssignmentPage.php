@@ -5,6 +5,8 @@ namespace App\Livewire\Admin\ProviderPractice;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\ProviderPractice;
+use App\Services\AdminScopeService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -42,7 +44,10 @@ class ProviderPracticeAssignmentPage extends Component
 
     public function save()
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.manage'), 403);
+
         $this->validate();
+        $this->authorizeAssignmentScope();
 
         $existingAssignment = ProviderPractice::query()
             ->where('provider_id', $this->formData['provider_id'])
@@ -80,7 +85,10 @@ class ProviderPracticeAssignmentPage extends Component
 
     public function edit(int $assignmentId): void
     {
-        $assignment = ProviderPractice::findOrFail($assignmentId);
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.manage'), 403);
+
+        $assignment = ProviderPractice::with('provider')->findOrFail($assignmentId);
+        $this->authorizeExistingAssignmentScope($assignment);
 
         $this->assignmentId = $assignment->id;
         $this->formData = [
@@ -94,6 +102,10 @@ class ProviderPracticeAssignmentPage extends Component
 
     public function delete(int $assignmentId): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.manage'), 403);
+
+        $this->authorizeExistingAssignmentScope(ProviderPractice::with('provider')->findOrFail($assignmentId));
+
         $this->assignmentId = $assignmentId;
         sweetalert()
             ->showDenyButton()
@@ -103,9 +115,48 @@ class ProviderPracticeAssignmentPage extends Component
     #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
-        ProviderPractice::findOrFail($this->assignmentId)->delete();
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.manage'), 403);
+
+        $assignment = ProviderPractice::with('provider')->findOrFail($this->assignmentId);
+        $this->authorizeExistingAssignmentScope($assignment);
+        $assignment->delete();
         $this->resetForm();
         flash()->info('Assignment removed successfully.');
+    }
+
+    protected function authorizeAssignmentScope(): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! $admin) {
+            abort(403);
+        }
+
+        $scope = app(AdminScopeService::class);
+        $practice = Practice::findOrFail($this->formData['practice_id']);
+        $provider = ProviderDetails::findOrFail($this->formData['provider_id']);
+
+        abort_unless(
+            $scope->canAccessPractice($admin, $practice->id) && $scope->canAccessProvider($admin, $provider),
+            403
+        );
+    }
+
+    protected function authorizeExistingAssignmentScope(ProviderPractice $assignment): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! $admin) {
+            abort(403);
+        }
+
+        $scope = app(AdminScopeService::class);
+        $provider = $assignment->provider ?? ProviderDetails::findOrFail($assignment->provider_id);
+
+        abort_unless(
+            $scope->canAccessPractice($admin, (int) $assignment->practice_id) && $scope->canAccessProvider($admin, $provider),
+            403
+        );
     }
 
     #[On('sweetalert:denied')]
@@ -128,9 +179,14 @@ class ProviderPracticeAssignmentPage extends Component
         $this->resetValidation();
     }
 
-    public function render()
+    public function render(AdminScopeService $scope)
     {
+        $admin = Auth::guard('admin')->user();
         $query = ProviderPractice::with('provider.user', 'provider.specialty', 'practice');
+
+        if ($admin) {
+            $scope->scopePractices($query->whereHas('practice'), $admin);
+        }
 
         if ($this->search) {
             $search = '%' . $this->search . '%';
@@ -145,10 +201,18 @@ class ProviderPracticeAssignmentPage extends Component
             });
         }
 
+        $providerQuery = ProviderDetails::with('user', 'specialty')->orderByDesc('created_at');
+        $practiceQuery = Practice::orderBy('legal_name');
+
+        if ($admin) {
+            $scope->scopeProviders($providerQuery, $admin);
+            $scope->scopePractices($practiceQuery, $admin);
+        }
+
         return view('livewire.admin.provider-practice.provider-practice-assignment-page', [
             'assignments' => $query->latest()->paginate(10),
-            'providers' => ProviderDetails::with('user', 'specialty')->orderByDesc('created_at')->get(),
-            'practices' => Practice::orderBy('legal_name')->get(),
+            'providers' => $providerQuery->get(),
+            'practices' => $practiceQuery->get(),
         ]);
     }
 }

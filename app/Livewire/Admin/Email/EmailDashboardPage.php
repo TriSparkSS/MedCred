@@ -152,6 +152,10 @@ class EmailDashboardPage extends Component
         ]);
 
         $case = CredentialingCase::findOrFail((int) $this->linkCaseId);
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessCase($admin, $case)) {
+            abort(403, 'You do not have access to this case.');
+        }
         $emailService->linkMessageToCase($this->linkMessageId, $case, Auth::guard('admin')->id());
         $this->closeLinkModal();
         $this->notify('success', 'Email linked to case '.$case->case_number);
@@ -349,12 +353,17 @@ class EmailDashboardPage extends Component
             'caseMap' => $caseMap,
             'linkedCases' => $linkedCases,
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
-            'cases' => CredentialingCase::with('provider.user')->latest()->limit(100)->get(['id', 'case_number', 'provider_id']),
+            'cases' => tap(CredentialingCase::with('provider.user')->latest(), function ($q) {
+                $admin = Auth::guard('admin')->user();
+                if ($admin) {
+                    app(\App\Services\AdminScopeService::class)->scopeCredentialingCases($q, $admin);
+                }
+            })->limit(100)->get(['id', 'case_number', 'provider_id']),
             'smtpConfigured' => $mailSettings->isConfigured(),
             'graphConfigured' => $graph->isConfigured(),
             'graphMailbox' => config('services.microsoft_graph.mailbox'),
             'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
-            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.manage') ?? false,
+            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.mail') ?? false,
             'canLink' => Auth::guard('admin')->user()?->can('admin.emails.link') ?? false,
         ]);
     }

@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Setting;
 
 use App\Enums\AdminRole;
 use App\Models\Admin;
+use App\Models\Practice;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -20,11 +21,18 @@ class AdminUserManager extends Component
 
     public $showUserModal = false;
 
+    public $showPracticeModal = false;
+
     public $editingUserId = null;
 
     public $adminId = null;
 
+    public $practiceAdminId = null;
+
     public $selectedRoles = [];
+
+    /** @var list<int|string> */
+    public array $selectedPracticeIds = [];
 
     public $userName = '';
 
@@ -40,7 +48,7 @@ class AdminUserManager extends Component
 
     public function render()
     {
-        $records = Admin::with('roles')
+        $records = Admin::with('roles', 'practices')
             ->when($this->search, fn ($q) => $q->where(function ($query) {
                 $query->where('name', 'like', '%' . $this->search . '%')
                     ->orWhere('email', 'like', '%' . $this->search . '%')
@@ -54,7 +62,9 @@ class AdminUserManager extends Component
             'label' => $role->label(),
         ]);
 
-        return view('livewire.admin.setting.admin-user-manager', compact('records', 'availableRoles'));
+        $allPractices = Practice::orderBy('legal_name')->get(['id', 'legal_name', 'client_code']);
+
+        return view('livewire.admin.setting.admin-user-manager', compact('records', 'availableRoles', 'allPractices'));
     }
 
     public function updated($propertyName): void
@@ -90,6 +100,36 @@ class AdminUserManager extends Component
         $this->adminId = $id;
         $this->selectedRoles = $admin->roles->pluck('name')->toArray();
         $this->showRoleModal = true;
+    }
+
+    public function openPracticeModal(int $id): void
+    {
+        $admin = Admin::with('practices')->findOrFail($id);
+        $this->practiceAdminId = $id;
+        $this->selectedPracticeIds = $admin->practices->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $this->showPracticeModal = true;
+    }
+
+    public function savePractices(): void
+    {
+        $this->validate([
+            'selectedPracticeIds' => 'array',
+            'selectedPracticeIds.*' => 'integer|exists:practices,id',
+        ]);
+
+        $admin = Admin::findOrFail($this->practiceAdminId);
+        $admin->practices()->sync(array_map('intval', $this->selectedPracticeIds));
+
+        flash()->success('Practice assignments updated for ' . $admin->name . '.');
+        $this->closePracticeModal();
+    }
+
+    public function closePracticeModal(): void
+    {
+        $this->showPracticeModal = false;
+        $this->practiceAdminId = null;
+        $this->selectedPracticeIds = [];
+        $this->resetValidation();
     }
 
     protected function userFormRules(): array

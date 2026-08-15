@@ -4,6 +4,8 @@ namespace App\Livewire\Admin\Practices;
 
 use App\Enums\PracticeStatus;
 use App\Models\Practice;
+use App\Services\AdminScopeService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -27,6 +29,8 @@ class PracticeListPage extends Component
 
     public function delete(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.delete'), 403);
+
         $this->practiceId = $id;
         sweetalert()
             ->showDenyButton()
@@ -36,6 +40,8 @@ class PracticeListPage extends Component
     #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.delete'), 403);
+
         $practice = Practice::with('user')->findOrFail($this->practiceId);
         $user = $practice->user;
 
@@ -53,9 +59,14 @@ class PracticeListPage extends Component
         flash()->info('Deletion cancelled.');
     }
 
-    public function render()
+    public function render(AdminScopeService $scope)
     {
+        $admin = Auth::guard('admin')->user();
         $query = Practice::with('primaryAddress');
+
+        if ($admin) {
+            $scope->scopePractices($query, $admin);
+        }
 
         if ($this->filterStatus) {
             $query->where('status', $this->filterStatus);
@@ -81,11 +92,16 @@ class PracticeListPage extends Component
 
         $practices = $query->latest()->paginate(10);
 
+        $statsBase = Practice::query();
+        if ($admin) {
+            $scope->scopePractices($statsBase, $admin);
+        }
+
         $stats = [
-            'total' => Practice::count(),
-            'active' => Practice::where('status', PracticeStatus::ACTIVE->value)->count(),
-            'pending' => Practice::where('status', PracticeStatus::PENDING->value)->count(),
-            'inactive' => Practice::where('status', PracticeStatus::INACTIVE->value)->count(),
+            'total' => (clone $statsBase)->count(),
+            'active' => (clone $statsBase)->where('status', PracticeStatus::ACTIVE->value)->count(),
+            'pending' => (clone $statsBase)->where('status', PracticeStatus::PENDING->value)->count(),
+            'inactive' => (clone $statsBase)->where('status', PracticeStatus::INACTIVE->value)->count(),
         ];
 
         return view('livewire.admin.practices.practice-list-page', compact('practices', 'stats'));

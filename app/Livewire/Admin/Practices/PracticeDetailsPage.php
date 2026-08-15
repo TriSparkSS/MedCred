@@ -3,6 +3,8 @@
 namespace App\Livewire\Admin\Practices;
 
 use App\Models\Practice;
+use App\Services\AdminScopeService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -18,13 +20,14 @@ class PracticeDetailsPage extends Component
         $this->activeTab = $tab;
     }
 
-    public function mount($practice): void
+    public function mount($practice, AdminScopeService $scope): void
     {
         $this->practice = Practice::with([
             'user',
             'addresses',
             'contacts',
             'locations',
+            'assignedAdmins',
             'providers.user',
             'providers.specialty',
             'credentialingCases.payer',
@@ -38,6 +41,11 @@ class PracticeDetailsPage extends Component
             'documents.documentType',
             'documents.versions' => fn ($q) => $q->where('is_current', true),
         ])->findOrFail($practice);
+
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! $scope->canAccessPractice($admin, (int) $this->practice->id)) {
+            abort(403, 'You do not have access to this practice.');
+        }
     }
 
     public function render()

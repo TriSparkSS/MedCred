@@ -205,7 +205,7 @@ class EmailViewPage extends Component
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'smtpConfigured' => $mailSettings->isConfigured(),
             'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
-            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.manage') ?? false,
+            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.mail') ?? false,
             'canLink' => Auth::guard('admin')->user()?->can('admin.emails.link') ?? false,
         ]);
     }

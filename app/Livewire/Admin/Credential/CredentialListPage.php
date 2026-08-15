@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Credential;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\Status;
+use App\Services\AdminScopeService;
 use App\Services\CredentialingCaseService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -91,12 +92,16 @@ class CredentialListPage extends Component
 
     public function updateCaseStatus(int $caseId, $statusId): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
+
         $statusId = (int) $statusId;
         if ($statusId <= 0) {
             return;
         }
 
         $case = CredentialingCase::findOrFail($caseId);
+        $this->authorizeCaseScope($case);
+
         if ($case->status_id !== $statusId) {
             app(CredentialingCaseService::class)->changeStatus($case, $statusId, Auth::guard('admin')->id());
             flash()->success('Status updated.');
@@ -110,7 +115,12 @@ class CredentialListPage extends Component
             return;
         }
 
+        $permission = $field === 'assigned_admin_id' ? 'admin.credentials.assign' : 'admin.delay.override';
+        abort_unless(Auth::guard('admin')->user()?->can($permission), 403);
+
         $case = CredentialingCase::findOrFail($caseId);
+        $this->authorizeCaseScope($case);
+
         app(CredentialingCaseService::class)->updateInline(
             $case,
             [$field => $value !== '' && $value !== null ? (int) $value : null],
@@ -120,7 +130,11 @@ class CredentialListPage extends Component
 
     public function toggleEscalation(int $caseId): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.escalate'), 403);
+
         $case = CredentialingCase::findOrFail($caseId);
+        $this->authorizeCaseScope($case);
+
         $case->update(['is_escalated' => ! $case->is_escalated]);
         $case->refresh();
         $case->addActivity(
@@ -131,11 +145,26 @@ class CredentialListPage extends Component
         flash()->success($case->is_escalated ? 'Case escalated.' : 'Escalation removed.');
     }
 
-    public function render()
+    protected function authorizeCaseScope(CredentialingCase $case): void
     {
+        $admin = Auth::guard('admin')->user();
+
+        if ($admin && ! app(AdminScopeService::class)->canAccessCase($admin, $case)) {
+            abort(403, 'You do not have access to this case.');
+        }
+    }
+
+    public function render(AdminScopeService $scope)
+    {
+        $admin = Auth::guard('admin')->user();
+
         $query = CredentialingCase::with([
             'provider.user', 'payer', 'practice', 'status', 'delayOwner', 'assignedAdmin', 'priority',
         ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
+
+        if ($admin) {
+            $scope->scopeCredentialingCases($query, $admin);
+        }
 
         if (trim($this->caseSearch) !== '') {
             $search = '%'.trim($this->caseSearch).'%';
@@ -190,16 +219,37 @@ class CredentialListPage extends Component
         $cases = $query->orderByDesc('last_action_at')->paginate(15);
 
         $closedCategories = ['approved', 'closed'];
+        $statsQuery = fn () => tap(CredentialingCase::query(), function ($q) use ($admin, $scope) {
+            if ($admin) {
+                $scope->scopeCredentialingCases($q, $admin);
+            }
+        });
         $stats = [
-            'total_active' => CredentialingCase::whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))->count(),
-            'pending_provider' => CredentialingCase::filterCategory('provider')->count(),
-            'pending_payer' => CredentialingCase::filterCategory('payer')->count(),
-            'overdue' => CredentialingCase::filterCategory('overdue')->count(),
+            'total_active' => $statsQuery()->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))->count(),
+            'pending_provider' => tap(CredentialingCase::filterCategory('provider'), function ($q) use ($admin, $scope) {
+                if ($admin) {
+                    $scope->scopeCredentialingCases($q, $admin);
+                }
+            })->count(),
+            'pending_payer' => tap(CredentialingCase::filterCategory('payer'), function ($q) use ($admin, $scope) {
+                if ($admin) {
+                    $scope->scopeCredentialingCases($q, $admin);
+                }
+            })->count(),
+            'overdue' => tap(CredentialingCase::filterCategory('overdue'), function ($q) use ($admin, $scope) {
+                if ($admin) {
+                    $scope->scopeCredentialingCases($q, $admin);
+                }
+            })->count(),
         ];
 
         $statuses = Status::where('is_active', true)->orderBy('sort_order')->get();
         $payers = \App\Models\Payer::where('is_active', true)->orderBy('name')->get(['id', 'name']);
-        $practices = \App\Models\Practice::orderBy('legal_name')->get(['id', 'legal_name', 'client_code']);
+        $practiceQuery = \App\Models\Practice::orderBy('legal_name');
+        if ($admin) {
+            $scope->scopePractices($practiceQuery, $admin);
+        }
+        $practices = $practiceQuery->get(['id', 'legal_name', 'client_code']);
         $providers = $this->filterPracticeId
             ? \App\Models\ProviderDetails::query()
                 ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId))
@@ -212,6 +262,11 @@ class CredentialListPage extends Component
 
         return view('livewire.admin.credential.credential-list-page', compact(
             'cases', 'stats', 'statuses', 'payers', 'practices', 'providers', 'delayOwners', 'admins'
-        ));
+        ) + [
+            'canEditCredentials' => $admin?->can('admin.credentials.edit') ?? false,
+            'canAssignCredentials' => $admin?->can('admin.credentials.assign') ?? false,
+            'canOverrideDelay' => $admin?->can('admin.delay.override') ?? false,
+            'canEscalateTasks' => $admin?->can('admin.tasks.escalate') ?? false,
+        ]);
     }
 }

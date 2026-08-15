@@ -8,6 +8,7 @@ use App\Models\Priority;
 use App\Models\ProviderDetails;
 use App\Models\Task;
 use App\Services\TaskSyncService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -15,6 +16,8 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Tasks & Follow-ups'])]
 class TaskkanbanPage extends Component
 {
+    use AuthorizesRequests;
+
     public $showModal = false;
 
     public $formData = [];
@@ -66,6 +69,8 @@ class TaskkanbanPage extends Component
 
     public function openCreateModal(): void
     {
+        $this->authorize('create', Task::class);
+
         $this->formData = [
             'assigned_admin_id' => Auth::guard('admin')->id(),
             'task_type' => 'manual',
@@ -78,6 +83,8 @@ class TaskkanbanPage extends Component
 
     public function saveTask(): void
     {
+        $this->authorize('create', Task::class);
+
         $this->validate();
 
         Task::create([
@@ -91,23 +98,31 @@ class TaskkanbanPage extends Component
 
     public function completeTask(int $id): void
     {
-        Task::findOrFail($id)->markComplete();
+        $task = Task::findOrFail($id);
+        $this->authorize('update', $task);
+        $task->markComplete();
     }
 
     public function reopenTask(int $id): void
     {
-        Task::findOrFail($id)->markIncomplete();
+        $task = Task::findOrFail($id);
+        $this->authorize('reopen', $task);
+        $task->markIncomplete();
     }
 
     public function reassignTask(int $id, $adminId): void
     {
-        Task::findOrFail($id)->update(['assigned_admin_id' => $adminId ?: null]);
+        $task = Task::findOrFail($id);
+        $this->authorize('assign', $task);
+        $task->update(['assigned_admin_id' => $adminId ?: null]);
         flash()->success('Task reassigned.');
     }
 
     public function deleteTask(int $id): void
     {
-        Task::findOrFail($id)->delete();
+        $task = Task::findOrFail($id);
+        $this->authorize('delete', $task);
+        $task->delete();
         flash()->info('Task deleted.');
     }
 
@@ -146,6 +161,11 @@ class TaskkanbanPage extends Component
                 $q->where('title', 'like', $search)
                     ->orWhereHas('credentialingCase', fn ($q) => $q->where('case_number', 'like', $search));
             });
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            app(\App\Services\AdminScopeService::class)->scopeTasks($query, $admin);
         }
 
         return $query;

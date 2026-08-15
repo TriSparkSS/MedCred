@@ -128,7 +128,9 @@ class ReportExportService
                 'payer',
                 'status',
                 'activities' => fn ($q) => $q->latest('id')->limit(1),
-            ])
+            ]);
+        $this->applyAdminScope($cases);
+        $cases = $cases
             ->get()
             ->sortBy([
                 fn ($case) => strtolower((string) ($case->practice->legal_name ?? '')),
@@ -167,8 +169,9 @@ class ReportExportService
     {
         $cases = CredentialingCase::active()
             ->with(['provider.user', 'payer', 'status', 'assignedAdmin', 'delayOwner', 'practice'])
-            ->orderBy('case_number')
-            ->get();
+            ->orderBy('case_number');
+        $this->applyAdminScope($cases);
+        $cases = $cases->get();
 
         return $this->streamCsv('open_applications_' . now()->format('Ymd') . '.csv', [
             'Case Number', 'Provider', 'NPI', 'Payer', 'Practice', 'State', 'Status',
@@ -192,7 +195,9 @@ class ReportExportService
     {
         $cases = CredentialingCase::with([
             'provider.user', 'payer', 'documentItems',
-        ])->orderBy('case_number')->get();
+        ])->orderBy('case_number');
+        $this->applyAdminScope($cases);
+        $cases = $cases->get();
 
         return $this->streamCsv('document_compliance_' . now()->format('Ymd') . '.csv', [
             'Case Number', 'Provider', 'Payer', 'Required Docs', 'Received', 'Completion %',
@@ -214,8 +219,9 @@ class ReportExportService
     {
         $cases = CredentialingCase::active()
             ->with(['provider.user', 'payer', 'status'])
-            ->orderByDesc('intake_date')
-            ->get();
+            ->orderByDesc('intake_date');
+        $this->applyAdminScope($cases);
+        $cases = $cases->get();
 
         return $this->streamCsv('case_aging_' . now()->format('Ymd') . '.csv', [
             'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days',
@@ -234,8 +240,12 @@ class ReportExportService
     {
         $documents = Document::expiringSoon(30)
             ->with(['provider.user', 'documentType', 'credentialingCase'])
-            ->orderBy('expiry_date')
-            ->get();
+            ->orderBy('expiry_date');
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeDocuments($documents, $admin);
+        }
+        $documents = $documents->get();
 
         return $this->streamCsv('expiring_documents_' . now()->format('Ymd') . '.csv', [
             'Title', 'Type', 'Provider', 'Case Number', 'Expiry Date', 'State',
@@ -297,5 +307,13 @@ class ReportExportService
         }, $filename, [
             'Content-Type' => 'text/csv',
         ]);
+    }
+
+    protected function applyAdminScope($query): void
+    {
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeCredentialingCases($query, $admin);
+        }
     }
 }

@@ -32,11 +32,17 @@ class GlobalSearchService
 
     protected function searchProviders(string $like, int $limit): Collection
     {
-        return ProviderDetails::with('user')
+        $query = ProviderDetails::with('user')
             ->where(function ($q) use ($like) {
                 $q->where('npi', 'like', $like)
                     ->orWhereHas('user', fn ($q) => $q->where('name', 'like', $like));
-            })
+            });
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeProviders($query, $admin);
+        }
+
+        return $query
             ->limit($limit)
             ->get()
             ->map(fn (ProviderDetails $provider) => [
@@ -49,13 +55,19 @@ class GlobalSearchService
 
     protected function searchCases(string $like, int $limit): Collection
     {
-        return CredentialingCase::with(['provider.user', 'payer'])
+        $query = CredentialingCase::with(['provider.user', 'payer'])
             ->where(function ($q) use ($like) {
                 $q->where('case_number', 'like', $like)
                     ->orWhereHas('provider.user', fn ($q) => $q->where('name', 'like', $like))
                     ->orWhereHas('provider', fn ($q) => $q->where('npi', 'like', $like))
                     ->orWhereHas('payer', fn ($q) => $q->where('name', 'like', $like));
-            })
+            });
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeCredentialingCases($query, $admin);
+        }
+
+        return $query
             ->latest()
             ->limit($limit)
             ->get()

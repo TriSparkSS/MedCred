@@ -185,27 +185,39 @@
                                 </td>
                                 <td>{{ $case->payer?->name ?? 'N/A' }}</td>
                                 <td style="min-width: 200px;">
-                                    <select class="form-select form-select-sm" wire:change="updateCaseStatus({{ $case->id }}, $event.target.value)">
-                                        @foreach ($statuses as $status)
-                                            <option value="{{ $status->id }}" @selected($case->status_id == $status->id)>{{ $status->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if ($canEditCredentials)
+                                        <select class="form-select form-select-sm" wire:change="updateCaseStatus({{ $case->id }}, $event.target.value)">
+                                            @foreach ($statuses as $status)
+                                                <option value="{{ $status->id }}" @selected($case->status_id == $status->id)>{{ $status->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @else
+                                        <span class="badge bg-label-secondary">{{ $case->status?->name ?? 'N/A' }}</span>
+                                    @endif
                                 </td>
                                 <td style="min-width: 140px;">
-                                    <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'assigned_admin_id', $event.target.value)">
-                                        <option value="">Unassigned</option>
-                                        @foreach ($admins as $admin)
-                                            <option value="{{ $admin->id }}" @selected($case->assigned_admin_id == $admin->id)>{{ $admin->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if ($canAssignCredentials)
+                                        <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'assigned_admin_id', $event.target.value)">
+                                            <option value="">Unassigned</option>
+                                            @foreach ($admins as $admin)
+                                                <option value="{{ $admin->id }}" @selected($case->assigned_admin_id == $admin->id)>{{ $admin->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @else
+                                        <span class="small text-muted">{{ $case->assignedAdmin?->name ?? 'Unassigned' }}</span>
+                                    @endif
                                 </td>
                                 <td style="min-width: 130px;">
-                                    <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'delay_owner_id', $event.target.value)">
-                                        <option value="">—</option>
-                                        @foreach ($delayOwners as $owner)
-                                            <option value="{{ $owner->id }}" @selected($case->delay_owner_id == $owner->id)>{{ $owner->name }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if ($canOverrideDelay)
+                                        <select class="form-select form-select-sm" wire:change="inlineUpdate({{ $case->id }}, 'delay_owner_id', $event.target.value)">
+                                            <option value="">—</option>
+                                            @foreach ($delayOwners as $owner)
+                                                <option value="{{ $owner->id }}" @selected($case->delay_owner_id == $owner->id)>{{ $owner->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @else
+                                        <span class="small text-muted">{{ $case->delayOwner?->name ?? '—' }}</span>
+                                    @endif
                                 </td>
                                 <td><span class="fw-semibold">{{ $case->aging_days }}d</span></td>
                                 <td>
@@ -232,7 +244,8 @@
                                             title="View application details">
                                             <i class="ti tabler-eye me-1"></i>View
                                         </a>
-                                        {{-- <button type="button"
+                                        @if ($canEscalateTasks)
+                                        <button type="button"
                                             wire:click.stop="toggleEscalation({{ $case->id }})"
                                             wire:loading.attr="disabled"
                                             wire:target="toggleEscalation({{ $case->id }})"
@@ -242,7 +255,8 @@
                                                 <i class="ti tabler-flag me-1"></i>{{ $case->is_escalated ? 'De-escalate' : 'Escalate' }}
                                             </span>
                                             <span wire:loading wire:target="toggleEscalation({{ $case->id }})" class="spinner-border spinner-border-sm" role="status"></span>
-                                        </button> --}}
+                                        </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

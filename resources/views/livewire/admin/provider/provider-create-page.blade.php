@@ -60,6 +60,7 @@
                     </div>
 
                     <div class="col-md-4">
+                        @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                         <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
                         <input type="password" wire:model="userData.password"
                             class="form-control @error('userData.password') is-invalid @enderror"
@@ -67,6 +68,9 @@
                         @error('userData.password')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        @else
+                        <p class="text-muted small mb-0 mt-4">Portal login credentials are managed by a system administrator.</p>
+                        @endif
                     </div>
                 </div>
 

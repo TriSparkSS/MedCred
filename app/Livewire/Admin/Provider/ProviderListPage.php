@@ -9,6 +9,8 @@ use Livewire\Attributes\On;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
+use App\Services\AdminScopeService;
+use Illuminate\Support\Facades\Auth;
 use App\Enums\ProviderStatus;
 
 #[Layout('layouts::admin', ['title' => 'Providers'])]
@@ -65,6 +67,8 @@ class ProviderListPage extends Component
 
     public function delete(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.providers.delete'), 403);
+
         $this->providerId = $id;
         sweetalert()
             ->showDenyButton()
@@ -74,6 +78,8 @@ class ProviderListPage extends Component
     #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.providers.delete'), 403);
+
         $provider = ProviderDetails::findOrFail($this->providerId);
         $provider->delete();
         $this->providerId = null;
@@ -99,14 +105,19 @@ class ProviderListPage extends Component
         $this->resetValidation();
     }
 
-    public function render()
+    public function render(AdminScopeService $scope)
     {
+        $admin = Auth::guard('admin')->user();
         $query = ProviderDetails::with([
             'user',
             'specialty',
             'credentialingCases.payer',
             'credentialingCases.status',
         ]);
+
+        if ($admin) {
+            $scope->scopeProviders($query, $admin);
+        }
 
         if ($this->filterSpecialty) {
             $query->where('specialty_id', $this->filterSpecialty);
@@ -129,10 +140,15 @@ class ProviderListPage extends Component
         $query->orderBy('created_at', 'desc');
         $providers = $query->paginate(10);
 
+        $statsBase = ProviderDetails::query();
+        if ($admin) {
+            $scope->scopeProviders($statsBase, $admin);
+        }
+
         $stats = [
-            'total' => ProviderDetails::count(),
-            'active' => ProviderDetails::where('status', ProviderStatus::APPROVED->value)->count(),
-            'pending' => ProviderDetails::where('status', ProviderStatus::PENDING->value)->count(),
+            'total' => (clone $statsBase)->count(),
+            'active' => (clone $statsBase)->where('status', ProviderStatus::APPROVED->value)->count(),
+            'pending' => (clone $statsBase)->where('status', ProviderStatus::PENDING->value)->count(),
         ];
 
         $specialties = Specialty::orderBy('name')->get();

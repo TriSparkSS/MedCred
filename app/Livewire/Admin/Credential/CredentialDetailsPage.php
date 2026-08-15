@@ -8,6 +8,7 @@ use App\Models\DelayOwner;
 use App\Models\NotificationTemplate;
 use App\Models\Status;
 use App\Models\Task;
+use App\Services\AdminScopeService;
 use App\Services\BillingReadinessService;
 use App\Services\CredentialingCaseService;
 use App\Services\CredentialingEmailService;
@@ -58,8 +59,13 @@ class CredentialDetailsPage extends Component
         'timeline',
     ];
 
-    public function mount(CredentialingCase $case): void
+    public function mount(CredentialingCase $case, AdminScopeService $scope): void
     {
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! $scope->canAccessCase($admin, $case)) {
+            abort(403, 'You do not have access to this case.');
+        }
+
         $this->case = $case;
         $this->statusId = $case->status_id;
         $this->delayOwnerId = $case->delay_owner_id ?? '';
@@ -85,6 +91,8 @@ class CredentialDetailsPage extends Component
 
     public function saveStatus(CredentialingCaseService $caseService): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
+
         if (! $this->statusId) {
             return;
         }
@@ -100,6 +108,8 @@ class CredentialDetailsPage extends Component
 
     public function addNote(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
+
         $this->validate(['newNote' => 'required|string|max:2000']);
 
         $this->case->addActivity('note', $this->newNote, Auth::guard('admin')->id());
@@ -109,6 +119,8 @@ class CredentialDetailsPage extends Component
 
     public function saveDelayOverride(DelayOwnershipService $delayService): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.delay.override'), 403);
+
         $this->validate([
             'delayOwnerId' => 'required|exists:delay_owners,id',
             'overrideReason' => 'required|string|max:500',
@@ -128,6 +140,8 @@ class CredentialDetailsPage extends Component
 
     public function sendDocumentRequest(CredentialingEmailService $emailService): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.emails.send'), 403);
+
         $this->validate(['emailTemplateId' => 'required|exists:notification_templates,id']);
 
         $this->case->loadMissing('provider.user');
@@ -147,6 +161,8 @@ class CredentialDetailsPage extends Component
 
     public function toggleEscalation(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.escalate'), 403);
+
         $this->case->update(['is_escalated' => ! $this->case->is_escalated]);
         $this->case->refresh();
         $this->case->addActivity(
@@ -159,6 +175,8 @@ class CredentialDetailsPage extends Component
 
     public function createFollowUpTask(TaskService $taskService): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
+
         $this->validate([
             'newTaskTitle' => 'required|string|max:255',
             'newTaskDueDate' => 'nullable|date',
@@ -206,6 +224,8 @@ class CredentialDetailsPage extends Component
 
     public function saveBillingFields(BillingReadinessService $billing): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
+
         $this->validate([
             'billingForm.approval_date' => 'nullable|date',
             'billingForm.effective_date' => 'nullable|date',
@@ -224,6 +244,8 @@ class CredentialDetailsPage extends Component
 
     public function notifyBilling(BillingReadinessService $billing): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.billing.notify'), 403);
+
         try {
             $billing->notifyBilling($this->case->fresh(), Auth::guard('admin')->id());
             $this->case->refresh();
@@ -235,6 +257,8 @@ class CredentialDetailsPage extends Component
 
     public function render(TaskSyncService $taskSync, BillingReadinessService $billing)
     {
+        $admin = Auth::guard('admin')->user();
+
         $this->case->load([
             'provider.user', 'payer', 'practice', 'location', 'status', 'delayOwner',
             'assignedAdmin', 'priority', 'caseType',
@@ -253,6 +277,12 @@ class CredentialDetailsPage extends Component
             'admins' => \App\Models\Admin::assignable()->get(['id', 'name', 'username']),
             'taskTypeLabel' => fn (string $type) => $taskSync->taskTypeLabel($type),
             'billingService' => $billing,
+            'canEditCredentials' => $admin?->can('admin.credentials.edit') ?? false,
+            'canOverrideDelay' => $admin?->can('admin.delay.override') ?? false,
+            'canSendEmails' => $admin?->can('admin.emails.send') ?? false,
+            'canManageTasks' => $admin?->can('admin.tasks.manage') ?? false,
+            'canEscalateTasks' => $admin?->can('admin.tasks.escalate') ?? false,
+            'canNotifyBilling' => $admin?->can('admin.billing.notify') ?? false,
         ]);
     }
 }

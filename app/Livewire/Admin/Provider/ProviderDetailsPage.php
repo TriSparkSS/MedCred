@@ -7,6 +7,7 @@ use App\Models\DelayOwnerHistory;
 use App\Models\EmailCaseLink;
 use App\Models\ProviderDetails;
 use App\Models\Task;
+use App\Services\AdminScopeService;
 use App\Services\BillingReadinessService;
 use App\Services\TaskService;
 use App\Services\TaskSyncService;
@@ -47,8 +48,13 @@ class ProviderDetailsPage extends Component
         'billing',
     ];
 
-    public function mount(ProviderDetails $provider): void
+    public function mount(ProviderDetails $provider, AdminScopeService $scope): void
     {
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! $scope->canAccessProvider($admin, $provider)) {
+            abort(403, 'You do not have access to this provider.');
+        }
+
         $this->provider = $provider->load([
             'user', 'specialty', 'practices.primaryAddress', 'practices.locations',
             'providerPracticeLocations.practice', 'providerPracticeLocations.location',

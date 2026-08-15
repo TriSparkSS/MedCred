@@ -45,13 +45,17 @@
                     </div>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    @if (auth('admin')->user()?->can('admin.credentials.create'))
                     <a href="{{ route('admin.credentials.create') }}?practice={{ $practice->id }}"
                         class="btn btn-outline-primary">
                         <i class="ti tabler-plus me-1"></i> New Application
                     </a>
+                    @endif
+                    @if (auth('admin')->user()?->can('admin.practices.manage'))
                     <a href="{{ route('admin.practices.edit', $practice->id) }}" class="btn btn-primary">
                         <i class="ti tabler-edit me-1"></i> Edit
                     </a>
+                    @endif
                     <a href="{{ route('admin.practices') }}" class="btn btn-outline-secondary">Back</a>
                 </div>
             </div>
@@ -172,7 +176,15 @@
                                     <span class="fw-semibold">{{ $practice->license_number ?: 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
-                                    <small class="text-muted d-block mb-1">Portal Login</small>
+                                    <small class="text-muted d-block mb-1">Assigned Admins</small>
+                                    @forelse ($practice->assignedAdmins as $assignedAdmin)
+                                        <span class="badge bg-label-info me-1">{{ $assignedAdmin->name }}</span>
+                                    @empty
+                                        <span class="fw-semibold text-muted">None</span>
+                                    @endforelse
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted d-block mb-1">{{ auth('admin')->user()?->can('admin.portal-credentials.manage') ? 'Portal Login' : 'Contact Email' }}</small>
                                     <span class="fw-semibold">{{ $practice->user->email ?? 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
@@ -279,10 +291,12 @@
                         <h6 class="mb-0 fw-semibold">Payer Applications</h6>
                         <small class="text-muted">Credentialing cases for this practice</small>
                     </div>
-                    <a href="{{ route('admin.credentials.create') }}?practice={{ $practice->id }}"
-                        class="btn btn-sm btn-primary">
-                        <i class="ti tabler-plus me-1"></i> New Application
-                    </a>
+                    @if (auth('admin')->user()?->can('admin.credentials.create'))
+                        <a href="{{ route('admin.credentials.create') }}?practice={{ $practice->id }}"
+                            class="btn btn-sm btn-primary">
+                            <i class="ti tabler-plus me-1"></i> New Application
+                        </a>
+                    @endif
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -426,9 +440,11 @@
                         <h6 class="mb-0 fw-semibold">Assigned Providers</h6>
                         <small class="text-muted">Providers linked to this practice</small>
                     </div>
-                    <a href="{{ route('admin.providers.create') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="ti tabler-link me-1"></i> Add A Provider
-                    </a>
+                    @if (auth('admin')->user()?->can('admin.providers.create'))
+                        <a href="{{ route('admin.providers.create') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="ti tabler-link me-1"></i> Add A Provider
+                        </a>
+                    @endif
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -494,9 +510,11 @@
                         <h6 class="mb-0 fw-semibold">Activity Timeline</h6>
                         <small class="text-muted">Recent activity across all practice credentialing cases</small>   
                     </div>
-                    <a href="{{ route('admin.tasks.kanban') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="ti tabler-link me-1"></i> Add A Task
-                    </a>
+                    @if (auth('admin')->user()?->can('admin.tasks.manage'))
+                        <a href="{{ route('admin.tasks.kanban') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="ti tabler-link me-1"></i> Add A Task
+                        </a>
+                    @endif
                 </div>
                 
                 <div class="card-body px-4 py-4">
@@ -514,9 +532,11 @@
                         <h6 class="mb-0 fw-semibold">Practice Documents</h6>
                         <small class="text-muted">Files linked to this practice</small>
                     </div>
-                    <a href="{{ route('admin.documents') }}" class="btn btn-sm btn-primary">
-                        <i class="ti tabler-upload me-1"></i> Document Library
-                    </a>
+                    @if (auth('admin')->user()?->can('admin.documents.upload'))
+                        <a href="{{ route('admin.documents') }}" class="btn btn-sm btn-primary">
+                            <i class="ti tabler-upload me-1"></i> Document Library
+                        </a>
+                    @endif
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">

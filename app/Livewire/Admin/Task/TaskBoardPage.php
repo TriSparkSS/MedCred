@@ -374,6 +374,11 @@ class TaskBoardPage extends Component
             });
         }
 
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            app(\App\Services\AdminScopeService::class)->scopeTasks($query, $admin);
+        }
+
         return $query;
     }
 

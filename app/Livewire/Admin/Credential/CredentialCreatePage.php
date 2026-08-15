@@ -93,7 +93,12 @@ class CredentialCreatePage extends Component
     {
         $this->validate();
 
-        $adminId = Auth::guard('admin')->id();
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessPractice($admin, (int) $this->formData['practice_id'])) {
+            abort(403, 'You do not have access to this practice.');
+        }
+
+        $adminId = $admin?->id;
 
         try {
             $case = $caseService->create($this->formData, $adminId, $this->confirmDuplicate);
@@ -127,9 +132,18 @@ class CredentialCreatePage extends Component
 
     public function render()
     {
+        $admin = Auth::guard('admin')->user();
+        $scope = app(\App\Services\AdminScopeService::class);
+        $providerQuery = ProviderDetails::with('user');
+        $practiceQuery = Practice::orderBy('legal_name');
+        if ($admin) {
+            $scope->scopeProviders($providerQuery, $admin);
+            $scope->scopePractices($practiceQuery, $admin);
+        }
+
         return view('livewire.admin.credential.credential-create-page', [
-            'providers' => ProviderDetails::with('user')->get(),
-            'practices' => Practice::orderBy('legal_name')->get(['id', 'legal_name']),
+            'providers' => $providerQuery->get(),
+            'practices' => $practiceQuery->get(['id', 'legal_name']),
             'payers' => Payer::where('is_active', true)->orderBy('name')->get(),
             'caseTypes' => CaseType::where('is_active', true)->orderBy('name')->get(),
             'statuses' => Status::where('is_active', true)->orderBy('sort_order')->get(),

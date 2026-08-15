@@ -73,12 +73,16 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                @if (auth('admin')->user()?->can('admin.credentials.create'))
                 <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-outline-primary">
                     <i class="ti tabler-plus me-1"></i> New Application
                 </a>
+                @endif
+                @if (auth('admin')->user()?->can('admin.providers.edit'))
                 <a href="{{ route('admin.providers.edit', $provider->id) }}" class="btn btn-primary">
                     <i class="ti tabler-edit me-1"></i> Edit
                 </a>
+                @endif
                 <a href="{{ route('admin.providers') }}" class="btn btn-outline-secondary">Back</a>
             </div>
         </div>
@@ -226,9 +230,11 @@
                                 <span class="fw-semibold">{{ $provider->taxonomy_code ?: 'N/A' }}</span>
                             </div>
                             <div class="col-md-6">
-                                <small class="text-muted d-block">Portal Login</small>
+                                <small class="text-muted d-block">{{ auth('admin')->user()?->can('admin.portal-credentials.manage') ? 'Portal Login' : 'Email' }}</small>
                                 <span class="fw-semibold">{{ $provider->user->email ?? 'N/A' }}</span>
+                                @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                                 <small class="text-muted d-block mt-1">Sign in at {{ url('/portal/login') }}</small>
+                                @endif
                             </div>
                             <div class="col-md-6">
                                 <small class="text-muted d-block">Phone</small>
@@ -466,9 +472,11 @@
                     <h6 class="mb-0 fw-semibold">Provider Documents</h6>
                     <small class="text-muted">Verification status and expiration tracking</small>
                 </div>
-                <a href="{{ route('admin.documents', ['provider' => $provider->id, 'upload' => 1]) }}" class="btn btn-sm btn-primary">
-                    <i class="ti tabler-upload me-1"></i>Upload Document
-                </a>
+                @if (auth('admin')->user()?->can('admin.documents.upload'))
+                    <a href="{{ route('admin.documents', ['provider' => $provider->id, 'upload' => 1]) }}" class="btn btn-sm btn-primary">
+                        <i class="ti tabler-upload me-1"></i>Upload Document
+                    </a>
+                @endif
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -536,9 +544,11 @@
         <div class="card shadow-sm border-0">
             <div class="card-body pb-0 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Payer Applications</h5>
-                <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-sm btn-primary">
-                    <i class="ti tabler-plus me-1"></i>New
-                </a>
+                @if (auth('admin')->user()?->can('admin.credentials.create'))
+                    <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-sm btn-primary">
+                        <i class="ti tabler-plus me-1"></i>New
+                    </a>
+                @endif
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -646,14 +656,16 @@
                     <small class="text-muted">{{ $openTaskCount }} open task{{ $openTaskCount !== 1 ? 's' : '' }} for this provider</small>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                    @can('create', \App\Models\Task::class)
+                    @if (auth('admin')->user()?->can('admin.tasks.manage'))
                         <button wire:click="openCreateTaskModal" class="btn btn-sm btn-primary">
                             <i class="ti tabler-plus me-1"></i>Create Task
                         </button>
-                    @endcan
-                    <a href="{{ route('admin.tasks.kanban', ['provider_id' => $provider->id]) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="ti tabler-layout-kanban me-1"></i>View Board
-                    </a>
+                    @endif
+                    @if (auth('admin')->user()?->can('admin.tasks.view'))
+                        <a href="{{ route('admin.tasks.kanban', ['provider_id' => $provider->id]) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="ti tabler-layout-kanban me-1"></i>View Board
+                        </a>
+                    @endif
                 </div>
             </div>
             <div class="card-body border-bottom pb-0">
@@ -712,10 +724,8 @@
                                 </td>
                                 <td class="text-end">
                                     <button wire:click="openTaskDetail({{ $task->id }})" class="btn btn-sm btn-outline-primary">Details</button>
-                                    @if (!$task->isCompleted())
-                                        @can('update', $task)
-                                            <button wire:click="completeProviderTask({{ $task->id }})" class="btn btn-sm btn-outline-success">Complete</button>
-                                        @endcan
+                                    @if (!$task->isCompleted() && auth('admin')->user()?->can('admin.tasks.manage'))
+                                        <button wire:click="completeProviderTask({{ $task->id }})" class="btn btn-sm btn-outline-success">Complete</button>
                                     @endif
                                 </td>
                             </tr>

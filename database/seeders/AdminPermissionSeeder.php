@@ -20,8 +20,10 @@ class AdminPermissionSeeder extends Seeder
             'admin.providers.view',
             'admin.providers.create',
             'admin.providers.edit',
+            'admin.providers.delete',
             'admin.practices.view',
             'admin.practices.manage',
+            'admin.practices.delete',
             'admin.credentials.view',
             'admin.credentials.create',
             'admin.credentials.edit',
@@ -37,6 +39,7 @@ class AdminPermissionSeeder extends Seeder
             'admin.tasks.assign',
             'admin.tasks.escalate',
             'admin.tasks.reopen',
+            'admin.tasks.delete',
             'admin.reports.view',
             'admin.reports.export',
             'admin.analytics.view',
@@ -44,6 +47,8 @@ class AdminPermissionSeeder extends Seeder
             'admin.billing.view',
             'admin.billing.notify',
             'admin.settings.manage',
+            'admin.settings.mail',
+            'admin.portal-credentials.manage',
             'admin.users.manage',
             'admin.imports.manage',
         ];
@@ -52,18 +57,19 @@ class AdminPermissionSeeder extends Seeder
             Permission::firstOrCreate(['name' => $name, 'guard_name' => 'admin']);
         }
 
+        $managerExcluded = [
+            'admin.settings.manage',
+            'admin.users.manage',
+            'admin.portal-credentials.manage',
+            'admin.settings.mail',
+        ];
+
         $roles = [
             AdminRole::SystemAdmin->value => $permissions,
-            AdminRole::CredentialingManager->value => array_diff($permissions, [
-                'admin.settings.manage',
-                'admin.users.manage',
-                'admin.providers.create',
-            ]),
+            AdminRole::CredentialingManager->value => array_values(array_diff($permissions, $managerExcluded)),
             AdminRole::CredentialingExecutive->value => [
                 'admin.dashboard.view',
                 'admin.providers.view',
-                'admin.providers.create',
-                'admin.providers.edit',
                 'admin.practices.view',
                 'admin.credentials.view',
                 'admin.credentials.create',
@@ -80,9 +86,12 @@ class AdminPermissionSeeder extends Seeder
             ],
             AdminRole::BillingReadonly->value => [
                 'admin.dashboard.view',
+                'admin.providers.view',
+                'admin.practices.view',
                 'admin.credentials.view',
                 'admin.billing.view',
                 'admin.reports.view',
+                'admin.analytics.view',
             ],
         ];
 

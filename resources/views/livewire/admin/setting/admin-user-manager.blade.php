@@ -32,7 +32,8 @@
                         <th>Email</th>
                         <th>Status</th>
                         <th>Roles</th>
-                        <th width="160" class="text-end">Actions</th>
+                        <th>Practices</th>
+                        <th width="200" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,22 +55,33 @@
                                     <span class="text-muted">No roles assigned</span>
                                 @endforelse
                             </td>
+                            <td>
+                                @if ($record->practices->isNotEmpty())
+                                    <span class="badge bg-label-info">{{ $record->practices->count() }} assigned</span>
+                                @else
+                                    <span class="text-muted small">None</span>
+                                @endif
+                            </td>
                             <td class="text-end">
-                                <div class="d-flex justify-content-end gap-1">
+                                <div class="d-inline-flex justify-content-end gap-1">
                                     <button wire:click="openEditModal({{ $record->id }})"
                                         class="btn btn-sm btn-outline-secondary" title="Edit">
                                         <i class="ti tabler-edit"></i>
                                     </button>
                                     <button wire:click="openRoleModal({{ $record->id }})"
-                                        class="btn btn-sm btn-outline-primary">
-                                        <i class="ti tabler-shield me-1"></i>Roles
+                                        class="btn btn-sm btn-outline-primary" title="Roles">
+                                        <i class="ti tabler-shield"></i>
+                                    </button>
+                                    <button wire:click="openPracticeModal({{ $record->id }})"
+                                        class="btn btn-sm btn-outline-info" title="Assign practices">
+                                        <i class="ti tabler-building"></i>
                                     </button>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">No admin users found.</td>
+                            <td colspan="7" class="text-center py-5 text-muted">No admin users found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -202,6 +214,49 @@
                             <button type="button" class="btn btn-secondary"
                                 wire:click="closeRoleModal">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save Roles</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($showPracticeModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Assign Practices</h5>
+                        <button type="button" class="btn-close" wire:click="closePracticeModal"></button>
+                    </div>
+                    <form wire:submit.prevent="savePractices">
+                        <div class="modal-body">
+                            <p class="text-muted small mb-3">Select practices this admin can access. Billing, Executive, and Manager roles are scoped to these assignments.</p>
+                            <div class="row g-2" style="max-height: 320px; overflow-y: auto;">
+                                @foreach ($allPractices as $practice)
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input"
+                                                id="practice_{{ $practice->id }}"
+                                                value="{{ $practice->id }}"
+                                                wire:model="selectedPracticeIds">
+                                            <label class="form-check-label" for="practice_{{ $practice->id }}">
+                                                {{ $practice->legal_name }}
+                                                @if ($practice->client_code)
+                                                    <span class="text-muted">({{ $practice->client_code }})</span>
+                                                @endif
+                                            </label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            @error('selectedPracticeIds')
+                                <div class="text-danger small mt-2">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" wire:click="closePracticeModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Assignments</button>
                         </div>
                     </form>
                 </div>
