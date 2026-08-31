@@ -27,19 +27,44 @@ class EmailAttachmentDownloadController
             abort(404, 'Attachment could not be retrieved.');
         }
 
-        $contentType = (string) ($file['contentType'] ?? 'application/octet-stream');
         $name = (string) ($file['name'] ?? 'attachment');
-        $forceDownload = $request->boolean('download');
-        $disposition = ($forceDownload || ! $this->isInlineViewable($contentType))
-            ? 'attachment'
-            : 'inline';
+        $contentType = $this->resolveContentType((string) ($file['contentType'] ?? 'application/octet-stream'), $name);
+        $forceDownload = $request->boolean('download') || ! $this->isInlineViewable($contentType);
+        $disposition = $forceDownload ? 'attachment' : 'inline';
+        $content = $file['content'];
 
-        return response($file['content'], 200, [
+        return response($content, 200, [
             'Content-Type' => $contentType,
             'Content-Disposition' => $this->contentDisposition($disposition, $name),
-            'Content-Length' => (string) strlen($file['content']),
+            'Content-Length' => (string) strlen($content),
+            'Content-Transfer-Encoding' => 'binary',
             'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+            'Pragma' => 'no-cache',
         ]);
+    }
+
+    protected function resolveContentType(string $contentType, string $filename): string
+    {
+        $type = strtolower(trim(explode(';', $contentType)[0]));
+
+        if ($type !== '' && $type !== 'application/octet-stream') {
+            return $type;
+        }
+
+        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'xls' => 'application/vnd.ms-excel',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc' => 'application/msword',
+            default => 'application/octet-stream',
+        };
     }
 
     protected function isInlineViewable(string $contentType): bool

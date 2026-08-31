@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Data\MailFolderPage;
 use App\Data\MailMessageDto;
+use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GraphMailboxService
 {
@@ -15,6 +17,32 @@ class GraphMailboxService
     public const LIST_SELECT = 'id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,conversationId,internetMessageId,isRead';
 
     public const DETAIL_SELECT = 'id,internetMessageId,conversationId,subject,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,internetMessageHeaders,isRead';
+
+    public const ATTACHMENT_SELECT = 'id,name,size,contentType,isInline,microsoft.graph.fileAttachment/contentId';
+
+    public const ATTACHMENT_META_SELECT = 'id,name,contentType,size,isInline';
+
+    /**
+     * contentId lives on the fileAttachment subtype, and tenants disagree about which
+     * $select expressions are legal for a polymorphic attachment collection. Try the
+     * cheap variants first and fall back to no $select at all, which always works
+     * (contentBytes is stripped afterwards so nothing heavy is kept in memory).
+     *
+     * @var list<string|null>
+     */
+    public const ATTACHMENT_SELECT_VARIANTS = [
+        'id,name,size,contentType,isInline,contentId',
+        self::ATTACHMENT_SELECT,
+        self::ATTACHMENT_META_SELECT,
+        null,
+    ];
+
+    /**
+     * Per-request memo so a thread render does not re-list the same attachments.
+     *
+     * @var array<string, list<array<string, mixed>>>
+     */
+    protected array $attachmentMetaCache = [];
 
     public function __construct(
         protected MicrosoftGraphTokenService $tokenService,
@@ -126,11 +154,8 @@ class GraphMailboxService
         $folder = $folderHint ? $this->normalizeFolder($folderHint) : $this->inferFolder($raw);
         $dto = MailMessageDto::fromGraph($raw, $folder, $this->mailbox());
 
-        if ($withAttachments && $dto->hasAttachments && $dto->attachments === []) {
-            $attachments = $this->listAttachmentMeta($graphId);
-            $merged = array_merge($raw, ['attachments' => $attachments]);
-
-            return MailMessageDto::fromGraph($merged, $folder, $this->mailbox());
+        if ($withAttachments) {
+            return $this->ensureAttachmentMetadata($raw, $dto, $folder, $graphId);
         }
 
         return $dto;
@@ -182,25 +207,145 @@ class GraphMailboxService
         $mailbox = $this->mailbox();
         $messageSegment = $this->encodeGraphPathSegment($messageId);
         $attachmentSegment = $this->encodeGraphPathSegment($attachmentId);
-        $attachment = $this->graphGet(
-            "/users/{$mailbox}/messages/{$messageSegment}/attachments/{$attachmentSegment}"
-        );
+        $attachmentPath = "/users/{$mailbox}/messages/{$messageSegment}/attachments/{$attachmentSegment}";
 
-        $odataType = (string) ($attachment['@odata.type'] ?? '');
-        if (! str_contains($odataType, 'fileAttachment') || empty($attachment['contentBytes'])) {
-            throw new \RuntimeException('Attachment is not downloadable.');
+        $attachment = null;
+
+        try {
+            $attachment = $this->graphGet($attachmentPath, [
+                '$select' => 'id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentBytes',
+            ]);
+        } catch (\RuntimeException) {
+            $attachment = $this->graphGet($attachmentPath);
         }
 
-        $content = base64_decode((string) $attachment['contentBytes'], true);
-        if ($content === false) {
-            throw new \RuntimeException('Failed to decode attachment.');
+        $odataType = (string) ($attachment['@odata.type'] ?? '');
+
+        if (str_contains($odataType, 'referenceAttachment')) {
+            throw new \RuntimeException('This attachment is stored in cloud storage. Use the source link instead.');
+        }
+
+        if ($odataType !== '' && ! str_contains($odataType, 'fileAttachment')) {
+            throw new \RuntimeException('This attachment type cannot be downloaded.');
+        }
+
+        $name = (string) ($attachment['name'] ?? 'attachment');
+        $contentType = (string) ($attachment['contentType'] ?? 'application/octet-stream');
+        $content = null;
+
+        if (! empty($attachment['contentBytes'])) {
+            try {
+                $content = $this->decodeContentBytes((string) $attachment['contentBytes']);
+            } catch (\RuntimeException) {
+                $content = null;
+            }
+        }
+
+        if ($content === null || $content === '' || $this->looksLikeCorruptOfficeFile($name, $content)) {
+            $binary = $this->graphGetBinary($attachmentPath.'/$value');
+
+            if ($binary === '') {
+                throw new \RuntimeException('Failed to retrieve attachment content.');
+            }
+
+            // Some gateways mistakenly return base64 text from /$value.
+            if ($this->looksLikeBase64Payload($binary) && $this->looksLikeCorruptOfficeFile($name, $binary)) {
+                try {
+                    $decoded = $this->decodeContentBytes($binary);
+                    if (! $this->looksLikeCorruptOfficeFile($name, $decoded)) {
+                        $binary = $decoded;
+                    }
+                } catch (\RuntimeException) {
+                    // Keep raw bytes.
+                }
+            }
+
+            $content = $binary;
+        }
+
+        if ($content === '' || $this->looksLikeHtmlOrJsonError($content)) {
+            throw new \RuntimeException('Attachment download returned invalid content.');
+        }
+
+        if ($this->looksLikeCorruptOfficeFile($name, $content)) {
+            throw new \RuntimeException('Attachment content appears corrupted. Please try again.');
         }
 
         return [
-            'name' => (string) ($attachment['name'] ?? 'attachment'),
-            'contentType' => $attachment['contentType'] ?? 'application/octet-stream',
+            'name' => $name,
+            'contentType' => $contentType,
             'content' => $content,
         ];
+    }
+
+    protected function decodeContentBytes(string $contentBytes): string
+    {
+        $normalized = preg_replace('/\s+/', '', $contentBytes) ?? $contentBytes;
+        $content = base64_decode($normalized, true);
+
+        if ($content === false || $content === '') {
+            throw new \RuntimeException('Failed to decode attachment.');
+        }
+
+        return $content;
+    }
+
+    protected function looksLikeBase64Payload(string $content): bool
+    {
+        $trimmed = preg_replace('/\s+/', '', $content) ?? '';
+
+        return strlen($trimmed) >= 32
+            && strlen($trimmed) % 4 === 0
+            && preg_match('/^[A-Za-z0-9+\/]+=*$/', $trimmed) === 1;
+    }
+
+    protected function looksLikeHtmlOrJsonError(string $content): bool
+    {
+        $prefix = ltrim(substr($content, 0, 200));
+
+        return str_starts_with($prefix, '<!DOCTYPE')
+            || str_starts_with($prefix, '<html')
+            || str_starts_with($prefix, '{')
+            || str_starts_with($prefix, '[');
+    }
+
+    protected function looksLikeCorruptOfficeFile(string $name, string $content): bool
+    {
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+        if (! in_array($extension, ['xlsx', 'docx', 'pptx', 'xls', 'doc'], true)) {
+            return false;
+        }
+
+        if ($content === '') {
+            return true;
+        }
+
+        // OOXML formats are ZIP packages and must start with PK.
+        if (in_array($extension, ['xlsx', 'docx', 'pptx'], true)) {
+            return ! str_starts_with($content, "PK");
+        }
+
+        // Legacy OLE Compound File magic: D0 CF 11 E0
+        return ! str_starts_with($content, "\xD0\xCF\x11\xE0");
+    }
+
+    protected function ensureAttachmentMetadata(array $raw, MailMessageDto $dto, string $folder, string $graphId): MailMessageDto
+    {
+        $bodyContent = (string) data_get($raw, 'body.content', '');
+        $needsAttachments = (
+            $dto->hasAttachments
+            || stripos($bodyContent, 'cid:') !== false
+            || stripos($bodyContent, '<img') !== false
+        ) && $dto->attachments === [];
+
+        if (! $needsAttachments) {
+            return $dto;
+        }
+
+        $meta = $this->listAttachmentMeta($graphId);
+
+        return MailMessageDto::fromGraph(array_merge($raw, ['attachments' => $meta]), $folder, $this->mailbox());
     }
 
     /**
@@ -268,9 +413,17 @@ class GraphMailboxService
     {
         $mailbox = $this->mailbox();
         $messageSegment = $this->encodeGraphPathSegment($messageId);
-        $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageSegment}/attachments", [
-            '$select' => 'id,name,size,contentType,@odata.type',
-        ]);
+
+        try {
+            $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageSegment}/attachments", [
+                '$select' => self::ATTACHMENT_SELECT,
+            ]);
+        } catch (\RuntimeException) {
+            // Some tenants reject typed contentId selects; fall back without it.
+            $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageSegment}/attachments", [
+                '$select' => 'id,name,size,contentType,isInline',
+            ]);
+        }
 
         return $payload['value'] ?? [];
     }
@@ -310,10 +463,7 @@ class GraphMailboxService
             foreach ($payload['value'] ?? [] as $raw) {
                 $folder = $this->inferFolder($raw);
                 $dto = MailMessageDto::fromGraph($raw, $folder, $mailbox);
-                if ($dto->hasAttachments && $dto->attachments === []) {
-                    $meta = $this->listAttachmentMeta($dto->id);
-                    $dto = MailMessageDto::fromGraph(array_merge($raw, ['attachments' => $meta]), $folder, $mailbox);
-                }
+                $dto = $this->ensureAttachmentMetadata($raw, $dto, $folder, $dto->id);
                 $items->push($dto);
             }
 
@@ -370,10 +520,7 @@ class GraphMailboxService
                     foreach ($payload['value'] ?? [] as $raw) {
                         $folder = $this->inferFolder($raw);
                         $dto = MailMessageDto::fromGraph($raw, $folder, $mailbox);
-                        if ($dto->hasAttachments && $dto->attachments === []) {
-                            $meta = $this->listAttachmentMeta($dto->id);
-                            $dto = MailMessageDto::fromGraph(array_merge($raw, ['attachments' => $meta]), $folder, $mailbox);
-                        }
+                        $dto = $this->ensureAttachmentMetadata($raw, $dto, $folder, $dto->id);
                         $found->push($dto);
                     }
                 }
@@ -478,5 +625,48 @@ class GraphMailboxService
         }
 
         return $response->json() ?? [];
+    }
+
+    protected function graphGetBinary(string $path): string
+    {
+        $url = $this->graphUrl($path);
+
+        $response = $this->binaryRequest()->get($url);
+
+        if ($response->status() === 401) {
+            $this->tokenService->forgetCachedToken();
+            $response = $this->binaryRequest()->get($url);
+        }
+
+        if (! $response->successful()) {
+            $error = $response->json('error.message')
+                ?? $response->json('error_description')
+                ?? $response->body();
+
+            throw new \RuntimeException('Microsoft Graph request failed: '.$error);
+        }
+
+        $contentType = strtolower((string) $response->header('Content-Type'));
+        $body = $response->body();
+
+        // Guard against JSON error payloads returned with unexpected status handling.
+        if (str_contains($contentType, 'application/json') || $this->looksLikeHtmlOrJsonError($body)) {
+            $message = data_get(json_decode($body, true) ?: [], 'error.message', 'Invalid binary attachment response.');
+
+            throw new \RuntimeException('Microsoft Graph request failed: '.$message);
+        }
+
+        return $body;
+    }
+
+    protected function binaryRequest(): \Illuminate\Http\Client\PendingRequest
+    {
+        // Keep gzip/deflate decoding enabled so Office files are not saved compressed.
+        return Http::withToken($this->tokenService->getAccessToken())
+            ->timeout(120)
+            ->withHeaders([
+                'Accept' => '*/*',
+                'Accept-Encoding' => 'gzip, deflate',
+            ]);
     }
 }

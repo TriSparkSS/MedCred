@@ -131,6 +131,49 @@
             word-break: break-word;
             margin: 0;
         }
+        .ev-body-html {
+            white-space: normal;
+            background: #fff;
+            color: #2f2b3d;
+            border-radius: 10px;
+            padding: 0.75rem 0.85rem;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .ev-body-html a {
+            color: #0d6efd;
+        }
+        .ev-body-html img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 0.35rem 0;
+        }
+        .ev-body-html table {
+            max-width: 100%;
+            border-collapse: collapse;
+        }
+        .ev-body-html td,
+        .ev-body-html th {
+            color: #2f2b3d;
+            padding: 0.35rem 0.5rem;
+            vertical-align: top;
+        }
+        /* Forwarded Outlook tables often use navy label cells with dark text — fix contrast */
+        .ev-body-html td[style*="091572"],
+        .ev-body-html th[style*="091572"],
+        .ev-body-html td[style*="rgb(9, 21, 114)"],
+        .ev-body-html th[style*="rgb(9, 21, 114)"],
+        .ev-body-html td[bgcolor="#091572"],
+        .ev-body-html th[bgcolor="#091572"],
+        .ev-body-html td[bgcolor="#091572" i],
+        .ev-body-html th[bgcolor="#091572" i],
+        .ev-body-html tr[style*="091572"] > td,
+        .ev-body-html tr[style*="091572"] > th {
+            color: #fff !important;
+        }
+        .ev-bubble.out .ev-body-html a {
+            color: #0d6efd;
+        }
         .ev-body :where(p, ul, ol) { margin-bottom: 0.5rem; }
         .ev-body :where(p:last-child, ul:last-child, ol:last-child) { margin-bottom: 0; }
         .ev-quote {
@@ -261,8 +304,13 @@
                                 </div>
                                 <div class="ev-bubble {{ $dir }}">
                                     <div class="ev-body">
-                                        @if (filled($msg->bodyHtml))
-                                            {!! strip_tags($msg->bodyHtml, '<p><br><b><strong><i><em><u><ul><ol><li><a><span><div><blockquote><pre><code>') !!}
+                                        @php
+                                            $resolvedHtml = $msg->bodyHtmlWithInlineAttachments($msg->folder ?: $folder, $encodedMsg);
+                                        @endphp
+                                        @if (filled($resolvedHtml))
+                                            <div class="ev-body-html" wire:ignore>{!! $resolvedHtml !!}</div>
+                                        @elseif (filled($msg->bodyHtml))
+                                            <div class="ev-body-html" wire:ignore>{!! \App\Data\MailMessageDto::sanitizeHtmlForDisplay($msg->bodyHtml) !!}</div>
                                         @else
                                             {{ $msg->displayBody() ?: '—' }}
                                         @endif
@@ -271,23 +319,41 @@
                                     @if ($msg->attachments !== [])
                                         <div class="ev-attach d-flex flex-wrap gap-2">
                                             @foreach ($msg->attachments as $attachment)
-                                                @if (! empty($attachment['id']))
+                                                @if (($attachment['isInline'] ?? false) && ($attachment['kind'] ?? 'file') === 'file')
+                                                    @continue
+                                                @endif
+                                                @if (! empty($attachment['id']) || ! empty($attachment['sourceUrl']))
                                                     @php
                                                         $attachFolder = $msg->folder ?: $folder;
-                                                        $encodedAttach = \App\Livewire\Admin\Email\EmailViewPage::encodeId($attachment['id']);
-                                                        $attachRoute = [
+                                                        $encodedAttach = ! empty($attachment['id'])
+                                                            ? \App\Livewire\Admin\Email\EmailViewPage::encodeId($attachment['id'])
+                                                            : null;
+                                                        $attachRoute = $encodedAttach ? [
                                                             'folder' => $attachFolder,
                                                             'messageId' => $encodedMsg,
                                                             'attachmentId' => $encodedAttach,
-                                                        ];
+                                                        ] : null;
                                                         $contentType = $attachment['contentType'] ?? null;
                                                         $size = $attachment['size'] ?? null;
                                                         $metaBits = array_filter([
                                                             $contentType,
                                                             is_numeric($size) ? number_format(((int) $size) / 1024, 1).' KB' : null,
                                                         ]);
+                                                        $isReference = ($attachment['kind'] ?? 'file') === 'reference';
                                                     @endphp
                                                     <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                                        @if ($isReference && ! empty($attachment['sourceUrl']))
+                                                            <a class="btn btn-sm btn-outline-secondary"
+                                                                target="_blank"
+                                                                rel="noopener"
+                                                                href="{{ $attachment['sourceUrl'] }}"
+                                                                title="Open {{ $attachment['name'] }} in cloud storage">
+                                                                <i class="ti tabler-cloud me-1"></i>{{ $attachment['name'] }}
+                                                                @if ($metaBits)
+                                                                    <span class="text-muted ms-1 small">{{ implode(' · ', $metaBits) }}</span>
+                                                                @endif
+                                                            </a>
+                                                        @elseif ($attachRoute)
                                                         <a class="btn btn-sm btn-outline-secondary"
                                                             target="_blank"
                                                             rel="noopener"
@@ -303,6 +369,7 @@
                                                             title="Download {{ $attachment['name'] }}">
                                                             Download
                                                         </a>
+                                                        @endif
                                                     </div>
                                                 @endif
                                             @endforeach

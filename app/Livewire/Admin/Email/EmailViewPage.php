@@ -47,13 +47,13 @@ class EmailViewPage extends Component
     public function mount(string $folder, string $messageId): void
     {
         $this->folder = app(GraphMailboxService::class)->normalizeFolder($folder);
-        $padded = strtr($messageId, '-_', '+/');
-        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
-        $decoded = base64_decode($padded, true);
-        if ($decoded === false || $decoded === '') {
+
+        if (! self::isValidEncodedId($messageId)) {
             abort(404);
         }
-        $this->messageId = $decoded;
+
+        // Keep URL-safe encoding in Livewire state — decoded Graph ids may contain non-UTF-8 bytes.
+        $this->messageId = $messageId;
     }
 
     public function openLinkModal(?string $internetMessageId = null): void
@@ -166,8 +166,9 @@ class EmailViewPage extends Component
             $this->loadError = 'Microsoft Graph is not configured.';
         } else {
             try {
-                $anchor = $graph->getMessage($this->messageId, $this->folder, true);
-                $threadMessages = $graph->getConversation($anchor->conversationId, $this->messageId, $this->folder);
+                $decodedMessageId = self::decodeId($this->messageId);
+                $anchor = $graph->getMessage($decodedMessageId, $this->folder, true);
+                $threadMessages = $graph->getConversation($anchor->conversationId, $decodedMessageId, $this->folder);
                 $this->linkMessageId = $anchor->internetMessageId ?? '';
 
                 $caseMap = $caseLinks->caseIdsForMessageIds(
@@ -184,7 +185,7 @@ class EmailViewPage extends Component
                     $this->linkCaseId = (string) $existingCaseId;
                 }
             } catch (\Throwable $e) {
-                $this->loadError = $e->getMessage();
+                $this->loadError = self::sanitizeUtf8($e->getMessage());
             }
         }
 
@@ -213,5 +214,38 @@ class EmailViewPage extends Component
     public static function encodeId(string $id): string
     {
         return rtrim(strtr(base64_encode($id), '+/', '-_'), '=');
+    }
+
+    public static function decodeId(string $value): string
+    {
+        $padded = strtr($value, '-_', '+/');
+        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+        $decoded = base64_decode($padded, true);
+
+        if ($decoded === false || $decoded === '') {
+            abort(404);
+        }
+
+        return $decoded;
+    }
+
+    public static function isValidEncodedId(string $value): bool
+    {
+        $padded = strtr($value, '-_', '+/');
+        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+        $decoded = base64_decode($padded, true);
+
+        return $decoded !== false && $decoded !== '';
+    }
+
+    protected static function sanitizeUtf8(string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $clean = iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        return $clean !== false ? $clean : '';
     }
 }

@@ -248,3 +248,60 @@ test('email attachment returns 502 when graph download fails', function () {
         ]))
         ->assertStatus(502);
 });
+
+test('email view keeps encoded graph message id in livewire state for json safety', function () {
+    // Graph ids can contain non-UTF-8 bytes when decoded; Livewire must store the URL-safe form.
+    $binaryId = "AAMk\x00\xFF\x80binary-id";
+    $encoded = EmailViewPage::encodeId($binaryId);
+
+    expect(EmailViewPage::isValidEncodedId($encoded))->toBeTrue()
+        ->and(EmailViewPage::decodeId($encoded))->toBe($binaryId);
+
+    $json = json_encode(['messageId' => $encoded], JSON_THROW_ON_ERROR);
+
+    expect($json)->toContain($encoded);
+});
+
+test('email attachment preserves binary integrity for png and xlsx downloads', function () {
+    configureGraphForTests();
+
+    $pngBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+    $xlsxBytes = "PK\x03\x04".str_repeat('y', 80);
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($pngBytes, $xlsxBytes) {
+        $url = $request->url();
+
+        if (str_contains($url, 'login.microsoftonline.com')) {
+            return Http::response(['access_token' => 'fake-graph-token', 'expires_in' => 3600], 200);
+        }
+
+        if (str_contains($url, 'att-bin') && (str_contains($url, '$value') || str_contains($url, '%24value'))) {
+            return Http::response($pngBytes, 200, ['Content-Type' => 'image/png']);
+        }
+
+        if (str_contains($url, 'att-bin')) {
+            return Http::response([
+                '@odata.type' => '#microsoft.graph.fileAttachment',
+                'id' => 'att-bin',
+                'name' => 'photo.png',
+                'contentType' => 'image/png',
+                'size' => strlen($pngBytes),
+            ], 200);
+        }
+
+        return Http::response(['value' => []], 200);
+    });
+
+    $admin = Admin::where('username', 'superadmin')->first();
+    $response = $this->actingAs($admin, 'admin')
+        ->get(route('admin.email.attachment', [
+            'folder' => 'inbox',
+            'messageId' => EmailViewPage::encodeId('msg-bin'),
+            'attachmentId' => EmailViewPage::encodeId('att-bin'),
+        ]));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    expect($response->getContent())->toBe($pngBytes);
+});
