@@ -35,6 +35,7 @@ use App\Livewire\Admin\Provider\ProviderDetailsPage;
 use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Livewire\Admin\Provider\ProviderListPage;
 use App\Livewire\Admin\ProviderPractice\ProviderPracticeAssignmentPage;
+use App\Livewire\Admin\Reports\PracticeCredentialingReportPage;
 use App\Livewire\Admin\Reports\ReportListPage;
 use App\Livewire\Admin\Setting\AdminUserManager;
 use App\Livewire\Admin\Setting\MailSettingsManager;
@@ -121,6 +122,9 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
 
     Route::get('settings', SettingPage::class)->middleware('admin.permission:admin.settings.manage')->name('settings');
     Route::get('reports', ReportListPage::class)->middleware('admin.permission:admin.reports.view')->name('reports');
+    Route::get('reports/practice-credentialing', PracticeCredentialingReportPage::class)
+        ->middleware('admin.permission:admin.reports.view')
+        ->name('reports.practice-credentialing');
     Route::get('reports/export/{type}', [ReportExportController::class, 'download'])->middleware('admin.permission:admin.reports.export')->name('reports.export');
     Route::get('analytics/productivity', ProductivityDashboardPage::class)->middleware('admin.permission:admin.analytics.view')->name('analytics.productivity');
     Route::get('imports/bulk', BulkImportPage::class)->middleware('admin.permission:admin.imports.manage')->name('imports.bulk');

@@ -82,6 +82,7 @@ class AdminPermissionSeeder extends Seeder
                 'admin.emails.link',
                 'admin.tasks.view',
                 'admin.tasks.manage',
+                'admin.tasks.escalate',
                 'admin.tasks.reopen',
             ],
             AdminRole::BillingReadonly->value => [

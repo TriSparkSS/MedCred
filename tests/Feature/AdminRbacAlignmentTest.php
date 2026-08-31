@@ -38,7 +38,7 @@ test('permission matrix matches permission.jpeg roles', function () {
             'missing' => ['admin.settings.manage', 'admin.users.manage', 'admin.portal-credentials.manage', 'admin.settings.mail'],
         ],
         'executive' => [
-            'has' => ['admin.credentials.view', 'admin.credentials.edit', 'admin.emails.view', 'admin.emails.send', 'admin.tasks.view', 'admin.tasks.manage', 'admin.documents.view'],
+            'has' => ['admin.credentials.view', 'admin.credentials.edit', 'admin.emails.view', 'admin.emails.send', 'admin.tasks.view', 'admin.tasks.manage', 'admin.tasks.escalate', 'admin.documents.view'],
             'missing' => ['admin.providers.create', 'admin.providers.edit', 'admin.providers.delete', 'admin.practices.manage', 'admin.practices.delete', 'admin.tasks.delete', 'admin.portal-credentials.manage', 'admin.settings.manage', 'admin.settings.mail', 'admin.users.manage'],
         ],
         'billing' => [

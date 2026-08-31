@@ -180,7 +180,11 @@ class GraphMailboxService
     {
         $this->assertConfigured();
         $mailbox = $this->mailbox();
-        $attachment = $this->graphGet("/users/{$mailbox}/messages/{$messageId}/attachments/{$attachmentId}");
+        $messageSegment = $this->encodeGraphPathSegment($messageId);
+        $attachmentSegment = $this->encodeGraphPathSegment($attachmentId);
+        $attachment = $this->graphGet(
+            "/users/{$mailbox}/messages/{$messageSegment}/attachments/{$attachmentSegment}"
+        );
 
         $odataType = (string) ($attachment['@odata.type'] ?? '');
         if (! str_contains($odataType, 'fileAttachment') || empty($attachment['contentBytes'])) {
@@ -250,8 +254,9 @@ class GraphMailboxService
     protected function fetchMessage(string $messageId): array
     {
         $mailbox = $this->mailbox();
+        $messageSegment = $this->encodeGraphPathSegment($messageId);
 
-        return $this->graphGet("/users/{$mailbox}/messages/{$messageId}", [
+        return $this->graphGet("/users/{$mailbox}/messages/{$messageSegment}", [
             '$select' => self::DETAIL_SELECT,
         ]);
     }
@@ -262,11 +267,20 @@ class GraphMailboxService
     protected function listAttachmentMeta(string $messageId): array
     {
         $mailbox = $this->mailbox();
-        $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageId}/attachments", [
+        $messageSegment = $this->encodeGraphPathSegment($messageId);
+        $payload = $this->graphGet("/users/{$mailbox}/messages/{$messageSegment}/attachments", [
             '$select' => 'id,name,size,contentType,@odata.type',
         ]);
 
         return $payload['value'] ?? [];
+    }
+
+    /**
+     * Encode Graph resource ids for path segments (ids may contain / + =).
+     */
+    protected function encodeGraphPathSegment(string $id): string
+    {
+        return rawurlencode($id);
     }
 
     /**
@@ -355,7 +369,12 @@ class GraphMailboxService
 
                     foreach ($payload['value'] ?? [] as $raw) {
                         $folder = $this->inferFolder($raw);
-                        $found->push(MailMessageDto::fromGraph($raw, $folder, $mailbox));
+                        $dto = MailMessageDto::fromGraph($raw, $folder, $mailbox);
+                        if ($dto->hasAttachments && $dto->attachments === []) {
+                            $meta = $this->listAttachmentMeta($dto->id);
+                            $dto = MailMessageDto::fromGraph(array_merge($raw, ['attachments' => $meta]), $folder, $mailbox);
+                        }
+                        $found->push($dto);
                     }
                 }
             } catch (\Throwable) {

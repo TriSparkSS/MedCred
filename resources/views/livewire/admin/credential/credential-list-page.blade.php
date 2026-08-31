@@ -1,4 +1,5 @@
-﻿<div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
+<div>
+    <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
         {{-- Header --}}
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
@@ -150,7 +151,7 @@
         </div>
 
         {{-- Applications Table --}}
-        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate">
+        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate,toggleEscalation">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
@@ -167,12 +168,12 @@
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
-                    <tbody wire:key="case-rows-{{ md5($caseSearch.$filterPayerId.$filterPracticeId.$filterProviderId.$filterStatusId.$filterCategory.$filterOwnerId.$filterState.$cases->currentPage()) }}">
+                    <tbody>
                         @forelse($cases as $case)
                             @php
                                 $isOverdue = $case->isOverdue();
                             @endphp
-                            <tr wire:key="case-row-{{ $case->id }}" class="{{ $case->is_escalated ? 'table-danger' : ($isOverdue ? 'table-warning' : '') }}">
+                            <tr wire:key="case-row-{{ $case->id }}-{{ $case->is_escalated ? 'esc' : 'normal' }}" class="{{ $case->is_escalated ? 'table-danger' : ($isOverdue ? 'table-warning' : '') }}">
                                 <td>
                                     <span class="fw-semibold">{{ $case->case_number }}</span>
                                     @if($case->is_escalated)<span class="badge bg-danger ms-1">Escalated</span>@endif
@@ -246,15 +247,15 @@
                                         </a>
                                         @if ($canEscalateTasks)
                                         <button type="button"
-                                            wire:click.stop="toggleEscalation({{ $case->id }})"
+                                            wire:click="toggleEscalation({{ $case->id }})"
                                             wire:loading.attr="disabled"
-                                            wire:target="toggleEscalation({{ $case->id }})"
+                                            wire:target="toggleEscalation"
                                             class="btn btn-sm {{ $case->is_escalated ? 'btn-danger' : 'btn-outline-danger' }}"
                                             title="{{ $case->is_escalated ? 'Remove escalation' : 'Escalate application' }}">
-                                            <span wire:loading.remove wire:target="toggleEscalation({{ $case->id }})">
+                                            <span wire:loading.remove wire:target="toggleEscalation">
                                                 <i class="ti tabler-flag me-1"></i>{{ $case->is_escalated ? 'De-escalate' : 'Escalate' }}
                                             </span>
-                                            <span wire:loading wire:target="toggleEscalation({{ $case->id }})" class="spinner-border spinner-border-sm" role="status"></span>
+                                            <span wire:loading wire:target="toggleEscalation" class="spinner-border spinner-border-sm" role="status"></span>
                                         </button>
                                         @endif
                                     </div>
@@ -275,4 +276,5 @@
                 <div class="card-footer bg-white py-2">{{ $cases->withQueryString()->links('livewire::bootstrap') }}</div>
             @endif
         </div>
+    </div>
 </div>

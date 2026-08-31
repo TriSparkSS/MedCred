@@ -269,17 +269,41 @@
                                     </div>
 
                                     @if ($msg->attachments !== [])
-                                        <div class="ev-attach">
+                                        <div class="ev-attach d-flex flex-wrap gap-2">
                                             @foreach ($msg->attachments as $attachment)
                                                 @if (! empty($attachment['id']))
-                                                    <a class="btn btn-sm btn-outline-secondary"
-                                                        href="{{ route('admin.email.attachment', [
-                                                            'folder' => $folder,
+                                                    @php
+                                                        $attachFolder = $msg->folder ?: $folder;
+                                                        $encodedAttach = \App\Livewire\Admin\Email\EmailViewPage::encodeId($attachment['id']);
+                                                        $attachRoute = [
+                                                            'folder' => $attachFolder,
                                                             'messageId' => $encodedMsg,
-                                                            'attachmentId' => \App\Livewire\Admin\Email\EmailViewPage::encodeId($attachment['id']),
-                                                        ]) }}">
-                                                        <i class="ti tabler-paperclip me-1"></i>{{ $attachment['name'] }}
-                                                    </a>
+                                                            'attachmentId' => $encodedAttach,
+                                                        ];
+                                                        $contentType = $attachment['contentType'] ?? null;
+                                                        $size = $attachment['size'] ?? null;
+                                                        $metaBits = array_filter([
+                                                            $contentType,
+                                                            is_numeric($size) ? number_format(((int) $size) / 1024, 1).' KB' : null,
+                                                        ]);
+                                                    @endphp
+                                                    <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                                        <a class="btn btn-sm btn-outline-secondary"
+                                                            target="_blank"
+                                                            rel="noopener"
+                                                            href="{{ route('admin.email.attachment', $attachRoute) }}"
+                                                            title="{{ $attachment['name'] }}{{ $metaBits ? ' ('.implode(' · ', $metaBits).')' : '' }}">
+                                                            <i class="ti tabler-paperclip me-1"></i>{{ $attachment['name'] }}
+                                                            @if ($metaBits)
+                                                                <span class="text-muted ms-1 small">{{ implode(' · ', $metaBits) }}</span>
+                                                            @endif
+                                                        </a>
+                                                        <a class="btn btn-sm btn-link px-1"
+                                                            href="{{ route('admin.email.attachment', $attachRoute) }}?download=1"
+                                                            title="Download {{ $attachment['name'] }}">
+                                                            Download
+                                                        </a>
+                                                    </div>
                                                 @endif
                                             @endforeach
                                         </div>
