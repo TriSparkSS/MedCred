@@ -15,7 +15,7 @@
                 </div>
                 <div class="col-lg-3 text-lg-end">
                     <button wire:click="openCreateModal" class="btn btn-primary">
-                        <i class="ti tabler-user-plus me-1"></i> Create Admin User
+                        <i class="ti tabler-user-plus me-1"></i> Create User
                     </button>
                 </div>
             </div>
@@ -95,7 +95,7 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">{{ $editingUserId ? 'Edit Admin User' : 'Create Admin User' }}</h5>
+                        <h5 class="modal-title">{{ $editingUserId ? 'Edit Admin User' : 'Create User' }}</h5>
                         <button type="button" class="btn-close" wire:click="closeUserModal"></button>
                     </div>
                     <form wire:submit.prevent="saveUser">
@@ -231,14 +231,14 @@
                     </div>
                     <form wire:submit.prevent="savePractices">
                         <div class="modal-body">
-                            <p class="text-muted small mb-3">Select practices this admin can access. Billing, Executive, and Manager roles are scoped to these assignments.</p>
+                            <p class="text-muted small mb-3">Select practices this admin can access. Billing,
+                                Executive, and Manager roles are scoped to these assignments.</p>
                             <div class="row g-2" style="max-height: 320px; overflow-y: auto;">
                                 @foreach ($allPractices as $practice)
                                     <div class="col-md-6">
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input"
-                                                id="practice_{{ $practice->id }}"
-                                                value="{{ $practice->id }}"
+                                                id="practice_{{ $practice->id }}" value="{{ $practice->id }}"
                                                 wire:model="selectedPracticeIds">
                                             <label class="form-check-label" for="practice_{{ $practice->id }}">
                                                 {{ $practice->legal_name }}
@@ -255,7 +255,8 @@
                             @enderror
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" wire:click="closePracticeModal">Cancel</button>
+                            <button type="button" class="btn btn-secondary"
+                                wire:click="closePracticeModal">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save Assignments</button>
                         </div>
                     </form>
