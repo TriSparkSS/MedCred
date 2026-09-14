@@ -62,21 +62,43 @@
                         <small class="text-muted d-block mb-1">CAQH ID</small>
                         <span class="fw-semibold">{{ $provider->caqh_id ?: 'N/A' }}</span>
                     </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">License</small>
-                        <span class="fw-semibold">
-                            {{ $provider->license_number ? $provider->license_number . ($provider->license_state ? " ({$provider->license_state})" : '') : 'N/A' }}
-                        </span>
+                    <div class="col-12">
+                        <small class="text-muted d-block mb-2">Licenses &amp; registrations</small>
+                        @forelse ($provider->credentials as $credential)
+                            <div class="d-flex justify-content-between border-bottom py-2">
+                                <span class="fw-semibold">
+                                    {{ $credential->credential_type->label() }}
+                                    <span class="badge bg-label-primary">{{ $credential->state }}</span>
+                                </span>
+                                <span>
+                                    {{ $credential->number }}
+                                    @if ($credential->expiry_date)
+                                        <small class="text-muted">exp {{ $credential->expiry_date->format('m/d/Y') }}</small>
+                                    @endif
+                                </span>
+                            </div>
+                        @empty
+                            <span class="fw-semibold">
+                                {{ $provider->license_number ? $provider->license_number . ($provider->license_state ? " ({$provider->license_state})" : '') : 'N/A' }}
+                            </span>
+                        @endforelse
                     </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">DEA</small>
-                        <span class="fw-semibold">{{ $provider->dea ?: 'N/A' }}</span>
-                    </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">Address</small>
-                        <span class="fw-semibold">
-                            {{ $provider->address ?: 'N/A' }}{{ $provider->city ? ', ' . $provider->city : '' }}{{ $provider->state ? ', ' . $provider->state : '' }} {{ $provider->zip }}
-                        </span>
+                    <div class="col-md-8">
+                        <small class="text-muted d-block mb-2">Practice locations</small>
+                        @forelse ($provider->providerPracticeLocations as $link)
+                            <div class="small py-1">
+                                <span class="fw-semibold">{{ $link->practice->legal_name ?? 'Practice' }}</span>
+                                — {{ $link->location->name ?? 'Location' }}
+                                @if ($link->location)
+                                    <span class="text-muted">({{ $link->location->city }}, {{ $link->location->state }})</span>
+                                @endif
+                                @if ($link->is_primary)
+                                    <span class="badge bg-label-success">Primary</span>
+                                @endif
+                            </div>
+                        @empty
+                            <span class="text-muted">No locations on file.</span>
+                        @endforelse
                     </div>
                 </div>
             </div>

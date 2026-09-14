@@ -3,9 +3,10 @@
 namespace App\Livewire\Admin\Master;
 
 use App\Models\DocumentType;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('layouts::admin', ['title' => 'Document Types | Settings'])]
 class DocumentTypeManager extends Component
@@ -13,11 +14,17 @@ class DocumentTypeManager extends Component
     use WithPagination;
 
     public $search = '';
+
     public $showModal = false;
+
     public $modalMode = 'create';
+
     public $formData = [];
+
     public $documentTypeId = null;
+
     public $sortField = 'name';
+
     public $sortDirection = 'asc';
 
     public function render()
@@ -25,14 +32,14 @@ class DocumentTypeManager extends Component
         $query = DocumentType::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $query->where('name', 'like', '%'.$this->search.'%');
         }
 
         $query->orderBy($this->sortField, $this->sortDirection);
         $records = $query->paginate(10);
 
         return view('livewire.admin.master.document-type-manager', [
-            'records' => $records
+            'records' => $records,
         ]);
     }
 
@@ -46,10 +53,10 @@ class DocumentTypeManager extends Component
     public function sortBy($field)
     {
         if ($this->sortField === $field) {
-            $this->sortDirection = $this->sortDirection === "asc" ? "desc" : "asc";
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortField = $field;
-            $this->sortDirection = "asc";
+            $this->sortDirection = 'asc';
         }
     }
 
@@ -57,6 +64,7 @@ class DocumentTypeManager extends Component
     {
         $this->resetForm();
         $this->modalMode = 'create';
+        $this->formData = ['is_active' => true, 'is_state_specific' => false];
         $this->showModal = true;
     }
 
@@ -68,6 +76,7 @@ class DocumentTypeManager extends Component
         $this->formData = [
             'name' => $record->name,
             'is_active' => $record->is_active,
+            'is_state_specific' => (bool) $record->is_state_specific,
         ];
         $this->showModal = true;
     }
@@ -75,12 +84,13 @@ class DocumentTypeManager extends Component
     protected $rules = [
         'formData.name' => 'required|string|max:255|unique:document_types,name',
         'formData.is_active' => 'boolean',
+        'formData.is_state_specific' => 'boolean',
     ];
 
     public function save()
     {
         if ($this->modalMode === 'edit') {
-            $this->rules['formData.name'] = 'required|string|max:255|unique:document_types,name,' . $this->documentTypeId;
+            $this->rules['formData.name'] = 'required|string|max:255|unique:document_types,name,'.$this->documentTypeId;
         }
 
         $this->validate();
@@ -106,7 +116,7 @@ class DocumentTypeManager extends Component
             ->info('Are you sure you want to delete the document type?');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:confirmed')]
+    #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
         $record = DocumentType::findOrFail($this->documentTypeId);
@@ -115,7 +125,7 @@ class DocumentTypeManager extends Component
         flash()->info('Document Type successfully deleted.');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:denied')]
+    #[On('sweetalert:denied')]
     public function onDeny(array $payload): void
     {
         $this->documentTypeId = null;

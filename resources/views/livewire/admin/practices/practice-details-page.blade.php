@@ -383,49 +383,13 @@
                 </div>
                 <div class="col-lg-6">
                     <div class="card shadow-sm border-0 mb-4">
-                        <div class="card-header bg-white border-bottom">
-                            <h6 class="mb-0 fw-semibold">Facility Locations</h6>
-                        </div>
                         <div class="card-body">
-                            @forelse($practice->locations as $location)
-                                <div class="border rounded p-3 mb-3 {{ $loop->last ? 'mb-0' : '' }}">
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <span class="fw-semibold">{{ $location->name ?: 'Unnamed location' }}</span>
-                                        @if ($location->is_primary)
-                                            <span class="badge bg-label-success">Primary</span>
-                                        @endif
-                                    </div>
-                                    <p class="mb-1">{{ $location->address1 }}, {{ $location->city }},
-                                        {{ $location->state }} {{ $location->zip_code }}</p>
-                                    @if ($location->npi)
-                                        <small class="text-muted d-block">NPI: {{ $location->npi }}</small>
-                                    @endif
-                                </div>
-                            @empty
-                                <p class="text-muted mb-0">No facility locations on file.</p>
-                            @endforelse
+                            <livewire:admin.practices.practice-locations-section :practice-id="$practice->id" :key="'details-locations-'.$practice->id" />
                         </div>
                     </div>
                     <div class="card shadow-sm border-0">
-                        <div class="card-header bg-white border-bottom">
-                            <h6 class="mb-0 fw-semibold">Contacts</h6>
-                        </div>
                         <div class="card-body">
-                            @forelse($practice->contacts as $contact)
-                                <div class="border rounded p-3 mb-3 {{ $loop->last ? 'mb-0' : '' }}">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span class="fw-semibold">{{ $contact->name }}</span>
-                                        @if ($contact->is_primary)
-                                            <span class="badge bg-label-success">Primary</span>
-                                        @endif
-                                    </div>
-                                    <small class="text-muted d-block">{{ $contact->title ?: 'No title' }}</small>
-                                    <small class="text-muted d-block">{{ $contact->email ?: 'No email' }}</small>
-                                    <small class="text-muted d-block">{{ $contact->phone ?: 'No phone' }}</small>
-                                </div>
-                            @empty
-                                <p class="text-muted mb-0">No contacts on file.</p>
-                            @endforelse
+                            <livewire:admin.practices.practice-contacts-section :practice-id="$practice->id" :key="'details-contacts-'.$practice->id" />
                         </div>
                     </div>
                 </div>
@@ -525,90 +489,7 @@
 
         {{-- Documents Tab --}}
         @if ($activeTab === 'documents')
-            <div class="card shadow-sm border-0">
-                <div
-                    class="card-header bg-white d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                    <div>
-                        <h6 class="mb-0 fw-semibold">Practice Documents</h6>
-                        <small class="text-muted">Files linked to this practice</small>
-                    </div>
-                    @if (auth('admin')->user()?->can('admin.documents.upload'))
-                        <a href="{{ route('admin.documents') }}" class="btn btn-sm btn-primary">
-                            <i class="ti tabler-upload me-1"></i> Document Library
-                        </a>
-                    @endif
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Document</th>
-                                <th>Type</th>
-                                <th>Effective</th>
-                                <th>Expiration</th>
-                                <th>Status</th>
-                                <th class="text-end">File</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($practice->documents as $document)
-                                @php
-                                    $version = $document->versions->first();
-                                    $expired = $document->isExpired();
-                                    $expiring = $document->isExpiringSoon(30);
-                                @endphp
-                                <tr>
-                                    <td class="fw-semibold">{{ $document->title }}</td>
-                                    <td>{{ $document->documentType->name ?? '—' }}</td>
-                                    <td>{{ $document->effective_date?->format('m/d/Y') ?: '—' }}</td>
-                                    <td class="{{ $expired ? 'text-danger' : ($expiring ? 'text-warning' : '') }}">
-                                        {{ $document->expiry_date?->format('m/d/Y') ?: '—' }}
-                                    </td>
-                                    <td>
-                                        @if ($expired)
-                                            <span class="badge bg-label-danger">Expired</span>
-                                        @elseif ($expiring)
-                                            <span class="badge bg-label-warning text-dark">Expiring Soon</span>
-                                        @else
-                                            <span class="badge bg-label-success">Active</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        @if ($version)
-                                            <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank"
-                                                class="btn btn-sm btn-outline-secondary">
-                                                <i class="ti tabler-download"></i>
-                                            </a>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                @if ($practice->document_path)
-                                    <tr>
-                                        <td class="fw-semibold">
-                                            {{ $practice->document_original_name ?: 'Practice document' }}</td>
-                                        <td>—</td>
-                                        <td>—</td>
-                                        <td>—</td>
-                                        <td><span class="badge bg-label-success">Active</span></td>
-                                        <td class="text-end">
-                                            <a href="{{ asset('storage/' . $practice->document_path) }}"
-                                                target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                <i class="ti tabler-download"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                @else
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted py-4">No documents on file
-                                            for this practice.</td>
-                                    </tr>
-                                @endif
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <livewire:admin.documents.entity-documents-section :practice-id="$practice->id" :key="'practice-docs-'.$practice->id" />
         @endif
     </div>
 </div>

@@ -10,6 +10,7 @@ use App\Models\Payer;
 use App\Models\Priority;
 use App\Models\ProviderDetails;
 use App\Models\Task;
+use App\Services\AdminScopeService;
 use App\Services\TaskService;
 use App\Services\TaskSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -38,6 +39,22 @@ class TaskBoardPage extends Component
     public array $formData = [];
 
     public string $reassignReason = '';
+
+    /** @var list<int|string> */
+    public array $selectedTaskIds = [];
+
+    public string $bulkAssigneeId = '';
+
+    public string $bulkStatus = '';
+
+    public bool $showBulkFollowUpModal = false;
+
+    public string $followUpCaseSearch = '';
+
+    /** @var list<int|string> */
+    public array $followUpCaseIds = [];
+
+    public array $followUpForm = [];
 
     #[Url(as: 'assignee', history: true)]
     public string $filterAssignee = '';
@@ -263,6 +280,7 @@ class TaskBoardPage extends Component
 
         if (! $this->reassignReason) {
             flash()->error('Please provide a reason for reassignment.');
+
             return;
         }
 
@@ -277,6 +295,141 @@ class TaskBoardPage extends Component
         $this->authorize('delete', $task);
         $taskService->delete($task, Auth::guard('admin')->id());
         flash()->info('Task deleted.');
+    }
+
+    public function toggleSelectPage(): void
+    {
+        $ids = $this->baseQuery()->orderByDesc('updated_at')->paginate(20)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $selected = array_map('intval', $this->selectedTaskIds);
+        $allSelected = $ids !== [] && count(array_diff($ids, $selected)) === 0;
+
+        $this->selectedTaskIds = $allSelected
+            ? array_values(array_diff($selected, $ids))
+            : array_values(array_unique(array_merge($selected, $ids)));
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selectedTaskIds = [];
+        $this->bulkAssigneeId = '';
+        $this->bulkStatus = '';
+    }
+
+    public function bulkAssignSelected(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.tasks.assign'), 403);
+
+        $tasks = $this->selectedTasks();
+        $assigneeId = $this->bulkAssigneeId !== '' ? (int) $this->bulkAssigneeId : null;
+        $count = $taskService->bulkAssign($tasks, $assigneeId, $admin->id);
+
+        $this->clearSelection();
+        flash()->success($count === 1 ? 'Assigned 1 task.' : "Assigned {$count} tasks.");
+    }
+
+    public function bulkUpdateSelected(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin, 403);
+
+        if ($this->bulkStatus === '') {
+            flash()->error('Choose a status to apply.');
+
+            return;
+        }
+
+        $count = $taskService->bulkUpdateStatus($this->selectedTasks(), $this->bulkStatus, $admin->id, $admin);
+
+        $this->clearSelection();
+        flash()->success($count === 1 ? 'Updated 1 task.' : "Updated {$count} tasks.");
+    }
+
+    public function openBulkFollowUpModal(): void
+    {
+        $this->authorize('create', Task::class);
+
+        $this->followUpForm = [
+            'title' => 'Follow-up',
+            'assigned_admin_id' => Auth::guard('admin')->id(),
+            'due_date' => now()->addDays(7)->toDateString(),
+            'task_type' => 'follow_up',
+            'repeat' => false,
+            'interval_days' => 7,
+            'occurrences' => 3,
+            'sync_case_follow_up' => true,
+        ];
+        $this->followUpCaseIds = $this->filterCaseId !== '' ? [(int) $this->filterCaseId] : [];
+        $this->followUpCaseSearch = '';
+        $this->resetValidation();
+        $this->showBulkFollowUpModal = true;
+    }
+
+    public function addFollowUpCase(int $id): void
+    {
+        if (count($this->followUpCaseIds) >= 50) {
+            flash()->error('You can add follow-ups to at most 50 cases at once.');
+
+            return;
+        }
+
+        $ids = array_map('intval', $this->followUpCaseIds);
+
+        if (! in_array($id, $ids, true)) {
+            $this->followUpCaseIds[] = $id;
+        }
+
+        $this->followUpCaseSearch = '';
+    }
+
+    public function removeFollowUpCase(int $id): void
+    {
+        $this->followUpCaseIds = array_values(array_filter(
+            $this->followUpCaseIds,
+            fn ($caseId) => (int) $caseId !== $id
+        ));
+    }
+
+    public function saveBulkFollowUps(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.tasks.manage'), 403);
+
+        if (($this->followUpForm['assigned_admin_id'] ?? '') === '') {
+            $this->followUpForm['assigned_admin_id'] = null;
+        }
+
+        $this->validate([
+            'followUpCaseIds' => 'required|array|min:1|max:50',
+            'followUpForm.title' => 'required|string|max:255',
+            'followUpForm.assigned_admin_id' => 'nullable|exists:admins,id',
+            'followUpForm.due_date' => 'required|date',
+            'followUpForm.task_type' => 'nullable|string|max:50',
+            'followUpForm.repeat' => 'boolean',
+            'followUpForm.interval_days' => 'required_if:followUpForm.repeat,true|integer|min:1|max:90',
+            'followUpForm.occurrences' => 'required_if:followUpForm.repeat,true|integer|min:2|max:12',
+        ]);
+
+        $repeat = (bool) ($this->followUpForm['repeat'] ?? false);
+        $assignee = $this->followUpForm['assigned_admin_id'] ?? null;
+
+        $count = $taskService->createFollowUpsForCases(
+            $this->followUpCaseIds,
+            [
+                'title' => $this->followUpForm['title'],
+                'assigned_admin_id' => $assignee === '' ? null : $assignee,
+                'due_date' => $this->followUpForm['due_date'],
+                'task_type' => $this->followUpForm['task_type'] ?: 'follow_up',
+                'occurrences' => $repeat ? (int) $this->followUpForm['occurrences'] : 1,
+                'interval_days' => $repeat ? (int) $this->followUpForm['interval_days'] : 0,
+                'sync_case_follow_up' => (bool) ($this->followUpForm['sync_case_follow_up'] ?? false),
+            ],
+            $admin->id
+        );
+
+        $this->showBulkFollowUpModal = false;
+        $this->followUpCaseIds = [];
+        flash()->success($count === 1 ? 'Created 1 follow-up task.' : "Created {$count} follow-up tasks.");
     }
 
     public function updatingFilterSearch(): void
@@ -366,7 +519,7 @@ class TaskBoardPage extends Component
         }
 
         if ($this->filterSearch) {
-            $search = '%' . $this->filterSearch . '%';
+            $search = '%'.$this->filterSearch.'%';
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
                     ->orWhere('description', 'like', $search)
@@ -376,10 +529,63 @@ class TaskBoardPage extends Component
 
         $admin = Auth::guard('admin')->user();
         if ($admin) {
-            app(\App\Services\AdminScopeService::class)->scopeTasks($query, $admin);
+            app(AdminScopeService::class)->scopeTasks($query, $admin);
         }
 
         return $query;
+    }
+
+    protected function selectedTasks()
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $this->selectedTaskIds))));
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        $query = Task::query()->whereIn('id', $ids);
+        $admin = Auth::guard('admin')->user();
+
+        if ($admin) {
+            app(AdminScopeService::class)->scopeTasks($query, $admin);
+        }
+
+        return $query->get();
+    }
+
+    protected function followUpCaseSearchResults()
+    {
+        if (! $this->showBulkFollowUpModal) {
+            return collect();
+        }
+
+        $closedCategories = ['approved', 'closed'];
+        $query = CredentialingCase::query()
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))
+            ->with('payer')
+            ->latest()
+            ->limit(12);
+
+        if ($this->followUpCaseSearch !== '') {
+            $search = '%'.$this->followUpCaseSearch.'%';
+            $query->where(function ($q) use ($search) {
+                $q->where('case_number', 'like', $search)
+                    ->orWhereHas('payer', fn ($pq) => $pq->where('name', 'like', $search))
+                    ->orWhereHas('provider.user', fn ($uq) => $uq->where('name', 'like', $search));
+            });
+        }
+
+        if ($this->followUpCaseIds !== []) {
+            $query->whereNotIn('id', array_map('intval', $this->followUpCaseIds));
+        }
+
+        $admin = Auth::guard('admin')->user();
+
+        if ($admin) {
+            app(AdminScopeService::class)->scopeCredentialingCases($query, $admin);
+        }
+
+        return $query->get();
     }
 
     public function render(TaskSyncService $taskSync)
@@ -424,6 +630,24 @@ class TaskBoardPage extends Component
             'priorities' => Priority::where('is_active', true)->orderBy('sort_order')->get(),
             'statuses' => TaskStatus::cases(),
             'taskTypeLabels' => fn (string $type) => $taskSync->taskTypeLabel($type),
+            'followUpCaseResults' => $this->followUpCaseSearchResults(),
+            'selectedFollowUpCases' => $this->followUpCaseIds === []
+                ? collect()
+                : CredentialingCase::query()
+                    ->with('payer')
+                    ->whereIn('id', array_map('intval', $this->followUpCaseIds))
+                    ->get(['id', 'case_number', 'payer_id']),
+            'followUpPreviewCount' => count($this->followUpCaseIds) * ((bool) ($this->followUpForm['repeat'] ?? false)
+                ? max(2, min(12, (int) ($this->followUpForm['occurrences'] ?? 3)))
+                : 1),
+            'listPageSelected' => $listTasks
+                ? $listTasks->pluck('id')->every(fn ($id) => in_array((int) $id, array_map('intval', $this->selectedTaskIds), true))
+                    && $listTasks->isNotEmpty()
+                : false,
+            'canAssignTasks' => Auth::guard('admin')->user()?->can('admin.tasks.assign') ?? false,
+            'canManageTasks' => Auth::guard('admin')->user()?->can('admin.tasks.manage') ?? false,
+            'canEscalateTasks' => Auth::guard('admin')->user()?->can('admin.tasks.escalate') ?? false,
+            'canReopenTasks' => Auth::guard('admin')->user()?->can('admin.tasks.reopen') ?? false,
         ]);
     }
 }

@@ -282,11 +282,6 @@
                     </div>
                 </div>
 
-                @if ($practiceId)
-                    <livewire:admin.practices.practice-contacts-section :practice-id="$practiceId" :key="'contacts-'.$practiceId" />
-                    <livewire:admin.practices.practice-locations-section :practice-id="$practiceId" :key="'locations-'.$practiceId" />
-                @endif
-
                 {{-- Actions --}}
                 <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pt-3 border-top">
                     <p class="text-muted small mb-0"><span class="text-danger">*</span> Required fields</p>
@@ -300,4 +295,13 @@
             </form>
         </div>
     </div>
+
+    @if ($practiceId)
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-body p-4">
+                <livewire:admin.practices.practice-contacts-section :practice-id="$practiceId" :key="'contacts-'.$practiceId" />
+                <livewire:admin.practices.practice-locations-section :practice-id="$practiceId" :key="'locations-'.$practiceId" />
+            </div>
+        </div>
+    @endif
 </div>

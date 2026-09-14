@@ -2,15 +2,17 @@
 
 namespace App\Livewire\Admin\Documents;
 
-use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Task;
+use App\Services\AdminScopeService;
 use App\Services\DocumentService;
+use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -26,6 +28,12 @@ class DocumentListPage extends Component
     public $filterType = '';
 
     public $filterExpiry = '';
+
+    public $filterState = '';
+
+    public $filterProvider = '';
+
+    public $filterPractice = '';
 
     public $showModal = false;
 
@@ -47,22 +55,28 @@ class DocumentListPage extends Component
 
     protected function rules(): array
     {
+        $type = DocumentType::find($this->formData['document_type_id'] ?? null);
+        $stateSpecific = (bool) $type?->is_state_specific;
+
         return [
             'formData.title' => 'required|string|max:255',
             'formData.document_type_id' => 'nullable|exists:document_types,id',
-            'formData.provider_id' => 'nullable|exists:provider_details,id',
+            'formData.provider_id' => $stateSpecific ? 'required|exists:provider_details,id' : 'nullable|exists:provider_details,id',
             'formData.practice_id' => 'nullable|exists:practices,id',
             'formData.credentialing_case_id' => 'nullable|exists:credentialing_cases,id',
             'formData.effective_date' => 'nullable|date',
             'formData.expiry_date' => 'nullable|date',
-            'formData.state' => 'nullable|string|max:50',
+            'formData.state' => $stateSpecific
+                ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
+                : 'nullable|string|max:50',
+            'formData.sync_credential' => 'boolean',
             'uploadFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ];
     }
 
     public function updated($propertyName): void
     {
-        if (in_array($propertyName, ['search', 'filterType', 'filterExpiry'])) {
+        if (in_array($propertyName, ['search', 'filterType', 'filterExpiry', 'filterState', 'filterProvider', 'filterPractice'], true)) {
             $this->resetPage();
         }
     }
@@ -70,8 +84,11 @@ class DocumentListPage extends Component
     public function openUploadModal(): void
     {
         $this->resetForm();
-        if ($providerId = request()->query('provider')) {
-            $this->formData['provider_id'] = $providerId;
+        if ($this->filterProvider) {
+            $this->formData['provider_id'] = $this->filterProvider;
+        }
+        if ($this->filterPractice) {
+            $this->formData['practice_id'] = $this->filterPractice;
         }
         $this->showModal = true;
     }
@@ -81,7 +98,13 @@ class DocumentListPage extends Component
         $this->syncExpiringDocumentTasks();
 
         if ($providerId = request()->query('provider')) {
+            $this->filterProvider = $providerId;
             $this->formData['provider_id'] = $providerId;
+        }
+
+        if ($practiceId = request()->query('practice')) {
+            $this->filterPractice = $practiceId;
+            $this->formData['practice_id'] = $practiceId;
         }
 
         if (request()->query('filterExpiry') === 'expiring') {
@@ -97,7 +120,7 @@ class DocumentListPage extends Component
     {
         $adminId = Auth::guard('admin')->id();
 
-        Document::expiringSoon(30)->with('documentType')->each(function (Document $document) use ($adminId) {
+        Document::expiringSoon(30)->with('documentType')->each(function (Document $document) {
             $this->createExpiryTask($document);
         });
     }
@@ -182,10 +205,10 @@ class DocumentListPage extends Component
             [
                 'task_type' => 'expiry',
                 'provider_id' => $document->provider_id,
-                'title' => 'Document expiring: ' . $document->title,
+                'title' => 'Document expiring: '.$document->title,
             ],
             [
-                'description' => 'Expires on ' . $document->expiry_date->format('m/d/Y'),
+                'description' => 'Expires on '.$document->expiry_date->format('m/d/Y'),
                 'credentialing_case_id' => $document->credentialing_case_id,
                 'assigned_admin_id' => Auth::guard('admin')->id(),
                 'created_by_admin_id' => Auth::guard('admin')->id(),
@@ -196,7 +219,9 @@ class DocumentListPage extends Component
 
     private function resetForm(): void
     {
-        $this->formData = [];
+        $this->formData = [
+            'sync_credential' => true,
+        ];
         $this->uploadFile = null;
         $this->resetValidation();
     }
@@ -204,14 +229,14 @@ class DocumentListPage extends Component
     public function render()
     {
         $admin = Auth::guard('admin')->user();
-        $scope = app(\App\Services\AdminScopeService::class);
+        $scope = app(AdminScopeService::class);
         $query = Document::with(['documentType', 'provider.user', 'practice', 'versions' => fn ($q) => $q->where('is_current', true)]);
         if ($admin) {
             $scope->scopeDocuments($query, $admin);
         }
 
         if ($this->search) {
-            $search = '%' . $this->search . '%';
+            $search = '%'.$this->search.'%';
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
                     ->orWhereHas('provider.user', fn ($q) => $q->where('name', 'like', $search));
@@ -228,7 +253,19 @@ class DocumentListPage extends Component
             $query->expired();
         }
 
-        $documents = $query->latest()->paginate(15);
+        if ($this->filterState) {
+            $query->where('state', $this->filterState);
+        }
+
+        if ($this->filterProvider) {
+            $query->where('provider_id', $this->filterProvider);
+        }
+
+        if ($this->filterPractice) {
+            $query->where('practice_id', $this->filterPractice);
+        }
+
+        $documents = $query->orderBy('state')->latest()->paginate(15);
 
         $statsBase = Document::query();
         $providerQuery = ProviderDetails::with('user');
@@ -254,6 +291,8 @@ class DocumentListPage extends Component
             'providers' => $providerQuery->get(),
             'practices' => $practiceQuery->get(['id', 'legal_name']),
             'cases' => $caseQuery->limit(50)->get(),
+            'states' => UsStates::all(),
+            'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? null),
         ]);
     }
 }

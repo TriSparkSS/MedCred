@@ -26,7 +26,7 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-medium">Document Type</label>
-                                <select wire:model="selectedDocumentTypeId" class="form-select">
+                                <select wire:model.live="selectedDocumentTypeId" class="form-select">
                                     <option value="">Select type...</option>
                                     @foreach($documentTypes as $type)
                                         <option value="{{ $type->id }}">{{ $type->name }}</option>
@@ -37,6 +37,16 @@
                                 <label class="form-label fw-medium">Title</label>
                                 <input type="text" wire:model="title" class="form-control @error('title') is-invalid @enderror">
                                 @error('title')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium">State @if($selectedType?->is_state_specific)<span class="text-danger">*</span>@endif</label>
+                                <select wire:model="state" class="form-select @error('state') is-invalid @enderror">
+                                    <option value="">Select state...</option>
+                                    @foreach ($states as $code => $name)
+                                        <option value="{{ $code }}">{{ $code }} — {{ $name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('state')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-medium">File (PDF, DOC, JPG — max 10MB)</label>
@@ -88,17 +98,18 @@
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
-                                <tr><th>Title</th><th>Type</th></tr>
+                                <tr><th>Title</th><th>Type</th><th>State</th></tr>
                             </thead>
                             <tbody>
                                 @forelse($myDocuments as $doc)
                                     <tr>
                                         <td class="fw-semibold">{{ $doc->title }}</td>
                                         <td>{{ $doc->documentType->name ?? '—' }}</td>
+                                        <td>{{ $doc->state ?: '—' }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="2" class="text-center text-muted py-4">No uploads yet.</td>
+                                        <td colspan="3" class="text-center text-muted py-4">No uploads yet.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

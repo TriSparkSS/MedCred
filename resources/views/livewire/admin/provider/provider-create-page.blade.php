@@ -129,7 +129,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>Licenses & Credentials
                     </h6>
-                    <p class="text-muted small mb-0">CAQH profile, state license, and DEA registration.</p>
+                    <p class="text-muted small mb-0">CAQH profile. Add state licenses, DEA, and CDS below.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -143,47 +143,60 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License Number</label>
-                        <input type="text" wire:model="formData.license_number"
-                            class="form-control @error('formData.license_number') is-invalid @enderror"
-                            placeholder="State medical license number">
-                        @error('formData.license_number')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License State</label>
-                        <input type="text" wire:model="formData.license_state"
-                            class="form-control @error('formData.license_state') is-invalid @enderror"
-                            placeholder="e.g. CA, NY, TX">
-                        @error('formData.license_state')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">DEA Number</label>
-                        <input type="text" wire:model="formData.dea"
-                            class="form-control @error('formData.dea') is-invalid @enderror"
-                            placeholder="Alphanumeric DEA registration"
-                            maxlength="20">
-                        @error('formData.dea')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
                 </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 class="fw-semibold mb-0">State credentials</h6>
+                        <small class="text-muted">Optional at create — add one row per state for License, DEA, or CDS.</small>
+                    </div>
+                    <button type="button" wire:click="addCredentialRow" class="btn btn-sm btn-outline-primary">
+                        <i class="ti tabler-plus me-1"></i>Add row
+                    </button>
+                </div>
+                @foreach ($credentialRows as $index => $row)
+                    <div class="row g-3 mb-3 align-items-end" wire:key="cred-row-{{ $index }}">
+                        <div class="col-md-3">
+                            <label class="form-label">Type</label>
+                            <select wire:model="credentialRows.{{ $index }}.credential_type" class="form-select">
+                                @foreach ($credentialTypes as $type)
+                                    <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">State</label>
+                            <select wire:model="credentialRows.{{ $index }}.state" class="form-select">
+                                <option value="">Select...</option>
+                                @foreach ($states as $code => $name)
+                                    <option value="{{ $code }}">{{ $code }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Number</label>
+                            <input type="text" wire:model="credentialRows.{{ $index }}.number" class="form-control" placeholder="Number">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Expiry</label>
+                            <input type="date" wire:model="credentialRows.{{ $index }}.expiry_date" class="form-control">
+                        </div>
+                        <div class="col-md-1">
+                            <button type="button" wire:click="removeCredentialRow({{ $index }})" class="btn btn-outline-danger w-100" title="Remove">
+                                <i class="ti tabler-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                @endforeach
 
                 @include('livewire.admin.provider.partials.provider-extended-fields')
 
                 {{-- Practice & Location --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-map-pin me-2"></i>Practice & Location
+                        <i class="ti tabler-map-pin me-2"></i>Practice & Mailing Address
                     </h6>
-                    <p class="text-muted small mb-0">Primary practice affiliation and mailing address.</p>
+                    <p class="text-muted small mb-0">Mailing address. Link practice locations after the provider is created.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-12">
@@ -207,6 +220,21 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label class="form-label fw-medium">Zip Code <span class="text-danger">*</span></label>
+                        <input type="text" wire:model="formData.zip"
+                            wire:blur="lookupZip('formData', 'zip')"
+                            class="form-control @error('formData.zip') is-invalid @enderror"
+                            placeholder="Zip code" maxlength="10" inputmode="numeric">
+                        <div class="form-text">Leave the field to auto-fill city and state.</div>
+                        @error('formData.zip')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        @if (! empty($zipLookupMessages['formData'] ?? null))
+                            <div class="form-text text-warning">{{ $zipLookupMessages['formData'] }}</div>
+                        @endif
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label fw-medium">City <span class="text-danger">*</span></label>
                         <input type="text" wire:model="formData.city"
                             class="form-control @error('formData.city') is-invalid @enderror"
@@ -218,21 +246,10 @@
 
                     <div class="col-md-4">
                         <label class="form-label fw-medium">State <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.state"
-                            class="form-control @error('formData.state') is-invalid @enderror"
-                            placeholder="State">
+                        <x-admin.state-select wire:model="formData.state"
+                            class="{{ $errors->has('formData.state') ? 'is-invalid' : '' }}" />
                         @error('formData.state')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">Zip Code <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.zip"
-                            class="form-control @error('formData.zip') is-invalid @enderror"
-                            placeholder="Zip code">
-                        @error('formData.zip')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>

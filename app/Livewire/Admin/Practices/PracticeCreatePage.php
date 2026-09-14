@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Practices;
 use App\Livewire\Admin\Practices\Concerns\ManagesPracticeForm;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,7 +75,7 @@ class PracticeCreatePage extends Component
 
         $this->validate($rules);
 
-        DB::transaction(function () use ($canManagePortalCredentials) {
+        $practice = DB::transaction(function () use ($canManagePortalCredentials) {
             $password = $canManagePortalCredentials && filled($this->userData['password'])
                 ? $this->userData['password']
                 : Str::password(16);
@@ -104,14 +105,19 @@ class PracticeCreatePage extends Component
             $this->syncPracticeAddress($practice, 'billing', $this->billingAddressData);
 
             $admin = Auth::guard('admin')->user();
-            if ($admin && app(\App\Services\AdminScopeService::class)->isPracticeScoped($admin)) {
+            if ($admin && app(AdminScopeService::class)->isPracticeScoped($admin)) {
                 $admin->practices()->syncWithoutDetaching([$practice->id]);
             }
+
+            return $practice;
         });
 
         flash()->success('Practice and user created successfully!');
 
-        return redirect()->route('admin.practices');
+        return redirect()->route('admin.practices.show', [
+            'practice' => $practice->id,
+            'tab' => 'locations',
+        ]);
     }
 
     public function render()

@@ -6,6 +6,7 @@ use App\Models\Practice;
 use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 #[Layout('layouts::admin', ['title' => 'Practice Details'])]
@@ -13,11 +14,14 @@ class PracticeDetailsPage extends Component
 {
     public $practice;
 
-    public $activeTab = 'overview';
+    #[Url(as: 'tab', history: true)]
+    public string $activeTab = 'overview';
 
     public function setTab(string $tab): void
     {
-        $this->activeTab = $tab;
+        $allowed = ['overview', 'credentialing', 'locations', 'providers', 'timeline', 'documents'];
+
+        $this->activeTab = in_array($tab, $allowed, true) ? $tab : 'overview';
     }
 
     public function mount($practice, AdminScopeService $scope): void
@@ -46,6 +50,8 @@ class PracticeDetailsPage extends Component
         if ($admin && ! $scope->canAccessPractice($admin, (int) $this->practice->id)) {
             abort(403, 'You do not have access to this practice.');
         }
+
+        $this->setTab($this->activeTab);
     }
 
     public function render()

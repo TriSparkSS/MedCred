@@ -78,7 +78,15 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-2">
+                    <select wire:model.live="filterState" class="form-select">
+                        <option value="">All States</option>
+                        @foreach ($states as $code => $name)
+                            <option value="{{ $code }}">{{ $code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <select wire:model.live="filterExpiry" class="form-select">
                         <option value="">All Expiry Status</option>
                         <option value="expiring">Expiring Soon (30 days)</option>
@@ -96,6 +104,7 @@
                     <tr>
                         <th>Document</th>
                         <th>Type</th>
+                        <th>State</th>
                         <th>Linked To</th>
                         <th>Effective</th>
                         <th>Expiration</th>
@@ -122,6 +131,15 @@
                                 @endif
                             </td>
                             <td>{{ $document->documentType->name ?? '—' }}</td>
+                            <td>
+                                @if ($document->state)
+                                    <span class="badge bg-label-primary">{{ $document->state }}</span>
+                                @elseif ($document->documentType?->is_state_specific)
+                                    <span class="badge bg-label-warning">Missing</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
                             <td class="small">
                                 @if ($document->practice)
                                     <div><span class="text-muted">Practice:</span>
@@ -188,7 +206,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-5">
+                            <td colspan="8" class="text-center text-muted py-5">
                                 <i class="ti tabler-file-off d-block mb-2" style="font-size:2rem"></i>
                                 No documents found. Upload your first document to get started.
                             </td>
@@ -222,10 +240,10 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Document Type</label>
-                                    <select wire:model="formData.document_type_id" class="form-select">
+                                    <select wire:model.live="formData.document_type_id" class="form-select">
                                         <option value="">Select type...</option>
                                         @foreach ($documentTypes as $type)
-                                            <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                            <option value="{{ $type->id }}">{{ $type->name }}{{ $type->is_state_specific ? ' (state-specific)' : '' }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -267,10 +285,30 @@
                                     <input type="date" wire:model="formData.expiry_date" class="form-control">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">State</label>
-                                    <input type="text" wire:model="formData.state" class="form-control"
-                                        maxlength="50">
+                                    <label class="form-label">State @if($selectedType?->is_state_specific)<span class="text-danger">*</span>@endif</label>
+                                    <select wire:model="formData.state" class="form-select @error('formData.state') is-invalid @enderror">
+                                        <option value="">Select state...</option>
+                                        @foreach ($states as $code => $name)
+                                            <option value="{{ $code }}">{{ $code }} — {{ $name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('formData.state')
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
+                                    @if ($selectedType?->is_state_specific)
+                                        <small class="text-muted">Required for {{ $selectedType->name }}. One current file per provider, type, and state.</small>
+                                    @endif
                                 </div>
+                                @if ($selectedType?->is_state_specific)
+                                    <div class="col-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" wire:model="formData.sync_credential" id="syncCredential">
+                                            <label class="form-check-label" for="syncCredential">
+                                                Create or update the matching provider credential for this state
+                                            </label>
+                                        </div>
+                                    </div>
+                                @endif
                                 <div class="col-12">
                                     <label class="form-label">File <span class="text-danger">*</span></label>
                                     <input type="file" wire:model="uploadFile"

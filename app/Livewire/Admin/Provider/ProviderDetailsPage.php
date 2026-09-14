@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\Provider;
 
 use App\Enums\TaskStatus;
+use App\Models\Admin;
 use App\Models\DelayOwnerHistory;
 use App\Models\EmailCaseLink;
 use App\Models\ProviderDetails;
@@ -56,8 +57,9 @@ class ProviderDetailsPage extends Component
         }
 
         $this->provider = $provider->load([
-            'user', 'specialty', 'practices.primaryAddress', 'practices.locations',
+            'user', 'specialty', 'practices.locations',
             'providerPracticeLocations.practice', 'providerPracticeLocations.location',
+            'credentials',
             'credentialingCases.payer', 'credentialingCases.status', 'credentialingCases.delayOwner',
             'credentialingCases.assignedAdmin', 'credentialingCases.practice',
             'documents.documentType', 'documents.versions',
@@ -180,7 +182,7 @@ class ProviderDetailsPage extends Component
             'billingCases' => $billingCases,
             'billingService' => $billing,
             'taskTypeLabel' => fn (string $type) => $taskSync->taskTypeLabel($type),
-            'admins' => \App\Models\Admin::assignable()->get(['id', 'name', 'username']),
+            'admins' => Admin::assignable()->get(['id', 'name', 'username']),
         ]);
     }
 }

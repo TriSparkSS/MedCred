@@ -49,6 +49,23 @@
 
     <div class="col-md-4">
         <label class="form-label fw-medium">
+            Zip Code @if ($required)<span class="text-danger">*</span>@endif
+        </label>
+        <input type="text" wire:model="{{ $prefix }}.zip_code"
+            wire:blur="lookupZip('{{ $prefix }}')"
+            class="form-control @error($prefix . '.zip_code') is-invalid @enderror"
+            placeholder="Zip code" maxlength="10" inputmode="numeric">
+        <div class="form-text">Leave the field to auto-fill city, state, and county.</div>
+        @error($prefix . '.zip_code')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+        @if (! empty($zipLookupMessages[$prefix] ?? null))
+            <div class="form-text text-warning">{{ $zipLookupMessages[$prefix] }}</div>
+        @endif
+    </div>
+
+    <div class="col-md-4">
+        <label class="form-label fw-medium">
             City @if ($required)<span class="text-danger">*</span>@endif
         </label>
         <input type="text" wire:model="{{ $prefix }}.city"
@@ -63,23 +80,10 @@
         <label class="form-label fw-medium">
             State @if ($required)<span class="text-danger">*</span>@endif
         </label>
-        <input type="text" wire:model="{{ $prefix }}.state"
-            class="form-control @error($prefix . '.state') is-invalid @enderror"
-            placeholder="State">
+        <x-admin.state-select wire:model="{{ $prefix }}.state"
+            class="{{ $errors->has($prefix.'.state') ? 'is-invalid' : '' }}" />
         @error($prefix . '.state')
-            <div class="invalid-feedback">{{ $message }}</div>
-        @enderror
-    </div>
-
-    <div class="col-md-4">
-        <label class="form-label fw-medium">
-            Zip Code @if ($required)<span class="text-danger">*</span>@endif
-        </label>
-        <input type="text" wire:model="{{ $prefix }}.zip_code"
-            class="form-control @error($prefix . '.zip_code') is-invalid @enderror"
-            placeholder="Zip code">
-        @error($prefix . '.zip_code')
-            <div class="invalid-feedback">{{ $message }}</div>
+            <div class="invalid-feedback d-block">{{ $message }}</div>
         @enderror
     </div>
 

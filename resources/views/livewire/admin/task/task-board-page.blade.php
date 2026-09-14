@@ -17,6 +17,9 @@
                 </button>
             </div>
             @can('create', \App\Models\Task::class)
+                <button wire:click="openBulkFollowUpModal" class="btn btn-outline-primary btn-sm">
+                    <i class="ti tabler-calendar-repeat me-1"></i>Add follow-ups
+                </button>
                 <button wire:click="openCreateModal" class="btn btn-primary btn-sm">
                     <i class="ti tabler-plus me-1"></i>New Task
                 </button>
@@ -107,6 +110,45 @@
         </div>
     </div>
 
+    @if (count($selectedTaskIds) > 0)
+        <div class="card shadow-sm border-primary mb-3 sticky-top" style="z-index: 1020; top: 0.75rem;">
+            <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+                <span class="fw-semibold small me-1">{{ count($selectedTaskIds) }} selected</span>
+                @if ($canAssignTasks)
+                    <select wire:model="bulkAssigneeId" class="form-select form-select-sm" style="width: auto; min-width: 160px;">
+                        <option value="">Unassigned</option>
+                        @foreach ($admins as $admin)
+                            <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" wire:click="bulkAssignSelected" class="btn btn-sm btn-primary">
+                        Assign
+                    </button>
+                @endif
+                @if ($canManageTasks)
+                    <select wire:model="bulkStatus" class="form-select form-select-sm" style="width: auto; min-width: 150px;">
+                        <option value="">Update status…</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Complete</option>
+                        <option value="cancelled">Cancel</option>
+                        @if ($canEscalateTasks)
+                            <option value="escalated">Escalate</option>
+                        @endif
+                        @if ($canReopenTasks)
+                            <option value="open">Reopen</option>
+                        @endif
+                    </select>
+                    <button type="button" wire:click="bulkUpdateSelected" class="btn btn-sm btn-outline-primary">
+                        Apply
+                    </button>
+                @endif
+                <button type="button" wire:click="clearSelection" class="btn btn-sm btn-outline-secondary ms-auto">
+                    Clear
+                </button>
+            </div>
+        </div>
+    @endif
+
     @if ($viewMode === 'board')
         <div class="row g-3">
             @foreach ($board as $columnKey => $column)
@@ -140,6 +182,10 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 2rem;">
+                                <input type="checkbox" class="form-check-input" wire:click="toggleSelectPage"
+                                    @checked($listPageSelected) title="Select page">
+                            </th>
                             <th>Task</th>
                             <th>Assigned To</th>
                             <th>Status</th>
@@ -153,6 +199,10 @@
                     <tbody>
                         @forelse($listTasks as $task)
                             <tr wire:key="list-task-{{ $task->id }}">
+                                <td>
+                                    <input type="checkbox" class="form-check-input" value="{{ $task->id }}"
+                                        wire:model.live="selectedTaskIds">
+                                </td>
                                 <td>
                                     <div class="fw-semibold">{{ $task->title }}</div>
                                     <small class="text-muted">{{ $taskTypeLabels($task->task_type) }}</small>
@@ -176,7 +226,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-5 text-muted">No tasks found.</td>
+                                <td colspan="9" class="text-center py-5 text-muted">No tasks found.</td>
                             </tr>
                         @endforelse
                     </tbody>

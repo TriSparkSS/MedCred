@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Provider;
 
+use App\Services\PortalAssignedItemsService;
 use App\Services\ProviderDashboardService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -10,7 +11,14 @@ use Livewire\Component;
 #[Layout('layouts::provider', ['title' => 'Provider Dashboard'])]
 class ProviderDashboardPage extends Component
 {
-    public function render(ProviderDashboardService $dashboard)
+    public string $assignmentFilter = 'open';
+
+    public function setAssignmentFilter(string $filter): void
+    {
+        $this->assignmentFilter = in_array($filter, ['open', 'closed'], true) ? $filter : 'open';
+    }
+
+    public function render(ProviderDashboardService $dashboard, PortalAssignedItemsService $assignedItems)
     {
         abort_unless(can_do('portal.dashboard.view'), 403);
 
@@ -21,8 +29,8 @@ class ProviderDashboardPage extends Component
         return view('livewire.provider.provider-dashboard-page', [
             'provider' => $provider,
             'stats' => $dashboard->stats($provider),
-            'outstanding' => $dashboard->outstandingDocuments($provider)->take(10),
-            'recentCases' => $provider->credentialingCases()->with(['payer', 'status'])->latest()->limit(5)->get(),
+            'myItems' => $assignedItems->forProvider($provider, $this->assignmentFilter),
+            'assignmentCounts' => $assignedItems->countsForProvider($provider),
         ]);
     }
 }

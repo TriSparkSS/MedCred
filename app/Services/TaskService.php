@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TaskStatus;
+use App\Enums\TaskType;
 use App\Events\Tasks\TaskAssigned;
 use App\Events\Tasks\TaskCompleted;
 use App\Events\Tasks\TaskCreated;
@@ -20,12 +21,17 @@ use App\Models\TaskActivity;
 use App\Models\TaskAttachment;
 use App\Models\TaskNote;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 class TaskService
 {
+    public function __construct(
+        protected AdminScopeService $scope
+    ) {}
+
     public function create(array $data, int $adminId): Task
     {
         $this->validateAssignee($data['assigned_admin_id'] ?? null);
@@ -185,6 +191,241 @@ class TaskService
         return $task->fresh();
     }
 
+    public function markInProgress(Task $task, int $adminId): Task
+    {
+        $previousStatus = $task->status;
+
+        $task->update([
+            'status' => TaskStatus::InProgress,
+            'completed_at' => null,
+        ]);
+
+        $this->recordActivity($task, 'status_changed', $adminId, 'Task marked in progress', [
+            'previous_status' => $previousStatus?->value ?? $previousStatus,
+        ]);
+
+        AuditLog::record('task.in_progress', $task, $adminId, [
+            'previous_status' => $previousStatus?->value ?? $previousStatus,
+        ]);
+
+        return $task->fresh();
+    }
+
+    public function cancel(Task $task, int $adminId): Task
+    {
+        $previousStatus = $task->status;
+
+        $task->update([
+            'status' => TaskStatus::Cancelled,
+            'completed_at' => null,
+            'is_escalated' => false,
+        ]);
+
+        $this->recordActivity($task, 'cancelled', $adminId, 'Task cancelled', [
+            'previous_status' => $previousStatus?->value ?? $previousStatus,
+        ]);
+
+        AuditLog::record('task.cancelled', $task, $adminId, [
+            'previous_status' => $previousStatus?->value ?? $previousStatus,
+        ]);
+
+        return $task->fresh();
+    }
+
+    public function bulkAssign(iterable $tasks, ?int $assigneeId, int $adminId): int
+    {
+        $actor = Admin::find($adminId);
+
+        if (! $actor) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($tasks, $assigneeId, $adminId, $actor) {
+            $count = 0;
+
+            foreach ($tasks as $task) {
+                if (! $task instanceof Task) {
+                    continue;
+                }
+
+                if (! Gate::forUser($actor)->allows('assign', $task)) {
+                    continue;
+                }
+
+                $this->assign($task, $assigneeId, $adminId);
+                $count++;
+            }
+
+            return $count;
+        });
+    }
+
+    public function bulkUpdateStatus(iterable $tasks, string $status, int $adminId, Admin $actor): int
+    {
+        $status = strtolower(trim($status));
+
+        if (! in_array($status, ['in_progress', 'completed', 'cancelled', 'escalated', 'open'], true)) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($tasks, $status, $adminId, $actor) {
+            $count = 0;
+
+            foreach ($tasks as $task) {
+                if (! $task instanceof Task) {
+                    continue;
+                }
+
+                if (! $this->applyBulkStatus($task, $status, $adminId, $actor)) {
+                    continue;
+                }
+
+                $count++;
+            }
+
+            return $count;
+        });
+    }
+
+    public function createFollowUpsForCases(array $caseIds, array $payload, int $adminId): int
+    {
+        $actor = Admin::find($adminId);
+
+        if (! $actor || ! $actor->can('admin.tasks.manage')) {
+            return 0;
+        }
+
+        $caseIds = array_values(array_unique(array_filter(array_map('intval', $caseIds))));
+        $caseIds = array_slice($caseIds, 0, 50);
+
+        if ($caseIds === []) {
+            return 0;
+        }
+
+        $title = trim((string) ($payload['title'] ?? ''));
+
+        if ($title === '') {
+            throw ValidationException::withMessages(['title' => 'A follow-up title is required.']);
+        }
+
+        $occurrences = max(1, min(12, (int) ($payload['occurrences'] ?? 1)));
+        $intervalDays = $occurrences > 1
+            ? max(1, min(90, (int) ($payload['interval_days'] ?? 7)))
+            : 0;
+        $start = ! empty($payload['due_date'])
+            ? Carbon::parse($payload['due_date'])->startOfDay()
+            : now()->startOfDay();
+        $assigneeId = isset($payload['assigned_admin_id']) && $payload['assigned_admin_id'] !== ''
+            ? (int) $payload['assigned_admin_id']
+            : null;
+        $taskType = $payload['task_type'] ?? TaskType::FollowUp->value;
+        $syncCaseFollowUp = (bool) ($payload['sync_case_follow_up'] ?? false);
+        $description = $payload['description'] ?? null;
+
+        $this->validateAssignee($assigneeId);
+
+        return DB::transaction(function () use (
+            $caseIds,
+            $actor,
+            $adminId,
+            $title,
+            $occurrences,
+            $intervalDays,
+            $start,
+            $assigneeId,
+            $taskType,
+            $syncCaseFollowUp,
+            $description,
+        ) {
+            $created = 0;
+            $cases = CredentialingCase::query()->whereIn('id', $caseIds)->get();
+
+            foreach ($cases as $case) {
+                if (! $this->scope->canAccessCase($actor, $case)) {
+                    continue;
+                }
+
+                for ($i = 0; $i < $occurrences; $i++) {
+                    $due = $start->copy()->addDays($i * $intervalDays);
+                    $label = $occurrences > 1 ? $title.' ('.($i + 1).'/'.$occurrences.')' : $title;
+
+                    $this->create([
+                        'title' => $label,
+                        'description' => $description ?? 'Follow-up for '.$case->case_number,
+                        'credentialing_case_id' => $case->id,
+                        'provider_id' => $case->provider_id,
+                        'payer_id' => $case->payer_id,
+                        'assigned_admin_id' => $assigneeId,
+                        'due_date' => $due->toDateString(),
+                        'follow_up_date' => $due->toDateString(),
+                        'task_type' => $taskType,
+                    ], $adminId);
+
+                    $created++;
+                }
+
+                if ($syncCaseFollowUp) {
+                    $case->update(['next_follow_up_date' => $start->toDateString()]);
+                }
+            }
+
+            return $created;
+        });
+    }
+
+    protected function applyBulkStatus(Task $task, string $status, int $adminId, Admin $actor): bool
+    {
+        return match ($status) {
+            'in_progress' => $this->applyIfAllowed(
+                $actor,
+                'update',
+                $task,
+                fn () => ! $task->isCompleted() && $task->status !== TaskStatus::InProgress && $task->status !== TaskStatus::Cancelled,
+                fn () => $this->markInProgress($task, $adminId),
+            ),
+            'completed' => $this->applyIfAllowed(
+                $actor,
+                'update',
+                $task,
+                fn () => ! $task->isCompleted() && $task->status !== TaskStatus::Cancelled,
+                fn () => $this->complete($task, $adminId),
+            ),
+            'cancelled' => $this->applyIfAllowed(
+                $actor,
+                'update',
+                $task,
+                fn () => $task->status !== TaskStatus::Cancelled && ! $task->isCompleted(),
+                fn () => $this->cancel($task, $adminId),
+            ),
+            'escalated' => $this->applyIfAllowed(
+                $actor,
+                'escalate',
+                $task,
+                fn () => ! $task->isCompleted() && $task->status !== TaskStatus::Cancelled,
+                fn () => $this->escalate($task, $adminId),
+            ),
+            'open' => $this->applyIfAllowed(
+                $actor,
+                'reopen',
+                $task,
+                fn () => $task->isCompleted() || $task->status === TaskStatus::Cancelled,
+                fn () => $this->reopen($task, $adminId),
+            ),
+            default => false,
+        };
+    }
+
+    protected function applyIfAllowed(Admin $actor, string $ability, Task $task, callable $eligible, callable $action): bool
+    {
+        if (! Gate::forUser($actor)->allows($ability, $task) || ! $eligible()) {
+            return false;
+        }
+
+        $action();
+
+        return true;
+    }
+
     public function delete(Task $task, int $adminId): void
     {
         event(new TaskDeleted($task, $adminId));
@@ -210,7 +451,7 @@ class TaskService
 
     public function attachFile(Task $task, UploadedFile $file, int $adminId): TaskAttachment
     {
-        $path = $file->store('task-attachments/' . $task->id, 'local');
+        $path = $file->store('task-attachments/'.$task->id, 'local');
 
         $attachment = TaskAttachment::create([
             'task_id' => $task->id,
@@ -219,7 +460,7 @@ class TaskService
             'uploaded_by_admin_id' => $adminId,
         ]);
 
-        $this->recordActivity($task, 'attachment_added', $adminId, 'Attachment added: ' . $file->getClientOriginalName(), [
+        $this->recordActivity($task, 'attachment_added', $adminId, 'Attachment added: '.$file->getClientOriginalName(), [
             'attachment_id' => $attachment->id,
         ]);
 

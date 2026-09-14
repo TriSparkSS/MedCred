@@ -14,7 +14,14 @@ class ProviderProfilePage extends Component
         abort_unless(can_do('portal.profile.view'), 403);
 
         $provider = Auth::guard('web')->user()->providerDetails()
-            ->with(['user', 'specialty', 'credentialingCases.status'])
+            ->with([
+                'user',
+                'specialty',
+                'credentialingCases.status',
+                'credentials',
+                'providerPracticeLocations.practice',
+                'providerPracticeLocations.location',
+            ])
             ->first();
 
         $activeCases = $provider->credentialingCases

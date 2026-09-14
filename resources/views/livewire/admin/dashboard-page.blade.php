@@ -100,32 +100,43 @@
             <div class="card h-100 shadow-sm border-0">
                 <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 bg-white">
                     <div>
-                        <h5 class="mb-1">Today's Action Items</h5>
-                        <small class="text-muted">Overdue and due-today tasks and case follow-ups.</small>
+                        <h5 class="mb-1">Assigned to me</h5>
+                        <small class="text-muted">Cases and tasks assigned to your account.</small>
                     </div>
-                    <span class="badge bg-label-secondary">{{ $workQueue->count() }} ITEMS</span>
+                    <div class="btn-group">
+                        <button type="button" wire:click="setAssignmentFilter('open')"
+                            class="btn btn-sm {{ $assignmentFilter === 'open' ? 'btn-primary' : 'btn-outline-secondary' }}">
+                            Open <span class="badge bg-label-{{ $assignmentFilter === 'open' ? 'light' : 'primary' }} ms-1">{{ $assignmentCounts['open'] }}</span>
+                        </button>
+                        <button type="button" wire:click="setAssignmentFilter('closed')"
+                            class="btn btn-sm {{ $assignmentFilter === 'closed' ? 'btn-primary' : 'btn-outline-secondary' }}">
+                            Closed <span class="badge bg-label-{{ $assignmentFilter === 'closed' ? 'light' : 'secondary' }} ms-1">{{ $assignmentCounts['closed'] }}</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Priority</th>
+                                <th>Type</th>
                                 <th>Item</th>
                                 <th>Provider</th>
                                 <th>Status</th>
+                                <th>Due</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($workQueue as $item)
-                                <tr wire:key="queue-{{ $item['type'] }}-{{ $item['id'] }}">
-                                    <td>
-                                        <span class="badge rounded-pill bg-{{ $item['priority_class'] }}">●</span>
-                                    </td>
+                            @forelse($myAssignments as $item)
+                                <tr wire:key="assigned-{{ $item['type'] }}-{{ $item['id'] }}">
+                                    <td><span class="badge bg-label-secondary">{{ $item['type_label'] }}</span></td>
                                     <td class="fw-medium">{{ $item['title'] }}</td>
                                     <td>{{ $item['provider'] }}</td>
                                     <td>
-                                        <span class="badge bg-label-{{ $item['status_class'] }} text-uppercase">{{ $item['status'] }}</span>
+                                        <span class="badge bg-label-{{ $item['status_class'] }}">{{ $item['status'] }}</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ $item['due_date']?->format('m/d/Y') ?: '—' }}</small>
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ $item['url'] }}" class="btn btn-sm btn-primary">Open</a>
@@ -133,7 +144,9 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No urgent items — you're caught up.</td>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        {{ $assignmentFilter === 'open' ? 'No open assignments.' : 'No closed assignments yet.' }}
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>

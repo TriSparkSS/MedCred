@@ -2,10 +2,13 @@
 
 namespace App\Livewire\Admin\ProviderPractice;
 
+use App\Models\Location;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\ProviderPractice;
+use App\Models\ProviderPracticeLocation;
 use App\Services\AdminScopeService;
+use App\Services\ProviderLocationService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -18,14 +21,19 @@ class ProviderPracticeAssignmentPage extends Component
     use WithPagination;
 
     public $search = '';
+
     public $assignmentId = null;
+
     public $formData = [
         'provider_id' => '',
         'practice_id' => '',
         'primary_flag' => false,
         'start_date' => '',
         'end_date' => '',
+        'location_ids' => [],
     ];
+
+    public array $availableLocations = [];
 
     protected $rules = [
         'formData.provider_id' => 'required|exists:provider_details,id',
@@ -33,6 +41,8 @@ class ProviderPracticeAssignmentPage extends Component
         'formData.primary_flag' => 'boolean',
         'formData.start_date' => 'nullable|date',
         'formData.end_date' => 'nullable|date|after_or_equal:formData.start_date',
+        'formData.location_ids' => 'array',
+        'formData.location_ids.*' => 'exists:locations,id',
     ];
 
     public function updated($propertyName)
@@ -40,6 +50,12 @@ class ProviderPracticeAssignmentPage extends Component
         if ($propertyName === 'search') {
             $this->resetPage();
         }
+    }
+
+    public function updatedFormDataPracticeId($value): void
+    {
+        $this->formData['location_ids'] = [];
+        $this->loadLocationsForPractice($value);
     }
 
     public function save()
@@ -68,7 +84,7 @@ class ProviderPracticeAssignmentPage extends Component
                 ->update(['primary_flag' => false]);
         }
 
-        ProviderPractice::query()->updateOrCreate(
+        $assignment = ProviderPractice::query()->updateOrCreate(
             ['id' => $this->assignmentId],
             [
                 'provider_id' => $this->formData['provider_id'],
@@ -77,6 +93,12 @@ class ProviderPracticeAssignmentPage extends Component
                 'start_date' => $this->formData['start_date'] ?: null,
                 'end_date' => $this->formData['end_date'] ?: null,
             ]
+        );
+
+        app(ProviderLocationService::class)->syncForPractice(
+            ProviderDetails::findOrFail($this->formData['provider_id']),
+            (int) $this->formData['practice_id'],
+            $this->formData['location_ids'] ?? []
         );
 
         flash()->success($this->assignmentId ? 'Assignment updated successfully!' : 'Provider assigned to practice successfully!');
@@ -97,7 +119,15 @@ class ProviderPracticeAssignmentPage extends Component
             'primary_flag' => (bool) $assignment->primary_flag,
             'start_date' => $assignment->start_date?->format('Y-m-d') ?? '',
             'end_date' => $assignment->end_date?->format('Y-m-d') ?? '',
+            'location_ids' => ProviderPracticeLocation::query()
+                ->where('provider_id', $assignment->provider_id)
+                ->where('practice_id', $assignment->practice_id)
+                ->whereNotNull('location_id')
+                ->pluck('location_id')
+                ->map(fn ($id) => (string) $id)
+                ->all(),
         ];
+        $this->loadLocationsForPractice($assignment->practice_id);
     }
 
     public function delete(int $assignmentId): void
@@ -119,6 +149,7 @@ class ProviderPracticeAssignmentPage extends Component
 
         $assignment = ProviderPractice::with('provider')->findOrFail($this->assignmentId);
         $this->authorizeExistingAssignmentScope($assignment);
+        app(ProviderLocationService::class)->deleteForPractice((int) $assignment->provider_id, (int) $assignment->practice_id);
         $assignment->delete();
         $this->resetForm();
         flash()->info('Assignment removed successfully.');
@@ -175,21 +206,48 @@ class ProviderPracticeAssignmentPage extends Component
             'primary_flag' => false,
             'start_date' => '',
             'end_date' => '',
+            'location_ids' => [],
         ];
+        $this->availableLocations = [];
         $this->resetValidation();
+    }
+
+    protected function loadLocationsForPractice(mixed $practiceId): void
+    {
+        if (! $practiceId) {
+            $this->availableLocations = [];
+
+            return;
+        }
+
+        $this->availableLocations = Location::query()
+            ->where('practice_id', $practiceId)
+            ->orderByDesc('is_primary')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Location $location) => [
+                'id' => (string) $location->id,
+                'label' => trim($location->name.($location->is_primary ? ' (Primary)' : '').' — '.$location->city.', '.$location->state),
+            ])
+            ->all();
     }
 
     public function render(AdminScopeService $scope)
     {
         $admin = Auth::guard('admin')->user();
-        $query = ProviderPractice::with('provider.user', 'provider.specialty', 'practice');
+        $query = ProviderPractice::with([
+            'provider.user',
+            'provider.specialty',
+            'provider.providerPracticeLocations.location',
+            'practice.locations',
+        ]);
 
         if ($admin) {
             $scope->scopePractices($query->whereHas('practice'), $admin);
         }
 
         if ($this->search) {
-            $search = '%' . $this->search . '%';
+            $search = '%'.$this->search.'%';
             $query->where(function ($q) use ($search) {
                 $q->whereHas('provider.user', fn ($userQuery) => $userQuery->where('name', 'like', $search))
                     ->orWhereHas('provider', fn ($providerQuery) => $providerQuery->where('npi', 'like', $search))

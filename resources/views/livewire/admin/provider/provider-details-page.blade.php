@@ -293,68 +293,13 @@
     @if ($activeTab === 'practice_ids')
         <div class="row g-4">
             <div class="col-12">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white border-bottom">
-                        <h5 class="mb-0">Provider Practice Locations</h5>
-                        <small class="text-muted">Linked practice and location identifiers for credentialing</small>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Practice</th>
-                                    <th>Location</th>
-                                    <th>Role</th>
-                                    <th>Primary</th>
-                                    <th>Start</th>
-                                    <th>End</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($provider->providerPracticeLocations as $ppl)
-                                    <tr>
-                                        <td>
-                                            @if ($ppl->practice)
-                                                <a href="{{ route('admin.practices.show', $ppl->practice_id) }}" class="fw-semibold">{{ $ppl->practice->legal_name }}</a>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if ($ppl->location)
-                                                <div class="fw-semibold">{{ $ppl->location->name ?: 'Location #' . $ppl->location_id }}</div>
-                                                <small class="text-muted">
-                                                    {{ $ppl->location->city }}{{ $ppl->location->state ? ', ' . $ppl->location->state : '' }}
-                                                    {{ $ppl->location->zip_code }}
-                                                </small>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $ppl->role ?: '—' }}</td>
-                                        <td>
-                                            <span class="badge bg-label-{{ $ppl->is_primary ? 'success' : 'secondary' }}">
-                                                {{ $ppl->is_primary ? 'Primary' : 'Secondary' }}
-                                            </span>
-                                        </td>
-                                        <td><small>{{ $ppl->start_date?->format('m/d/Y') ?: '—' }}</small></td>
-                                        <td><small>{{ $ppl->end_date?->format('m/d/Y') ?: '—' }}</small></td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="6" class="text-center py-5 text-muted">No practice location links configured.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <livewire:admin.provider.provider-locations-section :provider-id="$provider->id" :key="'ppl-'.$provider->id" />
             </div>
             <div class="col-12">
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-white border-bottom">
-                        <h5 class="mb-0">Practice Assignments (Pivot)</h5>
-                        <small class="text-muted">Provider-to-practice relationships</small>
+                        <h5 class="mb-0">Practice Assignments</h5>
+                        <small class="text-muted">Provider-to-practice relationships and every linked location</small>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -362,20 +307,53 @@
                                 <tr>
                                     <th>Practice</th>
                                     <th>Group NPI</th>
-                                    <th>Location</th>
-                                    <th>Primary</th>
+                                    <th>Locations</th>
+                                    <th>Primary Practice</th>
                                     <th>Start</th>
                                     <th>End</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($provider->practices as $practice)
+                                    @php
+                                        $linkedLocations = $provider->providerPracticeLocations
+                                            ->where('practice_id', $practice->id)
+                                            ->values();
+                                    @endphp
                                     <tr>
                                         <td>
                                             <a href="{{ route('admin.practices.show', $practice->id) }}" class="fw-semibold">{{ $practice->legal_name }}</a>
                                         </td>
                                         <td><small>{{ $practice->group_npi ?: 'N/A' }}</small></td>
-                                        <td><small>{{ $practice->primaryAddress?->city ?: 'N/A' }}</small></td>
+                                        <td>
+                                            @if ($linkedLocations->isNotEmpty())
+                                                @foreach ($linkedLocations as $ppl)
+                                                    <div class="small {{ $ppl->is_primary ? 'fw-semibold' : '' }}">
+                                                        {{ $ppl->location->name ?? 'Location' }}
+                                                        @if ($ppl->location)
+                                                            <span class="text-muted">
+                                                                — {{ $ppl->location->city }}{{ $ppl->location->state ? ', '.$ppl->location->state : '' }}
+                                                            </span>
+                                                        @endif
+                                                        @if ($ppl->is_primary)
+                                                            <span class="badge bg-label-success">Primary</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            @elseif ($practice->locations->isNotEmpty())
+                                                @foreach ($practice->locations as $location)
+                                                    <div class="small text-muted">
+                                                        {{ $location->name }} — {{ $location->city }}{{ $location->state ? ', '.$location->state : '' }}
+                                                        @if ($location->is_primary)
+                                                            <span class="badge bg-label-secondary">Practice primary</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                                <small class="text-muted">Not yet linked to this provider.</small>
+                                            @else
+                                                <small class="text-muted">No locations</small>
+                                            @endif
+                                        </td>
                                         <td>
                                             <span class="badge bg-label-{{ $practice->pivot->primary_flag ? 'success' : 'secondary' }}">
                                                 {{ $practice->pivot->primary_flag ? 'Primary' : 'Secondary' }}
@@ -400,34 +378,8 @@
     {{-- 3. Licenses --}}
     @if ($activeTab === 'licenses')
         <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-bottom">
-                        <h5 class="mb-0">Professional Licenses</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <small class="text-muted d-block">State License</small>
-                            <span class="fw-semibold">
-                                {{ $provider->license_number ? $provider->license_number . ($provider->license_state ? " ({$provider->license_state})" : '') : 'N/A' }}
-                            </span>
-                        </div>
-                        <div class="mb-3">
-                            <small class="text-muted d-block">DEA</small>
-                            <span class="fw-semibold">{{ $provider->dea ?: 'N/A' }}</span>
-                        </div>
-                        <div class="mb-3">
-                            <small class="text-muted d-block">CDS</small>
-                            <span class="fw-semibold">
-                                {{ $provider->cds_number ? $provider->cds_number . ($provider->cds_state ? " ({$provider->cds_state})" : '') : 'N/A' }}
-                            </span>
-                        </div>
-                        <div>
-                            <small class="text-muted d-block">Licensed States</small>
-                            <span class="fw-semibold">{{ $provider->licensed_states ? implode(', ', $provider->licensed_states) : 'N/A' }}</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="col-12">
+                <livewire:admin.provider.provider-credentials-section :provider-id="$provider->id" :key="'creds-'.$provider->id" />
             </div>
             <div class="col-lg-6">
                 <div class="card shadow-sm border-0 h-100">
@@ -448,6 +400,16 @@
                             @if ($provider->malpractice_policy_number)
                                 <small class="text-muted d-block mt-1">Policy #{{ $provider->malpractice_policy_number }}</small>
                             @endif
+                            @if ($provider->malpractice_coverage_each_occurrence || $provider->malpractice_coverage_aggregate)
+                                <small class="text-muted d-block">
+                                    {{ $provider->malpractice_coverage_each_occurrence ? '$'.number_format($provider->malpractice_coverage_each_occurrence, 0) : '—' }}
+                                    /
+                                    {{ $provider->malpractice_coverage_aggregate ? '$'.number_format($provider->malpractice_coverage_aggregate, 0) : '—' }}
+                                </small>
+                            @endif
+                            @if ($provider->malpractice_effective_date)
+                                <small class="text-muted d-block">Effective {{ $provider->malpractice_effective_date->format('m/d/Y') }}</small>
+                            @endif
                             @if ($provider->malpractice_expiry)
                                 <small class="text-muted d-block">Expires {{ $provider->malpractice_expiry->format('m/d/Y') }}</small>
                             @endif
@@ -466,77 +428,7 @@
 
     {{-- 4. Documents --}}
     @if ($activeTab === 'documents')
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-0 fw-semibold">Provider Documents</h6>
-                    <small class="text-muted">Verification status and expiration tracking</small>
-                </div>
-                @if (auth('admin')->user()?->can('admin.documents.upload'))
-                    <a href="{{ route('admin.documents', ['provider' => $provider->id, 'upload' => 1]) }}" class="btn btn-sm btn-primary">
-                        <i class="ti tabler-upload me-1"></i>Upload Document
-                    </a>
-                @endif
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Document</th>
-                            <th>Type</th>
-                            <th>Effective</th>
-                            <th>Expiration</th>
-                            <th>Verification</th>
-                            <th>Expiry Status</th>
-                            <th class="text-end">File</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($provider->documents as $document)
-                            @php
-                                $version = $document->versions->first();
-                                $expired = $document->isExpired();
-                                $expiring = $document->isExpiringSoon(30);
-                            @endphp
-                            <tr>
-                                <td class="fw-semibold">{{ $document->title }}</td>
-                                <td>{{ $document->documentType->name ?? '—' }}</td>
-                                <td>{{ $document->effective_date?->format('m/d/Y') ?: '—' }}</td>
-                                <td class="{{ $expired ? 'text-danger' : ($expiring ? 'text-warning' : '') }}">
-                                    {{ $document->expiry_date?->format('m/d/Y') ?: '—' }}
-                                </td>
-                                <td>
-                                    <span class="badge bg-label-{{ $verificationBadge($document->verification_status) }}">
-                                        {{ $verificationLabel($document->verification_status) }}
-                                    </span>
-                                </td>
-                                <td>
-                                    @if ($expired)
-                                        <span class="badge bg-label-danger">Expired</span>
-                                    @elseif ($expiring)
-                                        <span class="badge bg-label-warning text-dark">Expiring Soon</span>
-                                    @else
-                                        <span class="badge bg-label-success">Active</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    @if ($version)
-                                        <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank"
-                                            class="btn btn-sm btn-outline-secondary">
-                                            <i class="ti tabler-download"></i>
-                                        </a>
-                                    @endif
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No documents on file for this provider.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <livewire:admin.documents.entity-documents-section :provider-id="$provider->id" :key="'provider-docs-'.$provider->id" />
     @endif
 
     {{-- 5. Payer Applications --}}

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ProviderStatus;
+use App\Enums\TaskStatus;
 use App\Models\Admin;
 use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
@@ -185,7 +186,7 @@ class DashboardService
                 'id' => $case->id,
                 'priority' => $case->is_escalated ? 'Escalated' : 'Normal',
                 'priority_class' => $case->is_escalated ? 'danger' : 'danger',
-                'title' => 'Follow-up: ' . ($case->payer->name ?? 'Case'),
+                'title' => 'Follow-up: '.($case->payer->name ?? 'Case'),
                 'provider' => $case->provider->user->name ?? '—',
                 'status' => 'Overdue',
                 'status_class' => 'danger',
@@ -220,12 +221,110 @@ class DashboardService
         return $query->limit($limit)->get();
     }
 
+    public function myAssignments(string $status = 'open'): Collection
+    {
+        $admin = $this->admin();
+
+        if (! $admin) {
+            return collect();
+        }
+
+        $isOpen = $status !== 'closed';
+
+        $cases = CredentialingCase::query()
+            ->where('assigned_admin_id', $admin->id)
+            ->with(['provider.user', 'payer', 'status'])
+            ->whereHas('status', function ($query) use ($isOpen) {
+                $isOpen
+                    ? $query->whereNotIn('dashboard_category', $this->closedCategories)
+                    : $query->whereIn('dashboard_category', $this->closedCategories);
+            })
+            ->latest()
+            ->limit(50)
+            ->get()
+            ->map(fn (CredentialingCase $case) => [
+                'type' => 'case',
+                'type_label' => 'Application',
+                'id' => $case->id,
+                'title' => $case->case_number.($case->payer?->name ? ' · '.$case->payer->name : ''),
+                'provider' => $case->provider->user->name ?? '—',
+                'status' => $case->status->name ?? ($isOpen ? 'Open' : 'Closed'),
+                'status_class' => $isOpen ? 'primary' : 'secondary',
+                'due_date' => $case->next_follow_up_date,
+                'url' => route('admin.credentials.show', $case),
+            ]);
+
+        $tasks = Task::query()
+            ->where('assigned_admin_id', $admin->id)
+            ->with(['provider.user', 'priority'])
+            ->when(
+                $isOpen,
+                fn ($query) => $query->open(),
+                fn ($query) => $query->where(function ($q) {
+                    $q->whereNotNull('completed_at')
+                        ->orWhereIn('status', [TaskStatus::Completed->value, TaskStatus::Cancelled->value]);
+                })
+            )
+            ->latest()
+            ->limit(50)
+            ->get()
+            ->map(fn (Task $task) => [
+                'type' => 'task',
+                'type_label' => 'Task',
+                'id' => $task->id,
+                'title' => $task->title,
+                'provider' => $task->provider->user->name ?? '—',
+                'status' => $task->status?->label() ?? ($isOpen ? 'Open' : 'Closed'),
+                'status_class' => $task->kanbanColumn() === 'overdue' ? 'danger' : ($isOpen ? 'info' : 'secondary'),
+                'due_date' => $task->due_date,
+                'url' => route('admin.tasks.kanban'),
+            ]);
+
+        return $cases->concat($tasks)
+            ->sortBy(fn (array $item) => $item['due_date']?->timestamp ?? PHP_INT_MAX)
+            ->values();
+    }
+
+    public function myAssignmentCounts(): array
+    {
+        $admin = $this->admin();
+
+        if (! $admin) {
+            return ['open' => 0, 'closed' => 0];
+        }
+
+        $openCases = CredentialingCase::query()
+            ->where('assigned_admin_id', $admin->id)
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories))
+            ->count();
+
+        $closedCases = CredentialingCase::query()
+            ->where('assigned_admin_id', $admin->id)
+            ->whereHas('status', fn ($q) => $q->whereIn('dashboard_category', $this->closedCategories))
+            ->count();
+
+        $openTasks = Task::query()->where('assigned_admin_id', $admin->id)->open()->count();
+
+        $closedTasks = Task::query()
+            ->where('assigned_admin_id', $admin->id)
+            ->where(function ($q) {
+                $q->whereNotNull('completed_at')
+                    ->orWhereIn('status', [TaskStatus::Completed->value, TaskStatus::Cancelled->value]);
+            })
+            ->count();
+
+        return [
+            'open' => $openCases + $openTasks,
+            'closed' => $closedCases + $closedTasks,
+        ];
+    }
+
     public function notificationCounts(): array
     {
         $admin = $this->admin();
         $adminId = $admin?->id;
         $taskNotifications = $adminId
-            ? app(\App\Services\TaskNotificationService::class)->unreadAssignmentCountForAdmin($adminId)
+            ? app(TaskNotificationService::class)->unreadAssignmentCountForAdmin($adminId)
             : 0;
 
         $documentQuery = Document::expiringSoon(30);

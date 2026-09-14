@@ -72,8 +72,8 @@
         <!-- Search and Filter Section -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body">
-                <div class="row g-3 align-items-center">
-                    <div class="col-md-6">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                             <input type="search" wire:model.live="search" class="form-control border-start-0"
@@ -81,7 +81,30 @@
                         </div>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">Practice / Facility</label>
+                        <select wire:model.live="filterPractice" class="form-select">
+                            <option value="">All Practices</option>
+                            @foreach ($practices as $practice)
+                                <option value="{{ $practice->id }}">{{ $practice->legal_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">Service Location</label>
+                        <select wire:model.live="filterLocation" class="form-select" @disabled(! $filterPractice)>
+                            <option value="">All Locations</option>
+                            @foreach ($facilityLocations as $location)
+                                <option value="{{ $location->id }}">
+                                    {{ $location->name }}{{ $location->city ? ' — '.$location->city : '' }}{{ $location->is_primary ? ' (Primary)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">Specialty</label>
                         <select wire:model.live="filterSpecialty" class="form-select">
                             <option value="">All Specialties</option>
                             @foreach ($specialties as $spec)
@@ -90,20 +113,21 @@
                         </select>
                     </div>
 
-                    <div class="col-md-3 d-flex gap-2 justify-content-end">
-                        <select wire:model.live="filterStatus" class="form-select me-2">
-                            <option value="">All Statuses</option>
-                            <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
-                            <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
-                            <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
-                        </select>
-
-                        @if ($search || $filterSpecialty || $filterStatus)
-                            <button wire:click="$set('search',''); $set('filterSpecialty',''); $set('filterStatus','');"
-                                class="btn btn-outline-secondary btn-sm">
-                                <i class="ti tabler-x me-1"></i> Clear
-                            </button>
-                        @endif
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1">Status</label>
+                        <div class="d-flex gap-2">
+                            <select wire:model.live="filterStatus" class="form-select">
+                                <option value="">All Statuses</option>
+                                <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
+                                <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
+                                <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
+                            </select>
+                            @if ($search || $filterSpecialty || $filterStatus || $filterPractice || $filterLocation)
+                                <button type="button" wire:click="clearFilters" class="btn btn-outline-secondary" title="Clear">
+                                    <i class="ti tabler-x"></i>
+                                </button>
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
@@ -156,8 +180,26 @@
                                 </td>
                                 <td><small class="text-muted">{{ $provider->npi ?? 'N/A' }}</small></td>
                                 <td><small class="text-muted">{{ $provider->specialty->name ?? 'N/A' }}</small></td>
-                                <td><small
-                                        class="text-muted">{{ Str::limit($provider->practice, 30) ?? 'N/A' }}</small>
+                                <td>
+                                    @php
+                                        $assignedPractices = $provider->practices;
+                                        $linkedLocations = $provider->providerPracticeLocations;
+                                    @endphp
+                                    @if ($assignedPractices->isNotEmpty() || $linkedLocations->isNotEmpty())
+                                        @foreach ($assignedPractices as $practice)
+                                            <div class="small {{ $practice->pivot->primary_flag ? 'fw-semibold' : 'text-muted' }}">
+                                                {{ $practice->legal_name }}
+                                                @if ($practice->pivot->primary_flag)
+                                                    <span class="badge bg-label-success">Primary</span>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                        @if ($linkedLocations->isNotEmpty())
+                                            <small class="text-muted">{{ $linkedLocations->count() }} location{{ $linkedLocations->count() === 1 ? '' : 's' }}</small>
+                                        @endif
+                                    @else
+                                        <small class="text-muted">{{ Str::limit($provider->practice, 30) ?: 'N/A' }}</small>
+                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge bg-label-primary">{{ $apps->count() }}

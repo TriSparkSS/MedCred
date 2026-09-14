@@ -4,7 +4,9 @@
             <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-users me-2"></i>Practice Contacts</h6>
             <p class="text-muted small mb-0">Contact persons for this practice.</p>
         </div>
-        <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-outline-primary"><i class="ti tabler-plus me-1"></i>Add Contact</button>
+        @if ($canManage)
+            <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-outline-primary"><i class="ti tabler-plus me-1"></i>Add Contact</button>
+        @endif
     </div>
 
     <div class="table-responsive">
@@ -16,7 +18,9 @@
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Primary</th>
-                    <th class="text-end">Actions</th>
+                    @if ($canManage)
+                        <th class="text-end">Actions</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -27,13 +31,15 @@
                         <td>{{ $contact->email ?: '—' }}</td>
                         <td>{{ $contact->phone ?: '—' }}</td>
                         <td>@if($contact->is_primary)<span class="badge bg-success">Primary</span>@endif</td>
-                        <td class="text-end">
-                            <button type="button" wire:click="openEditModal({{ $contact->id }})" class="btn btn-sm btn-icon btn-outline-primary"><i class="ti tabler-edit"></i></button>
-                            <button type="button" wire:click="delete({{ $contact->id }})" class="btn btn-sm btn-icon btn-outline-danger"><i class="ti tabler-trash"></i></button>
-                        </td>
+                        @if ($canManage)
+                            <td class="text-end">
+                                <button type="button" wire:click="openEditModal({{ $contact->id }})" class="btn btn-sm btn-icon btn-outline-primary"><i class="ti tabler-edit"></i></button>
+                                <button type="button" wire:click="delete({{ $contact->id }})" class="btn btn-sm btn-icon btn-outline-danger"><i class="ti tabler-trash"></i></button>
+                            </td>
+                        @endif
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-center text-muted py-3">No contacts added yet.</td></tr>
+                    <tr><td colspan="{{ $canManage ? 6 : 5 }}" class="text-center text-muted py-3">No contacts added yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -73,8 +79,8 @@
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end">
                                     <div class="form-check form-switch">
-                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_primary" id="contactPrimary">
-                                        <label class="form-check-label" for="contactPrimary">Primary Contact</label>
+                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_primary" id="contactPrimary-{{ $practiceId }}">
+                                        <label class="form-check-label" for="contactPrimary-{{ $practiceId }}">Primary Contact</label>
                                     </div>
                                 </div>
                                 <div class="col-12">

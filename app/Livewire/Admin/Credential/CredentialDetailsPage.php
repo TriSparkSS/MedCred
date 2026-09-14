@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\Credential;
 
 use App\Events\DocumentRequestSent;
+use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\NotificationTemplate;
@@ -46,6 +47,17 @@ class CredentialDetailsPage extends Component
     public $newTaskDueDate = '';
 
     public $newTaskAssigneeId = '';
+
+    public bool $newTaskRepeat = false;
+
+    public int $newTaskIntervalDays = 7;
+
+    public int $newTaskOccurrences = 3;
+
+    /** @var list<int|string> */
+    public array $selectedTaskIds = [];
+
+    public string $bulkAssigneeId = '';
 
     public array $billingForm = [];
 
@@ -181,22 +193,35 @@ class CredentialDetailsPage extends Component
             'newTaskTitle' => 'required|string|max:255',
             'newTaskDueDate' => 'nullable|date',
             'newTaskAssigneeId' => 'nullable|exists:admins,id',
+            'newTaskRepeat' => 'boolean',
+            'newTaskIntervalDays' => 'required_if:newTaskRepeat,true|integer|min:1|max:90',
+            'newTaskOccurrences' => 'required_if:newTaskRepeat,true|integer|min:2|max:12',
         ]);
 
-        $taskService->create([
-            'title' => $this->newTaskTitle,
-            'description' => 'Follow-up for '.$this->case->case_number,
-            'credentialing_case_id' => $this->case->id,
-            'provider_id' => $this->case->provider_id,
-            'payer_id' => $this->case->payer_id,
-            'assigned_admin_id' => $this->newTaskAssigneeId ?: null,
-            'due_date' => $this->newTaskDueDate ?: null,
-            'task_type' => 'follow_up',
-        ], Auth::guard('admin')->id());
+        $occurrences = $this->newTaskRepeat ? $this->newTaskOccurrences : 1;
+        $intervalDays = $this->newTaskRepeat ? $this->newTaskIntervalDays : 0;
+
+        $count = $taskService->createFollowUpsForCases(
+            [$this->case->id],
+            [
+                'title' => $this->newTaskTitle,
+                'description' => 'Follow-up for '.$this->case->case_number,
+                'assigned_admin_id' => $this->newTaskAssigneeId ?: null,
+                'due_date' => $this->newTaskDueDate ?: now()->toDateString(),
+                'task_type' => 'follow_up',
+                'occurrences' => $occurrences,
+                'interval_days' => $intervalDays,
+                'sync_case_follow_up' => false,
+            ],
+            Auth::guard('admin')->id()
+        );
 
         $this->newTaskTitle = '';
         $this->newTaskDueDate = now()->addDays(3)->toDateString();
-        flash()->success('Follow-up task created.');
+        $this->newTaskRepeat = false;
+        $this->newTaskOccurrences = 3;
+        $this->newTaskIntervalDays = 7;
+        flash()->success($count === 1 ? 'Follow-up task created.' : "Created {$count} follow-up tasks.");
     }
 
     public function completeTask(int $taskId, TaskService $taskService): void
@@ -204,6 +229,56 @@ class CredentialDetailsPage extends Component
         $task = Task::where('credentialing_case_id', $this->case->id)->findOrFail($taskId);
         $this->authorize('update', $task);
         $taskService->complete($task, Auth::guard('admin')->id());
+    }
+
+    public function bulkAssignSelected(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.tasks.assign'), 403);
+
+        $count = $taskService->bulkAssign($this->selectedCaseTasks(), $this->bulkAssigneeId !== '' ? (int) $this->bulkAssigneeId : null, $admin->id);
+        $this->clearTaskSelection();
+        flash()->success($count === 1 ? 'Assigned 1 task.' : "Assigned {$count} tasks.");
+    }
+
+    public function bulkCompleteSelected(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.tasks.manage'), 403);
+
+        $count = $taskService->bulkUpdateStatus($this->selectedCaseTasks(), 'completed', $admin->id, $admin);
+        $this->clearTaskSelection();
+        flash()->success($count === 1 ? 'Completed 1 task.' : "Completed {$count} tasks.");
+    }
+
+    public function bulkCancelSelected(TaskService $taskService): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.tasks.manage'), 403);
+
+        $count = $taskService->bulkUpdateStatus($this->selectedCaseTasks(), 'cancelled', $admin->id, $admin);
+        $this->clearTaskSelection();
+        flash()->success($count === 1 ? 'Cancelled 1 task.' : "Cancelled {$count} tasks.");
+    }
+
+    public function clearTaskSelection(): void
+    {
+        $this->selectedTaskIds = [];
+        $this->bulkAssigneeId = '';
+    }
+
+    protected function selectedCaseTasks()
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $this->selectedTaskIds))));
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return Task::query()
+            ->where('credentialing_case_id', $this->case->id)
+            ->whereIn('id', $ids)
+            ->get();
     }
 
     public function loadBillingForm(): void
@@ -274,13 +349,14 @@ class CredentialDetailsPage extends Component
             'statuses' => Status::where('is_active', true)->orderBy('sort_order')->get(),
             'delayOwners' => DelayOwner::where('is_active', true)->orderBy('name')->get(),
             'emailTemplates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
-            'admins' => \App\Models\Admin::assignable()->get(['id', 'name', 'username']),
+            'admins' => Admin::assignable()->get(['id', 'name', 'username']),
             'taskTypeLabel' => fn (string $type) => $taskSync->taskTypeLabel($type),
             'billingService' => $billing,
             'canEditCredentials' => $admin?->can('admin.credentials.edit') ?? false,
             'canOverrideDelay' => $admin?->can('admin.delay.override') ?? false,
             'canSendEmails' => $admin?->can('admin.emails.send') ?? false,
             'canManageTasks' => $admin?->can('admin.tasks.manage') ?? false,
+            'canAssignTasks' => $admin?->can('admin.tasks.assign') ?? false,
             'canEscalateTasks' => $admin?->can('admin.tasks.escalate') ?? false,
             'canNotifyBilling' => $admin?->can('admin.billing.notify') ?? false,
         ]);

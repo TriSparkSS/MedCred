@@ -42,6 +42,7 @@
                     <tr>
                         <th width="60">#</th>
                         <th>Document Type Name</th>
+                        <th>State-specific</th>
                         <th>Status</th>
                         <th width="120" class="text-end">Actions</th>
                     </tr>
@@ -52,6 +53,13 @@
                             <td>{{ $loop->iteration }}</td>
                             <td>
                                 <div class="fw-semibold">{{ $record->name }}</div>
+                            </td>
+                            <td>
+                                @if ($record->is_state_specific)
+                                    <span class="badge bg-label-primary">Yes</span>
+                                @else
+                                    <span class="text-muted">No</span>
+                                @endif
                             </td>
                             <td>
                                 <span class="badge {{ $record->is_active ? 'bg-success' : 'bg-danger' }}">
@@ -69,7 +77,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="text-center py-5">
+                                <td colspan="5" class="text-center py-5">
                                 <i class="ti tabler-folder-off fs-1 text-muted"></i>
                                 <div class="mt-2">No records found</div>
                             </td>
@@ -112,6 +120,11 @@
                                 <input type="checkbox" class="form-check-input" id="isActive"
                                     wire:model="formData.is_active">
                                 <label class="form-check-label" for="isActive">Active Status</label>
+                            </div>
+                            <div class="mb-3 form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="isStateSpecific"
+                                    wire:model="formData.is_state_specific">
+                                <label class="form-check-label" for="isStateSpecific">State-specific (License, DEA, CDS)</label>
                             </div>
                         </div>
                         <div class="modal-footer">

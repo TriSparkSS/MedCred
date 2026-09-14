@@ -3,10 +3,12 @@
 namespace App\Livewire\Provider;
 
 use App\Models\CredentialingCase;
-use App\Models\Document;
 use App\Models\DocumentType;
+use App\Services\DocumentService;
 use App\Services\ProviderDashboardService;
+use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -22,16 +24,24 @@ class ProviderDocumentsPage extends Component
 
     public $title = '';
 
+    public $state = '';
+
     public $uploadFile;
 
     public function saveUpload(): void
     {
         abort_unless(can_do('portal.documents.upload'), 403);
 
+        $type = DocumentType::find($this->selectedDocumentTypeId ?: null);
+        $stateRule = $type?->is_state_specific
+            ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
+            : 'nullable|string|max:50';
+
         $this->validate([
             'selectedCaseId' => 'required|exists:credentialing_cases,id',
             'selectedDocumentTypeId' => 'nullable|exists:document_types,id',
             'title' => 'required|string|max:255',
+            'state' => $stateRule,
             'uploadFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
@@ -39,18 +49,19 @@ class ProviderDocumentsPage extends Component
         $provider = $user->providerDetails;
         $case = CredentialingCase::where('provider_id', $provider->id)->findOrFail($this->selectedCaseId);
 
-        $document = Document::createWithFile([
+        $document = app(DocumentService::class)->upload([
             'title' => $this->title,
             'document_type_id' => $this->selectedDocumentTypeId ?: null,
             'provider_id' => $provider->id,
             'credentialing_case_id' => $case->id,
             'practice_id' => $case->practice_id,
+            'state' => $this->state,
+            'sync_credential' => (bool) $type?->is_state_specific,
         ], $this->uploadFile, null, $user->id);
 
-        $case->syncChecklistFromDocument($document);
-        $case->addActivity('provider_upload', 'Provider uploaded: ' . $document->title, null, null, null, $user->id);
+        $case->addActivity('provider_upload', 'Provider uploaded: '.$document->title, null, null, null, $user->id);
 
-        $this->reset(['selectedCaseId', 'selectedDocumentTypeId', 'title', 'uploadFile']);
+        $this->reset(['selectedCaseId', 'selectedDocumentTypeId', 'title', 'state', 'uploadFile']);
         flash()->success('Document uploaded successfully.');
     }
 
@@ -66,6 +77,8 @@ class ProviderDocumentsPage extends Component
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
             'myDocuments' => $provider->documents()->with('documentType')->latest()->limit(20)->get(),
             'canUpload' => can_do('portal.documents.upload'),
+            'states' => UsStates::all(),
+            'selectedType' => DocumentType::find($this->selectedDocumentTypeId ?: null),
         ]);
     }
 }

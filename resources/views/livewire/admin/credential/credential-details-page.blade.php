@@ -183,15 +183,40 @@
                         <i class="ti tabler-layout-kanban me-1"></i>View in Kanban
                     </a>
                 </div>
+                @if (count($selectedTaskIds) > 0)
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded bg-light">
+                        <span class="small fw-semibold">{{ count($selectedTaskIds) }} selected</span>
+                        @if ($canAssignTasks)
+                            <select wire:model="bulkAssigneeId" class="form-select form-select-sm" style="width: auto; min-width: 150px;">
+                                <option value="">Unassigned</option>
+                                @foreach ($admins as $admin)
+                                    <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" wire:click="bulkAssignSelected" class="btn btn-sm btn-primary">Assign</button>
+                        @endif
+                        @if ($canManageTasks)
+                            <button type="button" wire:click="bulkCompleteSelected" class="btn btn-sm btn-outline-success">Complete</button>
+                            <button type="button" wire:click="bulkCancelSelected" class="btn btn-sm btn-outline-secondary">Cancel</button>
+                        @endif
+                        <button type="button" wire:click="clearTaskSelection" class="btn btn-sm btn-link">Clear</button>
+                    </div>
+                @endif
                 <div class="row g-4">
                     <div class="col-lg-7">
                         @forelse($case->tasks as $task)
                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2 p-2 border rounded {{ $task->isCompleted() ? 'bg-light' : '' }}">
+                                <div class="form-check mt-1">
+                                    <input type="checkbox" class="form-check-input" value="{{ $task->id }}"
+                                        wire:model.live="selectedTaskIds">
+                                </div>
                                 <div class="flex-grow-1">
                                     <div class="d-flex align-items-center gap-2 mb-1">
                                         <span class="badge bg-label-secondary">{{ $taskTypeLabel($task->task_type) }}</span>
                                         @if($task->isCompleted())
                                             <span class="badge bg-label-success">Done</span>
+                                        @elseif($task->status?->value === 'cancelled')
+                                            <span class="badge bg-label-secondary">Cancelled</span>
                                         @endif
                                     </div>
                                     <div class="small fw-semibold {{ $task->isCompleted() ? 'text-muted text-decoration-line-through' : '' }}">
@@ -202,7 +227,7 @@
                                         · {{ $task->due_date?->format('m/d/Y') ?: 'No due date' }}
                                     </small>
                                 </div>
-                                @if(! $task->isCompleted() && $canManageTasks)
+                                @if(! $task->isCompleted() && $task->status?->value !== 'cancelled' && $canManageTasks)
                                     <button type="button" wire:click="completeTask({{ $task->id }})"
                                         class="btn btn-sm btn-outline-success" title="Mark complete">
                                         <i class="ti tabler-check"></i>
@@ -232,8 +257,28 @@
                                     </select>
                                 </div>
                             </div>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="newTaskRepeat" wire:model.live="newTaskRepeat">
+                                <label class="form-check-label small" for="newTaskRepeat">Repeat as a series</label>
+                            </div>
+                            @if ($newTaskRepeat)
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1">Every (days)</label>
+                                        <input type="number" min="1" max="90" wire:model="newTaskIntervalDays"
+                                            class="form-control form-control-sm">
+                                        @error('newTaskIntervalDays')<div class="text-danger small">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1">Times</label>
+                                        <input type="number" min="2" max="12" wire:model="newTaskOccurrences"
+                                            class="form-control form-control-sm">
+                                        @error('newTaskOccurrences')<div class="text-danger small">{{ $message }}</div>@enderror
+                                    </div>
+                                </div>
+                            @endif
                             <button type="button" wire:click="createFollowUpTask" class="btn btn-sm btn-primary">
-                                <i class="ti tabler-plus me-1"></i>Add Task
+                                <i class="ti tabler-plus me-1"></i>{{ $newTaskRepeat ? 'Add series' : 'Add Task' }}
                             </button>
                         </div>
                     </div>

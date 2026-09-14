@@ -3,11 +3,14 @@
 namespace App\Livewire\Admin\Practices;
 
 use App\Models\PracticeContact;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 class PracticeContactsSection extends Component
 {
     public $practiceId;
+
+    public bool $canManage = false;
 
     public $showModal = false;
 
@@ -16,6 +19,11 @@ class PracticeContactsSection extends Component
     public $contactId = null;
 
     public $formData = [];
+
+    public function mount(): void
+    {
+        $this->canManage = Auth::guard('admin')->user()?->can('admin.practices.manage') ?? false;
+    }
 
     protected function rules(): array
     {
@@ -32,6 +40,8 @@ class PracticeContactsSection extends Component
 
     public function openCreateModal(): void
     {
+        abort_unless($this->canManage, 403);
+
         $this->resetForm();
         $this->modalMode = 'create';
         $this->formData = ['is_primary' => false];
@@ -40,6 +50,8 @@ class PracticeContactsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        abort_unless($this->canManage, 403);
+
         $contact = PracticeContact::where('practice_id', $this->practiceId)->findOrFail($id);
         $this->contactId = $id;
         $this->modalMode = 'edit';
@@ -49,6 +61,8 @@ class PracticeContactsSection extends Component
 
     public function save(): void
     {
+        abort_unless($this->canManage, 403);
+
         $this->validate();
 
         if ($this->formData['is_primary'] ?? false) {
@@ -68,6 +82,8 @@ class PracticeContactsSection extends Component
 
     public function delete(int $id): void
     {
+        abort_unless($this->canManage, 403);
+
         PracticeContact::where('practice_id', $this->practiceId)->findOrFail($id)->delete();
         flash()->info('Contact deleted.');
     }

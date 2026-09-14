@@ -83,13 +83,21 @@ class MasterDataSeeder extends Seeder
         }
 
         $docTypes = [
-            'Government Photo ID', 'State License', 'DEA Certificate', 'Board Certification',
+            'Government Photo ID', 'State License', 'DEA Certificate', 'CDS Certificate', 'Board Certification',
             'Malpractice Insurance', 'W-9', 'Voided Check', 'CV / Resume',
             'CAQH Attestation', 'Tax Document', 'Payer Form', 'Agreement',
         ];
+        $stateSpecific = ['State License', 'DEA Certificate', 'CDS Certificate'];
         foreach ($docTypes as $docType) {
-            DocumentType::firstOrCreate(['name' => $docType], ['is_active' => true]);
+            DocumentType::firstOrCreate(
+                ['name' => $docType],
+                ['is_active' => true, 'is_state_specific' => in_array($docType, $stateSpecific, true)]
+            );
         }
+
+        DocumentType::query()
+            ->whereIn('name', $stateSpecific)
+            ->update(['is_state_specific' => true]);
 
         // Remove India-based ID document types from active use
         DocumentType::whereIn('name', ['ID Proof', 'ID AADHAR CARD', 'ID Aadhaar Card', 'Aadhaar Card'])

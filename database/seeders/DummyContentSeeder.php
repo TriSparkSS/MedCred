@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use App\Enums\PracticeStatus;
+use App\Enums\ProviderCredentialType;
 use App\Enums\ProviderStatus;
 use App\Models\Admin;
-use App\Models\Address;
 use App\Models\CaseActivity;
 use App\Models\CaseStatusHistory;
 use App\Models\CaseType;
@@ -17,11 +17,14 @@ use App\Models\PayerDocumentRequirement;
 use App\Models\Practice;
 use App\Models\PracticeContact;
 use App\Models\Priority;
+use App\Models\ProviderCredential;
 use App\Models\ProviderDetails;
+use App\Models\ProviderPracticeLocation;
 use App\Models\Specialty;
 use App\Models\Status;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\ProviderCredentialService;
 use App\Services\TaskSyncService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -90,7 +93,7 @@ class DummyContentSeeder extends Seeder
         $this->assignPracticesToDemoAdmins($practices);
 
         $this->command->info('Dummy content seeded: 10 specialties, practices, providers, payers, cases, and tasks.');
-        $this->command->line('Portal login password for all dummy users: ' . self::PASSWORD);
+        $this->command->line('Portal login password for all dummy users: '.self::PASSWORD);
     }
 
     private function assignPracticesToDemoAdmins(array $practices): void
@@ -126,7 +129,7 @@ class DummyContentSeeder extends Seeder
         foreach ($this->specialtyNames as $index => $name) {
             $specialties[] = Specialty::firstOrCreate(
                 ['name' => $name],
-                ['description' => 'Dummy specialty #' . ($index + 1)]
+                ['description' => 'Dummy specialty #'.($index + 1)]
             );
         }
 
@@ -158,8 +161,8 @@ class DummyContentSeeder extends Seeder
                     'user_id' => $user->id,
                     'legal_name' => $legalName,
                     'dba_name' => "DMG {$i} Clinic",
-                    'ein_tin' => '99-' . str_pad((string) $i, 7, '0', STR_PAD_LEFT),
-                    'group_npi' => '200000000' . $i,
+                    'ein_tin' => '99-'.str_pad((string) $i, 7, '0', STR_PAD_LEFT),
+                    'group_npi' => '200000000'.$i,
                     'taxonomy_code' => '207Q00000X',
                     'phone' => fake()->numerify('555-####'),
                     'fax' => fake()->numerify('555-####'),
@@ -199,6 +202,20 @@ class DummyContentSeeder extends Seeder
                 ]
             );
 
+            Location::updateOrCreate(
+                ['practice_id' => $practice->id, 'name' => 'Satellite Location'],
+                [
+                    'address1' => fake()->streetAddress(),
+                    'city' => fake()->city(),
+                    'state' => $this->states[$i % count($this->states)],
+                    'zip_code' => fake()->postcode(),
+                    'country' => 'United States',
+                    'phone' => $practice->phone,
+                    'is_primary' => false,
+                    'status' => 'active',
+                ]
+            );
+
             PracticeContact::updateOrCreate(
                 ['practice_id' => $practice->id, 'email' => "contact-{$i}@dummy-practice.example.com"],
                 [
@@ -221,7 +238,7 @@ class DummyContentSeeder extends Seeder
 
         for ($i = 1; $i <= self::COUNT; $i++) {
             $email = "dummy-provider-{$i}@example.com";
-            $name = "Dr. " . fake()->lastName() . " {$i}";
+            $name = 'Dr. '.fake()->lastName()." {$i}";
 
             $user = User::updateOrCreate(
                 ['email' => $email],
@@ -241,15 +258,18 @@ class DummyContentSeeder extends Seeder
                 [
                     'specialty_id' => $specialties[$i - 1]->id,
                     'status' => ProviderStatus::APPROVED,
-                    'npi' => '100000000' . $i,
+                    'npi' => '100000000'.$i,
                     'caqh_id' => (string) (10000000 + $i),
-                    'license_number' => 'LIC-' . str_pad((string) $i, 6, '0', STR_PAD_LEFT),
+                    'license_number' => 'LIC-'.str_pad((string) $i, 6, '0', STR_PAD_LEFT),
                     'license_state' => $state,
-                    'dea' => 'AB' . str_pad((string) $i, 7, '0', STR_PAD_LEFT),
+                    'dea' => 'AB'.str_pad((string) $i, 7, '0', STR_PAD_LEFT),
                     'taxonomy_code' => '207Q00000X',
                     'pecos_enrolled' => $i % 2 === 0,
                     'malpractice_carrier' => 'Dummy Insurance Co.',
-                    'malpractice_policy_number' => 'MP-' . $i,
+                    'malpractice_policy_number' => 'MP-'.$i,
+                    'malpractice_coverage_each_occurrence' => 1000000,
+                    'malpractice_coverage_aggregate' => 3000000,
+                    'malpractice_effective_date' => now(),
                     'malpractice_expiry' => now()->addYear(),
                     'board_certification' => $specialties[$i - 1]->name,
                     'board_cert_expiry' => now()->addYears(2),
@@ -261,6 +281,46 @@ class DummyContentSeeder extends Seeder
                     'zip' => fake()->postcode(),
                 ]
             );
+
+            $secondState = $this->states[($i) % self::COUNT];
+            ProviderCredential::query()->updateOrCreate(
+                [
+                    'provider_id' => $provider->id,
+                    'credential_type' => ProviderCredentialType::License->value,
+                    'state' => $state,
+                ],
+                [
+                    'number' => 'LIC-'.str_pad((string) $i, 6, '0', STR_PAD_LEFT),
+                    'expiry_date' => now()->addYear(),
+                    'is_primary' => true,
+                    'status' => 'active',
+                ]
+            );
+            ProviderCredential::query()->updateOrCreate(
+                [
+                    'provider_id' => $provider->id,
+                    'credential_type' => ProviderCredentialType::License->value,
+                    'state' => $secondState,
+                ],
+                [
+                    'number' => 'LIC-'.str_pad((string) $i, 6, '0', STR_PAD_LEFT).'-'.$secondState,
+                    'expiry_date' => now()->addMonths(18),
+                    'status' => 'active',
+                ]
+            );
+            ProviderCredential::query()->updateOrCreate(
+                [
+                    'provider_id' => $provider->id,
+                    'credential_type' => ProviderCredentialType::Dea->value,
+                    'state' => $state,
+                ],
+                [
+                    'number' => 'AB'.str_pad((string) $i, 7, '0', STR_PAD_LEFT),
+                    'expiry_date' => now()->addYears(2),
+                    'status' => 'active',
+                ]
+            );
+            app(ProviderCredentialService::class)->syncLegacy($provider->fresh());
 
             $providers[] = $provider->fresh('user');
         }
@@ -274,7 +334,7 @@ class DummyContentSeeder extends Seeder
 
         for ($i = 1; $i <= self::COUNT; $i++) {
             $payer = Payer::updateOrCreate(
-                ['name' => $this->payerNames[$i - 1] . ' (Dummy)'],
+                ['name' => $this->payerNames[$i - 1].' (Dummy)'],
                 [
                     'states_applicable' => implode(', ', array_slice($this->states, 0, 5)),
                     'application_type' => $i % 2 === 0 ? 'Individual' : 'Group',
@@ -315,6 +375,21 @@ class DummyContentSeeder extends Seeder
                     'start_date' => now()->subMonths(6)->toDateString(),
                 ],
             ]);
+
+            $locations = $practice->locations()->orderByDesc('is_primary')->get();
+            foreach ($locations as $locIndex => $location) {
+                ProviderPracticeLocation::updateOrCreate(
+                    [
+                        'provider_id' => $provider->id,
+                        'location_id' => $location->id,
+                    ],
+                    [
+                        'practice_id' => $practice->id,
+                        'is_primary' => $locIndex === 0,
+                        'start_date' => now()->subMonths(6)->toDateString(),
+                    ]
+                );
+            }
         }
     }
 

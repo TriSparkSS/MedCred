@@ -1,10 +1,14 @@
 <div class="border rounded-3 p-3 mb-3 bg-white shadow-sm" wire:key="task-{{ $task->id }}">
     <div class="d-flex justify-content-between align-items-start mb-2">
-        @if ($task->priority)
-            <span class="badge bg-label-primary">{{ $task->priority->name }}</span>
-        @else
-            <span class="badge bg-label-secondary">{{ $taskTypeLabels($task->task_type) }}</span>
-        @endif
+        <div class="d-flex align-items-center gap-2">
+            <input type="checkbox" class="form-check-input" value="{{ $task->id }}"
+                wire:model.live="selectedTaskIds" title="Select task">
+            @if ($task->priority)
+                <span class="badge bg-label-primary">{{ $task->priority->name }}</span>
+            @else
+                <span class="badge bg-label-secondary">{{ $taskTypeLabels($task->task_type) }}</span>
+            @endif
+        </div>
         <span class="rounded-circle d-inline-block bg-{{ $column['meta']['color'] }}"
             style="width:8px; height:8px;"></span>
     </div>

@@ -19,21 +19,6 @@
             <small class="text-muted d-block mt-1">Indicates PECOS enrollment for Medicare; stored for reference only; does not auto-approve applications.</small>
         </div>
     </div>
-    <div class="col-md-4">
-        <label class="form-label fw-medium">CDS Number</label>
-        <input type="text" wire:model="formData.cds_number" class="form-control @error('formData.cds_number') is-invalid @enderror" placeholder="Controlled substance license">
-        @error('formData.cds_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-    <div class="col-md-4">
-        <label class="form-label fw-medium">CDS State</label>
-        <input type="text" wire:model="formData.cds_state" class="form-control @error('formData.cds_state') is-invalid @enderror" placeholder="e.g. CA">
-        @error('formData.cds_state')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-    <div class="col-md-4">
-        <label class="form-label fw-medium">Licensed States</label>
-        <input type="text" wire:model="licensedStatesInput" class="form-control @error('licensedStatesInput') is-invalid @enderror" placeholder="CA, NY, TX (comma-separated)">
-        @error('licensedStatesInput')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
 </div>
 
 <div class="mb-3 pb-3 border-bottom">
@@ -48,6 +33,32 @@
     <div class="col-md-4">
         <label class="form-label fw-medium">Policy Number</label>
         <input type="text" wire:model="formData.malpractice_policy_number" class="form-control" placeholder="Policy number">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label fw-medium">Each Occurrence</label>
+        <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input type="number" wire:model="formData.malpractice_coverage_each_occurrence"
+                class="form-control @error('formData.malpractice_coverage_each_occurrence') is-invalid @enderror"
+                placeholder="1000000" min="0" step="0.01">
+        </div>
+        @error('formData.malpractice_coverage_each_occurrence')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-4">
+        <label class="form-label fw-medium">General Aggregate</label>
+        <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input type="number" wire:model="formData.malpractice_coverage_aggregate"
+                class="form-control @error('formData.malpractice_coverage_aggregate') is-invalid @enderror"
+                placeholder="3000000" min="0" step="0.01">
+        </div>
+        @error('formData.malpractice_coverage_aggregate')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-4">
+        <label class="form-label fw-medium">Policy Effective Date</label>
+        <input type="date" wire:model="formData.malpractice_effective_date"
+            class="form-control @error('formData.malpractice_effective_date') is-invalid @enderror">
+        @error('formData.malpractice_effective_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-4">
         <label class="form-label fw-medium">Malpractice Expiry</label>

@@ -134,7 +134,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>Licenses & Credentials
                     </h6>
-                    <p class="text-muted small mb-0">CAQH profile, state license, and DEA registration.</p>
+                    <p class="text-muted small mb-0">CAQH profile. Manage state licenses, DEA, and CDS in the section below.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -148,37 +148,6 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License Number</label>
-                        <input type="text" wire:model="formData.license_number"
-                            class="form-control @error('formData.license_number') is-invalid @enderror"
-                            placeholder="State medical license number">
-                        @error('formData.license_number')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License State</label>
-                        <input type="text" wire:model="formData.license_state"
-                            class="form-control @error('formData.license_state') is-invalid @enderror"
-                            placeholder="e.g. CA, NY, TX">
-                        @error('formData.license_state')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">DEA Number</label>
-                        <input type="text" wire:model="formData.dea"
-                            class="form-control @error('formData.dea') is-invalid @enderror"
-                            placeholder="Alphanumeric DEA registration"
-                            maxlength="20">
-                        @error('formData.dea')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
                 </div>
 
                 @include('livewire.admin.provider.partials.provider-extended-fields')
@@ -188,7 +157,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Location
                     </h6>
-                    <p class="text-muted small mb-0">Primary practice affiliation and mailing address.</p>
+                    <p class="text-muted small mb-0">Mailing address for this provider (practice sites are managed below).</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-12">
@@ -212,6 +181,21 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label class="form-label fw-medium">Zip Code <span class="text-danger">*</span></label>
+                        <input type="text" wire:model="formData.zip"
+                            wire:blur="lookupZip('formData', 'zip')"
+                            class="form-control @error('formData.zip') is-invalid @enderror"
+                            placeholder="Zip code" maxlength="10" inputmode="numeric">
+                        <div class="form-text">Leave the field to auto-fill city and state.</div>
+                        @error('formData.zip')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        @if (! empty($zipLookupMessages['formData'] ?? null))
+                            <div class="form-text text-warning">{{ $zipLookupMessages['formData'] }}</div>
+                        @endif
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label fw-medium">City <span class="text-danger">*</span></label>
                         <input type="text" wire:model="formData.city"
                             class="form-control @error('formData.city') is-invalid @enderror"
@@ -223,21 +207,10 @@
 
                     <div class="col-md-4">
                         <label class="form-label fw-medium">State <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.state"
-                            class="form-control @error('formData.state') is-invalid @enderror"
-                            placeholder="State">
+                        <x-admin.state-select wire:model="formData.state"
+                            class="{{ $errors->has('formData.state') ? 'is-invalid' : '' }}" />
                         @error('formData.state')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">Zip Code <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.zip"
-                            class="form-control @error('formData.zip') is-invalid @enderror"
-                            placeholder="Zip code">
-                        @error('formData.zip')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>
@@ -258,5 +231,12 @@
                 </div>
             </form>
         </div>
+    </div>
+
+    <div class="mt-4">
+        <livewire:admin.provider.provider-credentials-section :provider-id="$providerId" :key="'edit-creds-'.$providerId" />
+    </div>
+    <div class="mt-4">
+        <livewire:admin.provider.provider-locations-section :provider-id="$providerId" :key="'edit-locs-'.$providerId" />
     </div>
 </div>

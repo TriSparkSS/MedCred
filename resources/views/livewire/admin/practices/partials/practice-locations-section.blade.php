@@ -4,7 +4,9 @@
             <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-map-pin me-2"></i>Facility Locations</h6>
             <p class="text-muted small mb-0">Practice locations and facilities for credentialing.</p>
         </div>
-        <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-outline-primary"><i class="ti tabler-plus me-1"></i>Add Location</button>
+        @if ($canManage)
+            <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-outline-primary"><i class="ti tabler-plus me-1"></i>Add Location</button>
+        @endif
     </div>
 
     <div class="table-responsive">
@@ -15,7 +17,9 @@
                     <th>Address</th>
                     <th>NPI</th>
                     <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    @if ($canManage)
+                        <th class="text-end">Actions</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -28,13 +32,15 @@
                         <td><small>{{ $location->address1 }}, {{ $location->city }}, {{ $location->state }} {{ $location->zip_code }}</small></td>
                         <td><small>{{ $location->npi ?: '—' }}</small></td>
                         <td><span class="badge bg-label-{{ $location->status === 'active' ? 'success' : 'secondary' }}">{{ ucfirst($location->status) }}</span></td>
-                        <td class="text-end">
-                            <button type="button" wire:click="openEditModal({{ $location->id }})" class="btn btn-sm btn-icon btn-outline-primary"><i class="ti tabler-edit"></i></button>
-                            <button type="button" wire:click="delete({{ $location->id }})" class="btn btn-sm btn-icon btn-outline-danger"><i class="ti tabler-trash"></i></button>
-                        </td>
+                        @if ($canManage)
+                            <td class="text-end">
+                                <button type="button" wire:click="openEditModal({{ $location->id }})" class="btn btn-sm btn-icon btn-outline-primary"><i class="ti tabler-edit"></i></button>
+                                <button type="button" wire:click="delete({{ $location->id }})" class="btn btn-sm btn-icon btn-outline-danger"><i class="ti tabler-trash"></i></button>
+                            </td>
+                        @endif
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="text-center text-muted py-3">No locations added yet.</td></tr>
+                    <tr><td colspan="{{ $canManage ? 5 : 4 }}" class="text-center text-muted py-3">No locations added yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -74,19 +80,25 @@
                                     <input type="text" wire:model="formData.address2" class="form-control">
                                 </div>
                                 <div class="col-md-3">
+                                    <label class="form-label">Zip <span class="text-danger">*</span></label>
+                                    <input type="text" wire:model="formData.zip_code" wire:blur="lookupZip('formData')"
+                                        class="form-control @error('formData.zip_code') is-invalid @enderror"
+                                        maxlength="10" inputmode="numeric">
+                                    <div class="form-text">Leave the field to auto-fill city, state, and county.</div>
+                                    @error('formData.zip_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    @if (! empty($zipLookupMessages['formData'] ?? null))
+                                        <div class="form-text text-warning">{{ $zipLookupMessages['formData'] }}</div>
+                                    @endif
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label">City <span class="text-danger">*</span></label>
                                     <input type="text" wire:model="formData.city" class="form-control @error('formData.city') is-invalid @enderror">
                                     @error('formData.city')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">State <span class="text-danger">*</span></label>
-                                    <input type="text" wire:model="formData.state" class="form-control @error('formData.state') is-invalid @enderror">
-                                    @error('formData.state')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Zip <span class="text-danger">*</span></label>
-                                    <input type="text" wire:model="formData.zip_code" class="form-control @error('formData.zip_code') is-invalid @enderror">
-                                    @error('formData.zip_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    <x-admin.state-select wire:model="formData.state" class="{{ $errors->has('formData.state') ? 'is-invalid' : '' }}" />
+                                    @error('formData.state')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">County</label>
@@ -105,8 +117,8 @@
                                 </div>
                                 <div class="col-md-4 d-flex align-items-end">
                                     <div class="form-check form-switch">
-                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_primary" id="locationPrimary">
-                                        <label class="form-check-label" for="locationPrimary">Primary Location</label>
+                                        <input type="checkbox" class="form-check-input" wire:model="formData.is_primary" id="locationPrimary-{{ $practiceId }}">
+                                        <label class="form-check-label" for="locationPrimary-{{ $practiceId }}">Primary Location</label>
                                     </div>
                                 </div>
                             </div>

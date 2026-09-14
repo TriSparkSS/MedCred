@@ -2,13 +2,18 @@
 
 namespace App\Livewire\Admin\Practices\Concerns;
 
+use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Address;
 use App\Models\Practice;
+use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 trait ManagesPracticeForm
 {
+    use LooksUpUsZip;
+
     protected function basePracticeRules(): array
     {
         return [
@@ -42,7 +47,7 @@ trait ManagesPracticeForm
             "{$prefix}.address1" => "{$requiredRule}|string|max:255",
             "{$prefix}.address2" => 'nullable|string|max:255',
             "{$prefix}.city" => "{$requiredRule}|string|max:100",
-            "{$prefix}.state" => "{$requiredRule}|string|max:100",
+            "{$prefix}.state" => [$requiredRule, 'string', 'size:2', Rule::in(UsStates::codes())],
             "{$prefix}.zip_code" => "{$requiredRule}|string|max:20",
             "{$prefix}.county" => 'nullable|string|max:100',
             "{$prefix}.country" => "{$requiredRule}|string|max:100",
@@ -80,7 +85,7 @@ trait ManagesPracticeForm
             'address1' => $address->address1 ?? '',
             'address2' => $address->address2 ?? '',
             'city' => $address->city ?? '',
-            'state' => $address->state ?? '',
+            'state' => UsStates::normalize($address->state) ?? ($address->state ?? ''),
             'zip_code' => $address->zip_code ?? '',
             'county' => $address->county ?? '',
             'country' => $address->country ?? 'United States',
@@ -106,7 +111,7 @@ trait ManagesPracticeForm
             'address1' => $data['address1'],
             'address2' => $data['address2'] ?? null,
             'city' => $data['city'],
-            'state' => $data['state'],
+            'state' => UsStates::normalize($data['state'] ?? null) ?? ($data['state'] ?? null),
             'zip_code' => $data['zip_code'],
             'county' => $data['county'] ?? null,
             'country' => $data['country'] ?? 'United States',

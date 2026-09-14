@@ -6,16 +6,39 @@ use App\Enums\DocumentVerificationStatus;
 use App\Events\DocumentVerified;
 use App\Models\AuditLog;
 use App\Models\Document;
+use App\Models\DocumentType;
+use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
 
 class DocumentService
 {
     public function upload(array $data, UploadedFile $file, ?int $adminId = null, ?int $userId = null): Document
     {
-        $document = Document::createWithFile([
-            ...$data,
-            'verification_status' => DocumentVerificationStatus::Uploaded->value,
-        ], $file, $adminId, $userId);
+        $syncCredential = (bool) ($data['sync_credential'] ?? false);
+        unset($data['sync_credential']);
+
+        $data['state'] = UsStates::normalize($data['state'] ?? null);
+
+        $existing = $this->findExistingStateDocument($data);
+        if ($existing) {
+            $existing->addVersion($file, $adminId, 'Replacement for same type and state', $userId);
+            $existing->update([
+                'title' => $data['title'] ?? $existing->title,
+                'effective_date' => $data['effective_date'] ?? $existing->effective_date,
+                'expiry_date' => $data['expiry_date'] ?? $existing->expiry_date,
+                'verification_status' => DocumentVerificationStatus::Uploaded->value,
+                'verified_at' => null,
+                'verified_by_admin_id' => null,
+                'rejection_reason' => null,
+            ]);
+
+            $document = $existing->fresh(['versions', 'documentType', 'provider']);
+        } else {
+            $document = Document::createWithFile([
+                ...$data,
+                'verification_status' => DocumentVerificationStatus::Uploaded->value,
+            ], $file, $adminId, $userId);
+        }
 
         if ($document->credentialing_case_id) {
             $document->credentialingCase?->syncChecklistFromDocument($document);
@@ -23,7 +46,34 @@ class DocumentService
 
         AuditLog::record('document.uploaded', $document, $adminId);
 
-        return $document;
+        if ($syncCredential) {
+            app(ProviderCredentialService::class)->syncFromDocument($document->fresh('documentType'));
+        }
+
+        return $document->fresh(['versions', 'documentType']);
+    }
+
+    protected function findExistingStateDocument(array $data): ?Document
+    {
+        $providerId = $data['provider_id'] ?? null;
+        $typeId = $data['document_type_id'] ?? null;
+        $state = $data['state'] ?? null;
+
+        if (! $providerId || ! $typeId || ! $state) {
+            return null;
+        }
+
+        $type = DocumentType::find($typeId);
+        if (! $type?->is_state_specific) {
+            return null;
+        }
+
+        return Document::query()
+            ->where('provider_id', $providerId)
+            ->where('document_type_id', $typeId)
+            ->where('state', $state)
+            ->latest('id')
+            ->first();
     }
 
     public function verify(Document $document, ?int $adminId = null): Document

@@ -66,7 +66,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">State</label>
-                        <input type="text" wire:model="formData.state" class="form-control" placeholder="Application state">
+                        <x-admin.state-select wire:model="formData.state" placeholder="Application state" />
                     </div>
                 </div>
 

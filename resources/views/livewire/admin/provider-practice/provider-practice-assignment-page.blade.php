@@ -22,7 +22,7 @@
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
                             <h5 class="mb-1">{{ $assignmentId ? 'Edit Assignment' : 'Assign Provider' }}</h5>
-                            <p class="text-muted mb-0">Connect one provider with one practice.</p>
+                            <p class="text-muted mb-0">Connect a provider with a practice and every location they work at.</p>
                         </div>
                         @if ($assignmentId)
                             <button type="button" wire:click="resetForm" class="btn btn-sm btn-outline-secondary">
@@ -47,7 +47,7 @@
 
                         <div class="mb-3">
                             <label class="form-label">Practice</label>
-                            <select wire:model="formData.practice_id" class="form-select">
+                            <select wire:model.live="formData.practice_id" class="form-select">
                                 <option value="">Select practice...</option>
                                 @foreach ($practices as $practice)
                                     <option value="{{ $practice->id }}">
@@ -75,6 +75,29 @@
                             <input class="form-check-input" type="checkbox" wire:model="formData.primary_flag" id="primaryFlag">
                             <label class="form-check-label" for="primaryFlag">Primary Practice</label>
                             @error('formData.primary_flag') <span class="text-danger d-block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label">Practice locations</label>
+                            @if (! $formData['practice_id'])
+                                <p class="text-muted small mb-0">Select a practice to choose locations.</p>
+                            @elseif (count($availableLocations) === 0)
+                                <p class="text-muted small mb-0">This practice has no facility locations yet.</p>
+                            @else
+                                <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
+                                    @foreach ($availableLocations as $location)
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                wire:model="formData.location_ids"
+                                                value="{{ $location['id'] }}"
+                                                id="loc-{{ $location['id'] }}">
+                                            <label class="form-check-label small" for="loc-{{ $location['id'] }}">
+                                                {{ $location['label'] }}
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
 
                         <div class="mt-4">
@@ -109,6 +132,7 @@
                             <tr>
                                 <th>Provider</th>
                                 <th>Practice</th>
+                                <th>Locations</th>
                                 <th>Primary</th>
                                 <th>Dates</th>
                                 <th class="text-end">Actions</th>
@@ -124,6 +148,22 @@
                                     <td>
                                         <div class="fw-semibold">{{ $assignment->practice->legal_name ?? 'N/A' }}</div>
                                         <small class="text-muted">{{ $assignment->practice->group_npi ?? 'No Group NPI' }}</small>
+                                    </td>
+                                    <td>
+                                        @php
+                                            $linked = $assignment->provider?->providerPracticeLocations
+                                                ?->where('practice_id', $assignment->practice_id) ?? collect();
+                                        @endphp
+                                        @forelse ($linked as $ppl)
+                                            <div class="small">
+                                                {{ $ppl->location->name ?? 'Location' }}
+                                                @if ($ppl->is_primary)
+                                                    <span class="badge bg-label-success">Primary</span>
+                                                @endif
+                                            </div>
+                                        @empty
+                                            <small class="text-muted">None linked</small>
+                                        @endforelse
                                     </td>
                                     <td>
                                         <span class="badge bg-label-{{ $assignment->primary_flag ? 'success' : 'secondary' }}">
@@ -150,7 +190,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-5">
+                                        <td colspan="6" class="text-center py-5">
                                         <i class="ti tabler-link-off d-block mb-2" style="font-size: 2rem; color: #ccc;"></i>
                                         <p class="text-muted mb-0">No assignments found</p>
                                     </td>

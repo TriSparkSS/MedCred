@@ -11,9 +11,12 @@ use App\Models\Practice;
 use App\Models\Priority;
 use App\Models\ProviderDetails;
 use App\Models\Status;
+use App\Services\AdminScopeService;
 use App\Services\CredentialingCaseService;
 use App\Services\TaskSyncService;
+use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -41,7 +44,7 @@ class CredentialCreatePage extends Component
             'formData.delay_owner_id' => 'nullable|exists:delay_owners,id',
             'formData.priority_id' => 'nullable|exists:priorities,id',
             'formData.assigned_admin_id' => 'nullable|exists:admins,id',
-            'formData.state' => 'nullable|string|max:50',
+            'formData.state' => ['nullable', 'string', 'size:2', Rule::in(UsStates::codes())],
             'formData.intake_date' => 'nullable|date',
             'formData.submission_date' => 'nullable|date',
             'formData.payer_follow_up_date' => 'nullable|date',
@@ -94,7 +97,7 @@ class CredentialCreatePage extends Component
         $this->validate();
 
         $admin = Auth::guard('admin')->user();
-        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessPractice($admin, (int) $this->formData['practice_id'])) {
+        if ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $this->formData['practice_id'])) {
             abort(403, 'You do not have access to this practice.');
         }
 
@@ -119,7 +122,7 @@ class CredentialCreatePage extends Component
             $taskSync->ensureDocumentTask($case, $item, $adminId);
         }
 
-        flash()->success('Credentialing application created: ' . $case->case_number);
+        flash()->success('Credentialing application created: '.$case->case_number);
 
         return redirect()->route('admin.credentials');
     }
@@ -133,7 +136,7 @@ class CredentialCreatePage extends Component
     public function render()
     {
         $admin = Auth::guard('admin')->user();
-        $scope = app(\App\Services\AdminScopeService::class);
+        $scope = app(AdminScopeService::class);
         $providerQuery = ProviderDetails::with('user');
         $practiceQuery = Practice::orderBy('legal_name');
         if ($admin) {
