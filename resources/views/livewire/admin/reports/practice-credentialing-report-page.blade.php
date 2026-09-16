@@ -561,7 +561,7 @@
                                 <i class="ti tabler-mail me-1"></i>Email Report
                             </button>
                             <div class="btn-group">
-                                <button type="button" class="btn btn-pcr-ghost" wire:click="downloadCsv">
+                                <button type="button" class="btn btn-pcr-ghost" wire:click="downloadExcel">
                                     <i class="ti tabler-download me-1"></i>Download
                                 </button>
                                 <button type="button" class="btn btn-pcr-ghost dropdown-toggle dropdown-toggle-split"
@@ -569,6 +569,9 @@
                                     <span class="visually-hidden">Download options</span>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button type="button" class="dropdown-item" wire:click="downloadExcel">Download Excel</button>
+                                    </li>
                                     <li>
                                         <button type="button" class="dropdown-item" wire:click="downloadCsv">Download CSV</button>
                                     </li>

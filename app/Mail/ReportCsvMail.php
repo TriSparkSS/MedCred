@@ -20,6 +20,7 @@ class ReportCsvMail extends Mailable
         public string $csvFilename,
         public ?string $fromAddress = null,
         public ?string $fromName = null,
+        public string $mime = 'text/csv',
     ) {}
 
     public function envelope(): Envelope
@@ -51,7 +52,7 @@ class ReportCsvMail extends Mailable
     {
         return [
             Attachment::fromData(fn () => $this->csvContents, $this->csvFilename)
-                ->withMime('text/csv'),
+                ->withMime($this->mime),
         ];
     }
 }

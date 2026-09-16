@@ -10,14 +10,32 @@ use App\Models\ProviderDetails;
 use App\Models\Status;
 use App\Models\User;
 use App\Services\GraphMailboxService;
+use App\Services\ReportExportService;
 use Database\Seeders\AdminPermissionSeeder;
 use Database\Seeders\AdminSeeder;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
+
+if (! function_exists('configureGraphForTests')) {
+    function configureGraphForTests(): void
+    {
+        config([
+            'services.microsoft_graph.tenant_id' => '014947f0-8696-4ff4-b4b0-873d91eb1665',
+            'services.microsoft_graph.client_id' => 'f48ae449-09c4-46c6-b187-d1238ee09190',
+            'services.microsoft_graph.client_secret' => 'test-secret-value',
+            'services.microsoft_graph.mailbox' => 'credentialing@revantagehbs.com',
+        ]);
+
+        Cache::flush();
+    }
+}
 
 beforeEach(function () {
     app()[PermissionRegistrar::class]->forgetCachedPermissions();
@@ -133,6 +151,82 @@ test('scoped admin only sees assigned practices on report', function () {
         ->assertSee('Assigned Report Practice')
         ->assertDontSee('Unassigned Report Practice')
         ->assertDontSee('Hidden Doc');
+});
+
+test('styled excel download matches html grouping and approved status color', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = makePractice('Excel Style Practice', 'ESP');
+    $provider = makeProvider('Excel Style Provider', '5555555555', $practice);
+    $payer = Payer::create(['name' => 'Humana', 'is_active' => true]);
+    $status = Status::where('name', 'Approved')->firstOrFail();
+    makeCase($practice, $provider, $payer, $status);
+
+    $this->actingAs($admin, 'admin');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(PracticeCredentialingReportPage::class)
+        ->call('downloadExcel')
+        ->assertFileDownloaded('total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx');
+
+    $contents = app(ReportExportService::class)->xlsxContents('practice_credentialing_status');
+    expect($contents)->toStartWith('PK');
+
+    $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'pcr-style-'.uniqid().'.xlsx';
+    file_put_contents($path, $contents);
+    $sheet = IOFactory::load($path)->getActiveSheet();
+
+    expect($sheet->getCell('A1')->getValue())->toBe('Total Credentialing Report by Practice');
+
+    $foundPractice = false;
+    $approvedFill = null;
+    foreach ($sheet->getRowIterator() as $row) {
+        $index = $row->getRowIndex();
+        $label = (string) $sheet->getCell('A'.$index)->getValue();
+        if (str_contains($label, 'Excel Style Practice')) {
+            $foundPractice = true;
+        }
+        if ((string) $sheet->getCell('E'.$index)->getValue() === 'Approved') {
+            $approvedFill = $sheet->getCell('E'.$index)->getStyle()->getFill()->getStartColor()->getRGB();
+        }
+    }
+
+    expect($foundPractice)->toBeTrue()
+        ->and($approvedFill)->toBe(app(ReportExportService::class)->statusBucketFillColor('approved'));
+
+    @unlink($path);
+});
+
+test('excel export respects practice filters', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $visible = makePractice('Excel Visible Practice', 'EVP');
+    $hidden = makePractice('Excel Hidden Practice', 'EHP');
+    $payer = Payer::create(['name' => 'UHC', 'is_active' => true]);
+    $status = Status::where('name', 'At Payer')->firstOrFail();
+
+    makeCase($visible, makeProvider('Excel Visible Doc', '6666666666', $visible), $payer, $status);
+    makeCase($hidden, makeProvider('Excel Hidden Doc', '7777777777', $hidden), $payer, $status);
+
+    $this->actingAs($admin, 'admin');
+
+    $contents = app(ReportExportService::class)->xlsxContents('practice_credentialing_status', [
+        'practice_id' => $visible->id,
+    ]);
+
+    $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'pcr-filter-'.uniqid().'.xlsx';
+    file_put_contents($path, $contents);
+    $sheet = IOFactory::load($path)->getActiveSheet();
+    $values = [];
+    foreach ($sheet->getRowIterator() as $row) {
+        $values[] = (string) $sheet->getCell('A'.$row->getRowIndex())->getValue();
+    }
+    $blob = implode("\n", $values);
+
+    expect($blob)->toContain('Excel Visible Practice')
+        ->and($blob)->toContain('Excel Visible Doc')
+        ->and($blob)->not->toContain('Excel Hidden Practice')
+        ->and($blob)->not->toContain('Excel Hidden Doc');
+
+    @unlink($path);
 });
 
 test('email attachment route encodes and decodes graph ids', function () {
@@ -268,7 +362,7 @@ test('email attachment preserves binary integrity for png and xlsx downloads', f
     $pngBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
     $xlsxBytes = "PK\x03\x04".str_repeat('y', 80);
 
-    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($pngBytes, $xlsxBytes) {
+    Http::fake(function (Request $request) use ($pngBytes) {
         $url = $request->url();
 
         if (str_contains($url, 'login.microsoftonline.com')) {

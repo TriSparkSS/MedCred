@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\Reports;
 
 use App\Mail\ReportCsvMail;
+use App\Models\CredentialingCase;
 use App\Models\Payer;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
@@ -120,15 +121,16 @@ class PracticeCredentialingReportPage extends Component
             $mailSettings->assertConfigured();
 
             $filters = $this->appliedFilters();
-            $csv = $reports->csvContents('practice_credentialing_status', $filters);
-            $data = $reports->rowsFor('practice_credentialing_status', $filters);
+            $xlsx = $reports->xlsxContents('practice_credentialing_status', $filters);
+            $payload = $reports->practiceCredentialingExcelPayload($filters);
 
             Mail::to($this->emailTo)->send(new ReportCsvMail(
                 'Total Credentialing Report by Practice',
-                $csv,
-                $data['filename'],
+                $xlsx,
+                $payload['filename'],
                 $mailSettings->resolveFromAddress(),
                 $mailSettings->resolveFromName(),
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ));
 
             flash()->success('Report emailed to '.$this->emailTo);
@@ -136,6 +138,13 @@ class PracticeCredentialingReportPage extends Component
         } catch (\Throwable $e) {
             flash()->error('Failed to email report: '.$e->getMessage());
         }
+    }
+
+    public function downloadExcel(ReportExportService $reports): StreamedResponse
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.reports.export'), 403);
+
+        return $reports->streamPracticeCredentialingXlsx($this->appliedFilters());
     }
 
     public function downloadCsv(ReportExportService $reports): StreamedResponse
@@ -197,7 +206,7 @@ class PracticeCredentialingReportPage extends Component
                 ->get()
             : collect();
 
-        $states = \App\Models\CredentialingCase::query()
+        $states = CredentialingCase::query()
             ->when($admin, fn ($q) => $scope->scopeCredentialingCases($q, $admin))
             ->whereNotNull('state')
             ->where('state', '!=', '')

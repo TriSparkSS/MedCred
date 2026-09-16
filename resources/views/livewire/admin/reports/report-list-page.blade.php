@@ -97,7 +97,7 @@
                 <div class="col-md-6">
                     <div class="border rounded-3 p-3 h-100">
                         <p class="fw-semibold mb-1">Total Credentialing Report by Practice</p>
-                        <small class="text-muted">Practice → provider → payer status with filters, KPIs, email, and CSV download.</small>
+                        <small class="text-muted">Practice → provider → payer status with filters, KPIs, email, and Excel download.</small>
                     </div>
                 </div>
                 <div class="col-md-6">

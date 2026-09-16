@@ -4,6 +4,13 @@ namespace App\Services;
 
 use App\Models\CredentialingCase;
 use App\Models\Document;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportExportService
@@ -113,6 +120,87 @@ class ReportExportService
         return $csv;
     }
 
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function xlsxContents(string $type, array $filters = []): string
+    {
+        if ($type !== 'practice_credentialing_status') {
+            throw new \InvalidArgumentException("Excel export is not supported for report [{$type}].");
+        }
+
+        return $this->buildPracticeCredentialingSpreadsheet($filters);
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function streamPracticeCredentialingXlsx(array $filters = []): StreamedResponse
+    {
+        $filename = 'total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx';
+        $contents = $this->buildPracticeCredentialingSpreadsheet($filters);
+
+        return response()->streamDownload(function () use ($contents) {
+            echo $contents;
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function practiceCredentialingExcelPayload(array $filters = []): array
+    {
+        $cases = $this->loadPracticeCredentialingCases($filters);
+        $buckets = $this->buildStatusBuckets($cases);
+        $grouped = $cases->groupBy(fn (CredentialingCase $case) => (int) ($case->practice_id ?? 0));
+
+        $practiceIds = $grouped->keys()
+            ->filter(fn ($id) => (int) $id > 0)
+            ->sortBy(fn ($id) => strtolower((string) ($grouped[$id]->first()?->practice->legal_name ?? '')))
+            ->values();
+
+        $groups = [];
+        foreach ($practiceIds as $index => $practiceId) {
+            /** @var Collection<int, CredentialingCase> $practiceCases */
+            $practiceCases = $grouped[$practiceId];
+            $groups[] = [
+                'practice_id' => (int) $practiceId,
+                'practice_name' => (string) ($practiceCases->first()?->practice->legal_name ?? 'Unknown Practice'),
+                'provider_count' => $practiceCases->pluck('provider_id')->unique()->filter()->count(),
+                'enrollment_count' => $practiceCases->count(),
+                'index' => $index + 1,
+                'rows' => $practiceCases->map(fn (CredentialingCase $case) => $this->mapCaseRow($case))->all(),
+            ];
+        }
+
+        return [
+            'filename' => 'total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx',
+            'generated_at' => now()->timezone('America/New_York')->format('M j, Y g:i A').' ET',
+            'totals' => [
+                'practices' => $practiceIds->count(),
+                'providers' => $cases->pluck('provider_id')->unique()->filter()->count(),
+                'enrollments' => $cases->count(),
+            ],
+            'buckets' => $buckets,
+            'groups' => $groups,
+        ];
+    }
+
+    public function statusBucketFillColor(string $bucket): string
+    {
+        return match ($bucket) {
+            'approved' => '28C76F',
+            'in_progress' => '4C6FFF',
+            'at_payer' => 'FF9F43',
+            'pending_provider' => '9B7BFF',
+            'documents_requested' => 'EA5455',
+            'denied_closed' => 'A8AAAE',
+            default => 'A8AAAE',
+        };
+    }
+
     protected function exportPracticeCredentialingStatus(): StreamedResponse
     {
         $data = $this->practiceCredentialingStatusData();
@@ -151,7 +239,7 @@ class ReportExportService
 
         $groups = [];
         foreach ($pagePracticeIds as $index => $practiceId) {
-            /** @var \Illuminate\Support\Collection<int, CredentialingCase> $practiceCases */
+            /** @var Collection<int, CredentialingCase> $practiceCases */
             $practiceCases = $grouped[$practiceId];
             $providerCount = $practiceCases->pluck('provider_id')->unique()->filter()->count();
             $enrollmentCount = $practiceCases->count();
@@ -225,7 +313,7 @@ class ReportExportService
 
     /**
      * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
-     * @return \Illuminate\Support\Collection<int, CredentialingCase>
+     * @return Collection<int, CredentialingCase>
      */
     protected function loadPracticeCredentialingCases(array $filters = [])
     {
@@ -252,7 +340,7 @@ class ReportExportService
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\CredentialingCase>  $query
+     * @param  Builder<CredentialingCase>  $query
      * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
      */
     protected function applyPracticeCredentialingFilters($query, array $filters): void
@@ -308,7 +396,7 @@ class ReportExportService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, CredentialingCase>  $cases
+     * @param  Collection<int, CredentialingCase>  $cases
      * @return list<array{key: string, label: string, count: int, percent: float, color: string}>
      */
     protected function buildStatusBuckets($cases): array
@@ -375,6 +463,151 @@ class ReportExportService
         };
     }
 
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    protected function buildPracticeCredentialingSpreadsheet(array $filters = []): string
+    {
+        $payload = $this->practiceCredentialingExcelPayload($filters);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Credentialing Report');
+
+        $lastCol = 'I';
+        $sheet->mergeCells("A1:{$lastCol}1");
+        $sheet->setCellValue('A1', 'Total Credentialing Report by Practice');
+        $sheet->getStyle('A1')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => '2F3A6D']],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(24);
+
+        $sheet->mergeCells("A2:{$lastCol}2");
+        $sheet->setCellValue('A2', 'Generated '.$payload['generated_at'].'  |  *All dates are in ET (Eastern Time)');
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['size' => 10, 'color' => ['rgb' => '8A8797']],
+        ]);
+
+        $kpiLabels = [
+            'Total Practices',
+            'Total Providers',
+            'Total Payer Enrollments',
+        ];
+        $kpiValues = [
+            number_format($payload['totals']['practices']),
+            number_format($payload['totals']['providers']),
+            number_format($payload['totals']['enrollments']),
+        ];
+        foreach ($payload['buckets'] as $bucket) {
+            $kpiLabels[] = $bucket['label'];
+            $kpiValues[] = number_format($bucket['count']).' ('.number_format($bucket['percent'], 2).'%)';
+        }
+
+        foreach ($kpiLabels as $index => $label) {
+            $col = chr(ord('A') + $index);
+            $sheet->setCellValue($col.'4', $label);
+            $sheet->setCellValue($col.'5', $kpiValues[$index] ?? '');
+        }
+        $sheet->getStyle("A4:{$lastCol}4")->applyFromArray([
+            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '8A8797']],
+        ]);
+        $sheet->getStyle("A5:{$lastCol}5")->applyFromArray([
+            'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => '2F2B3D']],
+        ]);
+
+        $headers = [
+            'Practice / Provider', 'NPI', 'Payer', 'State', 'Status',
+            'Effective Date', 'Revalidation Due', 'Latest Comment', 'Last Updated',
+        ];
+        $headerRow = 7;
+        $sheet->fromArray($headers, null, "A{$headerRow}");
+        $sheet->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '2F3A6D'],
+            ],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        ]);
+        $sheet->getRowDimension($headerRow)->setRowHeight(22);
+
+        $row = $headerRow + 1;
+        foreach ($payload['groups'] as $group) {
+            $sheet->mergeCells("A{$row}:H{$row}");
+            $sheet->setCellValue("A{$row}", $group['index'].'. '.$group['practice_name']);
+            $sheet->setCellValue("I{$row}", 'Providers: '.$group['provider_count'].' | Payer Enrollments: '.$group['enrollment_count']);
+            $sheet->getStyle("A{$row}:{$lastCol}{$row}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => '2F2B3D']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'F5F5F9'],
+                ],
+            ]);
+            $row++;
+
+            foreach ($group['rows'] as $item) {
+                $sheet->fromArray([[
+                    $item['provider_name'] ?: '—',
+                    $item['npi'] ?: '—',
+                    $item['payer_name'] ?: '—',
+                    $item['state'] ?: '—',
+                    $item['status_name'] ?: '—',
+                    $item['effective_date'] ?: '—',
+                    $item['revalidation_due'] ?: '—',
+                    $item['latest_comment'] ?: '—',
+                    $item['last_updated'] ?: '—',
+                ]], null, "A{$row}");
+
+                $bucket = (string) ($item['status_bucket'] ?? '');
+                $fill = $this->statusBucketFillColor($bucket);
+                $font = in_array($bucket, ['at_payer', 'pending_provider', 'denied_closed'], true) ? '2F2B3D' : 'FFFFFF';
+                $sheet->getStyle("E{$row}")->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => $font]],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $fill],
+                    ],
+                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                ]);
+                $sheet->getStyle("H{$row}")->getAlignment()->setWrapText(true);
+                $row++;
+            }
+        }
+
+        if ($payload['groups'] === []) {
+            $sheet->mergeCells("A{$row}:{$lastCol}{$row}");
+            $sheet->setCellValue("A{$row}", 'No enrollments match the current filters.');
+            $row++;
+        }
+
+        $lastDataRow = max($headerRow, $row - 1);
+        $sheet->setAutoFilter("A{$headerRow}:{$lastCol}{$lastDataRow}");
+        $sheet->freezePane('A8');
+        $sheet->getStyle("A{$headerRow}:{$lastCol}{$lastDataRow}")->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => 'E7E7EF'],
+                ],
+            ],
+        ]);
+
+        foreach (range('A', $lastCol) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        $sheet->getColumnDimension('A')->setWidth(36);
+        $sheet->getColumnDimension('H')->setWidth(42);
+
+        $path = tempnam(sys_get_temp_dir(), 'pcrxlsx');
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($path);
+        $contents = file_get_contents($path) ?: '';
+        @unlink($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return $contents;
+    }
+
     protected function exportOpenApplications(): StreamedResponse
     {
         $cases = CredentialingCase::active()
@@ -383,7 +616,7 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('open_applications_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('open_applications_'.now()->format('Ymd').'.csv', [
             'Case Number', 'Provider', 'NPI', 'Payer', 'Practice', 'State', 'Status',
             'Assigned To', 'Delay Owner', 'Intake Date', 'Next Follow-up',
         ], $cases->map(fn ($case) => [
@@ -409,7 +642,7 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('document_compliance_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('document_compliance_'.now()->format('Ymd').'.csv', [
             'Case Number', 'Provider', 'Payer', 'Required Docs', 'Received', 'Completion %',
         ], $cases->map(function ($case) {
             $checklist = $case->checklist_completion;
@@ -433,7 +666,7 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('case_aging_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('case_aging_'.now()->format('Ymd').'.csv', [
             'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days',
         ], $cases->map(fn ($case) => [
             $case->case_number,
@@ -457,7 +690,7 @@ class ReportExportService
         }
         $documents = $documents->get();
 
-        return $this->streamCsv('expiring_documents_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('expiring_documents_'.now()->format('Ymd').'.csv', [
             'Title', 'Type', 'Provider', 'Case Number', 'Expiry Date', 'State',
         ], $documents->map(fn ($doc) => [
             $doc->title,
@@ -473,7 +706,7 @@ class ReportExportService
     {
         $rows = app(ProductivityDashboardService::class)->executiveMetrics();
 
-        return $this->streamCsv('productivity_by_executive_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('productivity_by_executive_'.now()->format('Ymd').'.csv', [
             'Executive', 'Active Cases', 'Approved', 'Overdue', 'Open Tasks', 'Avg Turnaround Days',
         ], $rows->map(fn ($r) => [
             $r['name'], $r['active_cases'], $r['approved_cases'], $r['overdue_cases'], $r['open_tasks'], $r['avg_turnaround_days'] ?? '',
@@ -484,7 +717,7 @@ class ReportExportService
     {
         $rows = app(ProductivityDashboardService::class)->payerTurnaround();
 
-        return $this->streamCsv('turnaround_by_payer_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('turnaround_by_payer_'.now()->format('Ymd').'.csv', [
             'Payer', 'Approved Count', 'Avg Days',
         ], $rows->map(fn ($r) => [$r['payer'], $r['approved_count'], $r['avg_days']]));
     }
@@ -493,7 +726,7 @@ class ReportExportService
     {
         $cases = app(ProductivityDashboardService::class)->recredentialingUpcoming();
 
-        return $this->streamCsv('recredentialing_upcoming_' . now()->format('Ymd') . '.csv', [
+        return $this->streamCsv('recredentialing_upcoming_'.now()->format('Ymd').'.csv', [
             'Case Number', 'Provider', 'Payer', 'Revalidation Due',
         ], $cases->map(fn ($case) => [
             $case->case_number,
