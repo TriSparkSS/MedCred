@@ -153,7 +153,7 @@ test('scoped admin only sees assigned practices on report', function () {
         ->assertDontSee('Hidden Doc');
 });
 
-test('styled excel download matches html grouping and approved status color', function () {
+test('styled excel download matches sample header group and approved colors', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $practice = makePractice('Excel Style Practice', 'ESP');
     $provider = makeProvider('Excel Style Provider', '5555555555', $practice);
@@ -168,30 +168,41 @@ test('styled excel download matches html grouping and approved status color', fu
         ->call('downloadExcel')
         ->assertFileDownloaded('total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx');
 
-    $contents = app(ReportExportService::class)->xlsxContents('practice_credentialing_status');
+    $export = app(ReportExportService::class);
+    $contents = $export->xlsxContents('practice_credentialing_status');
     expect($contents)->toStartWith('PK');
 
     $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'pcr-style-'.uniqid().'.xlsx';
     file_put_contents($path, $contents);
     $sheet = IOFactory::load($path)->getActiveSheet();
 
-    expect($sheet->getCell('A1')->getValue())->toBe('Total Credentialing Report by Practice');
+    expect($sheet->getTitle())->toBe('Credentialing Report')
+        ->and($sheet->getCell('A1')->getValue())->toBe('Total Credentialing Report by Practice')
+        ->and($sheet->getCell('A1')->getStyle()->getFill()->getStartColor()->getRGB())->toBe($export->excelTitleFillColor())
+        ->and($sheet->getCell('A8')->getValue())->toBe('Practice')
+        ->and($sheet->getCell('A8')->getStyle()->getFill()->getStartColor()->getRGB())->toBe($export->excelTitleFillColor())
+        ->and($sheet->getCell('A5')->getValue())->toBe('Total Cases 1')
+        ->and($sheet->getCell('D5')->getValue())->toBe('Approved 1');
 
     $foundPractice = false;
     $approvedFill = null;
+    $zebraFill = null;
     foreach ($sheet->getRowIterator() as $row) {
         $index = $row->getRowIndex();
         $label = (string) $sheet->getCell('A'.$index)->getValue();
         if (str_contains($label, 'Excel Style Practice')) {
             $foundPractice = true;
+            $zebraFill = $sheet->getCell('A'.$index)->getStyle()->getFill()->getStartColor()->getRGB();
         }
-        if ((string) $sheet->getCell('E'.$index)->getValue() === 'Approved') {
-            $approvedFill = $sheet->getCell('E'.$index)->getStyle()->getFill()->getStartColor()->getRGB();
+        if ((string) $sheet->getCell('H'.$index)->getValue() === 'Approved') {
+            $approvedFill = $sheet->getCell('H'.$index)->getStyle()->getFill()->getStartColor()->getRGB();
         }
     }
 
     expect($foundPractice)->toBeTrue()
-        ->and($approvedFill)->toBe(app(ReportExportService::class)->statusBucketFillColor('approved'));
+        ->and($approvedFill)->toBe('DCFCE7')
+        ->and($approvedFill)->toBe($export->statusBucketFillColor('approved'))
+        ->and(in_array($zebraFill, ['FFFFFF', $export->excelZebraFillColor()], true))->toBeTrue();
 
     @unlink($path);
 });
@@ -217,7 +228,9 @@ test('excel export respects practice filters', function () {
     $sheet = IOFactory::load($path)->getActiveSheet();
     $values = [];
     foreach ($sheet->getRowIterator() as $row) {
-        $values[] = (string) $sheet->getCell('A'.$row->getRowIndex())->getValue();
+        $index = $row->getRowIndex();
+        $values[] = (string) $sheet->getCell('A'.$index)->getValue();
+        $values[] = (string) $sheet->getCell('C'.$index)->getValue();
     }
     $blob = implode("\n", $values);
 

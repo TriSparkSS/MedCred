@@ -10,6 +10,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -188,17 +189,24 @@ class ReportExportService
         ];
     }
 
+    public function excelTitleFillColor(): string
+    {
+        return '163B65';
+    }
+
+    public function excelSubtitleFillColor(): string
+    {
+        return 'EEF4FB';
+    }
+
+    public function excelZebraFillColor(): string
+    {
+        return 'F5F7FA';
+    }
+
     public function statusBucketFillColor(string $bucket): string
     {
-        return match ($bucket) {
-            'approved' => '28C76F',
-            'in_progress' => '4C6FFF',
-            'at_payer' => 'FF9F43',
-            'pending_provider' => '9B7BFF',
-            'documents_requested' => 'EA5455',
-            'denied_closed' => 'A8AAAE',
-            default => 'A8AAAE',
-        };
+        return $this->excelStatusChipStyle('', $bucket)[0];
     }
 
     protected function exportPracticeCredentialingStatus(): StreamedResponse
@@ -466,6 +474,51 @@ class ReportExportService
     /**
      * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
      */
+    /**
+     * @return array{0: string, 1: string} Fill RGB, font RGB
+     */
+    public function excelStatusChipStyle(string $statusName, string $bucket = ''): array
+    {
+        $name = strtolower($statusName);
+
+        if (str_contains($name, 'documents requested')) {
+            return ['FCE7F3', '9D174D'];
+        }
+        if (str_contains($name, 'not started')) {
+            return ['E5E7EB', '4B5563'];
+        }
+        if (str_contains($name, 'on hold')) {
+            return ['FDE68A', '92400E'];
+        }
+        if (str_contains($name, 'ready to file')) {
+            return ['D1FAE5', '065F46'];
+        }
+        if (str_contains($name, 'received') || str_contains($name, 'under review')) {
+            return ['E0E7FF', '3730A3'];
+        }
+        if (str_contains($name, 'rejected') || str_contains($name, 'denied')) {
+            return ['FEE2E2', '991B1B'];
+        }
+        if ($name === 'pending' || str_contains($name, 'at payer')) {
+            return ['FEF3C7', '92400E'];
+        }
+        if (str_contains($name, 'approved')) {
+            return ['DCFCE7', '166534'];
+        }
+
+        return match ($bucket) {
+            'approved' => ['DCFCE7', '166534'],
+            'at_payer' => ['FEF3C7', '92400E'],
+            'pending_provider' => ['E0E7FF', '3730A3'],
+            'documents_requested' => ['FCE7F3', '9D174D'],
+            'denied_closed' => ['FEE2E2', '991B1B'],
+            default => ['DBEAFE', '1D4ED8'],
+        };
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
     protected function buildPracticeCredentialingSpreadsheet(array $filters = []): string
     {
         $payload = $this->practiceCredentialingExcelPayload($filters);
@@ -473,103 +526,136 @@ class ReportExportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Credentialing Report');
 
-        $lastCol = 'I';
-        $sheet->mergeCells("A1:{$lastCol}1");
+        $lastCol = 'L';
+        $navy = $this->excelTitleFillColor();
+        $zebra = $this->excelZebraFillColor();
+        $bodyFont = '1F2937';
+        $fontName = 'Carlito';
+
+        $spreadsheet->getDefaultStyle()->getFont()->setName($fontName)->setSize(9);
+
+        $sheet->mergeCells("A1:{$lastCol}2");
         $sheet->setCellValue('A1', 'Total Credentialing Report by Practice');
-        $sheet->getStyle('A1')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 16, 'color' => ['rgb' => '2F3A6D']],
+        $sheet->getStyle("A1:{$lastCol}2")->applyFromArray([
+            'font' => ['name' => $fontName, 'bold' => true, 'size' => 18, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $navy]],
+            'alignment' => [
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'horizontal' => Alignment::HORIZONTAL_LEFT,
+            ],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(22);
+        $sheet->getRowDimension(2)->setRowHeight(22);
+
+        $sheet->mergeCells("A3:{$lastCol}3");
+        $sheet->setCellValue('A3', 'Credentialing activity report | Generated '.$payload['generated_at']);
+        $sheet->getStyle('A3')->applyFromArray([
+            'font' => ['name' => $fontName, 'bold' => false, 'size' => 10, 'color' => ['rgb' => '6B7280']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $this->excelSubtitleFillColor()]],
             'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
         ]);
-        $sheet->getRowDimension(1)->setRowHeight(24);
+        $sheet->getRowDimension(3)->setRowHeight(20);
+        $sheet->getRowDimension(4)->setRowHeight(8);
 
-        $sheet->mergeCells("A2:{$lastCol}2");
-        $sheet->setCellValue('A2', 'Generated '.$payload['generated_at'].'  |  *All dates are in ET (Eastern Time)');
-        $sheet->getStyle('A2')->applyFromArray([
-            'font' => ['size' => 10, 'color' => ['rgb' => '8A8797']],
-        ]);
-
-        $kpiLabels = [
-            'Total Practices',
-            'Total Providers',
-            'Total Payer Enrollments',
-        ];
-        $kpiValues = [
-            number_format($payload['totals']['practices']),
-            number_format($payload['totals']['providers']),
-            number_format($payload['totals']['enrollments']),
-        ];
+        $approvedCount = 0;
+        $rejectedCount = 0;
         foreach ($payload['buckets'] as $bucket) {
-            $kpiLabels[] = $bucket['label'];
-            $kpiValues[] = number_format($bucket['count']).' ('.number_format($bucket['percent'], 2).'%)';
+            if ($bucket['key'] === 'approved') {
+                $approvedCount = (int) $bucket['count'];
+            }
+            if ($bucket['key'] === 'denied_closed') {
+                $rejectedCount = (int) $bucket['count'];
+            }
         }
+        $totalCases = (int) $payload['totals']['enrollments'];
+        $openCount = max(0, $totalCases - $approvedCount - $rejectedCount);
 
-        foreach ($kpiLabels as $index => $label) {
-            $col = chr(ord('A') + $index);
-            $sheet->setCellValue($col.'4', $label);
-            $sheet->setCellValue($col.'5', $kpiValues[$index] ?? '');
+        $kpis = [
+            ['range' => 'A5:C6', 'cell' => 'A5', 'label' => 'Total Cases '.$totalCases],
+            ['range' => 'D5:F6', 'cell' => 'D5', 'label' => 'Approved '.$approvedCount],
+            ['range' => 'G5:I6', 'cell' => 'G5', 'label' => 'Open / In Progress '.$openCount],
+            ['range' => 'J5:L6', 'cell' => 'J5', 'label' => 'Rejected '.$rejectedCount],
+        ];
+        $kpiBorder = [
+            'borders' => [
+                'outline' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => 'E5E7EB'],
+                ],
+            ],
+            'font' => ['name' => $fontName, 'bold' => true, 'size' => 12, 'color' => ['rgb' => $bodyFont]],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFFFFF']],
+            'alignment' => [
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'horizontal' => Alignment::HORIZONTAL_LEFT,
+            ],
+        ];
+        foreach ($kpis as $kpi) {
+            $sheet->mergeCells($kpi['range']);
+            $sheet->setCellValue($kpi['cell'], $kpi['label']);
+            $sheet->getStyle($kpi['range'])->applyFromArray($kpiBorder);
         }
-        $sheet->getStyle("A4:{$lastCol}4")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '8A8797']],
-        ]);
-        $sheet->getStyle("A5:{$lastCol}5")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => '2F2B3D']],
-        ]);
+        $sheet->getRowDimension(5)->setRowHeight(18);
+        $sheet->getRowDimension(6)->setRowHeight(18);
+        $sheet->getRowDimension(7)->setRowHeight(10);
 
         $headers = [
-            'Practice / Provider', 'NPI', 'Payer', 'State', 'Status',
-            'Effective Date', 'Revalidation Due', 'Latest Comment', 'Last Updated',
+            'Practice', 'Client Code', 'Provider', 'NPI', 'Case Number',
+            'Payer', 'State', 'Credentialing Status', 'Effective Date', 'Revalidation Due',
+            'Latest Comment', 'Last Updated',
         ];
-        $headerRow = 7;
+        $headerRow = 8;
         $sheet->fromArray($headers, null, "A{$headerRow}");
         $sheet->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->applyFromArray([
-            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '2F3A6D'],
-            ],
+            'font' => ['name' => $fontName, 'bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 9],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $navy]],
             'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
         ]);
-        $sheet->getRowDimension($headerRow)->setRowHeight(22);
+        $sheet->getRowDimension($headerRow)->setRowHeight(33.95);
 
         $row = $headerRow + 1;
+        $dataIndex = 0;
         foreach ($payload['groups'] as $group) {
-            $sheet->mergeCells("A{$row}:H{$row}");
-            $sheet->setCellValue("A{$row}", $group['index'].'. '.$group['practice_name']);
-            $sheet->setCellValue("I{$row}", 'Providers: '.$group['provider_count'].' | Payer Enrollments: '.$group['enrollment_count']);
-            $sheet->getStyle("A{$row}:{$lastCol}{$row}")->applyFromArray([
-                'font' => ['bold' => true, 'color' => ['rgb' => '2F2B3D']],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'F5F5F9'],
-                ],
-            ]);
-            $row++;
-
             foreach ($group['rows'] as $item) {
                 $sheet->fromArray([[
-                    $item['provider_name'] ?: '—',
-                    $item['npi'] ?: '—',
-                    $item['payer_name'] ?: '—',
-                    $item['state'] ?: '—',
-                    $item['status_name'] ?: '—',
-                    $item['effective_date'] ?: '—',
-                    $item['revalidation_due'] ?: '—',
-                    $item['latest_comment'] ?: '—',
-                    $item['last_updated'] ?: '—',
+                    $item['practice_name'] ?? '',
+                    $item['client_code'] ?? '',
+                    $item['provider_name'] ?? '',
+                    $item['npi'] ?? '',
+                    $item['case_number'] ?? '',
+                    $item['payer_name'] ?? '',
+                    $item['state'] ?? '',
+                    $item['status_name'] ?? '',
+                    $item['effective_date'] ?? '',
+                    $item['revalidation_due'] ?? '',
+                    $item['latest_comment'] ?? '',
+                    $item['last_updated'] ?? '',
                 ]], null, "A{$row}");
 
-                $bucket = (string) ($item['status_bucket'] ?? '');
-                $fill = $this->statusBucketFillColor($bucket);
-                $font = in_array($bucket, ['at_payer', 'pending_provider', 'denied_closed'], true) ? '2F2B3D' : 'FFFFFF';
-                $sheet->getStyle("E{$row}")->applyFromArray([
-                    'font' => ['bold' => true, 'color' => ['rgb' => $font]],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => $fill],
-                    ],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                $isZebra = $dataIndex % 2 === 1;
+                $rowFill = $isZebra ? $zebra : 'FFFFFF';
+                $sheet->getStyle("A{$row}:{$lastCol}{$row}")->applyFromArray([
+                    'font' => ['name' => $fontName, 'size' => 9, 'color' => ['rgb' => $bodyFont]],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $rowFill]],
+                    'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
                 ]);
-                $sheet->getStyle("H{$row}")->getAlignment()->setWrapText(true);
+
+                [$chipFill, $chipFont] = $this->excelStatusChipStyle(
+                    (string) ($item['status_name'] ?? ''),
+                    (string) ($item['status_bucket'] ?? ''),
+                );
+                $sheet->getStyle("H{$row}")->applyFromArray([
+                    'font' => ['name' => $fontName, 'bold' => true, 'size' => 8, 'color' => ['rgb' => $chipFont]],
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $chipFill]],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                        'wrapText' => true,
+                    ],
+                ]);
+
+                $sheet->getRowDimension($row)->setRowHeight(33.95);
+                $dataIndex++;
                 $row++;
             }
         }
@@ -577,26 +663,26 @@ class ReportExportService
         if ($payload['groups'] === []) {
             $sheet->mergeCells("A{$row}:{$lastCol}{$row}");
             $sheet->setCellValue("A{$row}", 'No enrollments match the current filters.');
+            $sheet->getStyle("A{$row}")->applyFromArray([
+                'font' => ['name' => $fontName, 'size' => 10, 'color' => ['rgb' => '6B7280']],
+            ]);
             $row++;
         }
 
         $lastDataRow = max($headerRow, $row - 1);
         $sheet->setAutoFilter("A{$headerRow}:{$lastCol}{$lastDataRow}");
-        $sheet->freezePane('A8');
-        $sheet->getStyle("A{$headerRow}:{$lastCol}{$lastDataRow}")->applyFromArray([
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => Border::BORDER_THIN,
-                    'color' => ['rgb' => 'E7E7EF'],
-                ],
-            ],
-        ]);
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+        $sheet->getPageSetup()->setFitToPage(true);
+        $sheet->getPageSetup()->setFitToWidth(1);
+        $sheet->getPageSetup()->setFitToHeight(0);
 
-        foreach (range('A', $lastCol) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        $widths = [
+            'A' => 24, 'B' => 12, 'C' => 20, 'D' => 14, 'E' => 18, 'F' => 28,
+            'G' => 9, 'H' => 24, 'I' => 14, 'J' => 16, 'K' => 42, 'L' => 21,
+        ];
+        foreach ($widths as $col => $width) {
+            $sheet->getColumnDimension($col)->setWidth($width);
         }
-        $sheet->getColumnDimension('A')->setWidth(36);
-        $sheet->getColumnDimension('H')->setWidth(42);
 
         $path = tempnam(sys_get_temp_dir(), 'pcrxlsx');
         $writer = new Xlsx($spreadsheet);
