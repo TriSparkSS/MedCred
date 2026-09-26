@@ -185,7 +185,7 @@ class CredentialDetailsPage extends Component
         flash()->success($this->case->is_escalated ? 'Case escalated.' : 'Escalation removed.');
     }
 
-    public function createFollowUpTask(TaskService $taskService): void
+    public function createFollowUpTask(TaskService $taskService, bool $syncCaseFollowUp = false): void
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
 
@@ -211,7 +211,7 @@ class CredentialDetailsPage extends Component
                 'task_type' => 'follow_up',
                 'occurrences' => $occurrences,
                 'interval_days' => $intervalDays,
-                'sync_case_follow_up' => false,
+                'sync_case_follow_up' => $syncCaseFollowUp,
             ],
             Auth::guard('admin')->id()
         );
@@ -222,6 +222,19 @@ class CredentialDetailsPage extends Component
         $this->newTaskOccurrences = 3;
         $this->newTaskIntervalDays = 7;
         flash()->success($count === 1 ? 'Follow-up task created.' : "Created {$count} follow-up tasks.");
+        $this->case->refresh();
+    }
+
+    public function createFollowUpFromDetails(TaskService $taskService): void
+    {
+        if (trim((string) $this->newTaskTitle) === '') {
+            $this->newTaskTitle = 'Follow-up for '.$this->case->case_number;
+        }
+
+        $wasRepeating = $this->newTaskRepeat;
+        $this->newTaskRepeat = false;
+        $this->createFollowUpTask($taskService, true);
+        $this->newTaskRepeat = $wasRepeating;
     }
 
     public function completeTask(int $taskId, TaskService $taskService): void

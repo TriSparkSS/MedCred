@@ -4,6 +4,7 @@ use App\Livewire\Admin\Provider\ProviderCreatePage;
 use App\Livewire\Admin\Provider\ProviderDetailsPage;
 use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Models\Admin;
+use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\User;
 use Database\Seeders\AdminPermissionSeeder;
@@ -24,6 +25,17 @@ beforeEach(function () {
 
 test('creating a provider stores malpractice coverage amounts and effective date', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = Practice::create([
+        'legal_name' => 'Coverage Clinic',
+        'client_code' => 'CVC',
+        'email' => 'coverage-clinic@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Coverage Clinic User',
+            'email' => 'coverage-clinic-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderCreatePage::class)
@@ -31,6 +43,7 @@ test('creating a provider stores malpractice coverage amounts and effective date
         ->set('userData.email', 'coverage@example.com')
         ->set('userData.password', 'secret123')
         ->set('formData.npi', '1999999999')
+        ->set('practiceId', (string) $practice->id)
         ->set('formData.practice', 'Coverage Clinic')
         ->set('formData.address', '1 Main St')
         ->set('formData.city', 'Austin')

@@ -196,16 +196,25 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Mailing Address
                     </h6>
-                    <p class="text-muted small mb-0">Mailing address. Link practice locations after the provider is created.</p>
+                    <p class="text-muted small mb-0">Select an existing practice. Mailing address fills in automatically when that practice already has an address on file.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-12">
-                        <label class="form-label fw-medium">Practice Name <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.practice"
-                            class="form-control @error('formData.practice') is-invalid @enderror"
-                            placeholder="Associated practice or clinic name">
-                        @error('formData.practice')
+                        <label class="form-label fw-medium">Practice <span class="text-danger">*</span></label>
+                        <select wire:model.live="practiceId"
+                            class="form-select @error('practiceId') is-invalid @enderror">
+                            <option value="">Select an existing practice...</option>
+                            @foreach ($practices as $practice)
+                                <option value="{{ $practice->id }}">
+                                    {{ $practice->legal_name }}@if($practice->client_code) ({{ $practice->client_code }})@endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('practiceId')
                             <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        @error('formData.practice')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
                         @enderror
                     </div>
 

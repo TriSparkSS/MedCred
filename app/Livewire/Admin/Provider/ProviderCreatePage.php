@@ -4,9 +4,11 @@ namespace App\Livewire\Admin\Provider;
 
 use App\Enums\ProviderCredentialType;
 use App\Livewire\Concerns\LooksUpUsZip;
+use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
+use App\Services\AdminScopeService;
 use App\Services\ProviderCredentialService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +36,8 @@ class ProviderCreatePage extends Component
     public $npiDuplicateWarning = '';
 
     public array $credentialRows = [];
+
+    public string $practiceId = '';
 
     protected function rules(): array
     {
@@ -65,6 +69,7 @@ class ProviderCreatePage extends Component
             'credentialRows.*.state' => 'nullable|string|max:2',
             'credentialRows.*.number' => 'nullable|string|max:50',
             'credentialRows.*.expiry_date' => 'nullable|date',
+            'practiceId' => 'required|exists:practices,id',
             'formData.practice' => 'required|string|max:255',
             'formData.address' => 'required|string|max:500',
             'formData.city' => 'required|string|max:100',
@@ -94,6 +99,11 @@ class ProviderCreatePage extends Component
         }
     }
 
+    public function updatedPracticeId($value): void
+    {
+        $this->fillAddressFromPractice($value);
+    }
+
     public function updatedFormDataNpi($value): void
     {
         if ($value && ProviderDetails::where('npi', $value)->exists()) {
@@ -114,6 +124,7 @@ class ProviderCreatePage extends Component
         }
 
         $this->validate($rules);
+        $this->assertPracticeInScope((int) $this->practiceId);
 
         $password = $canManagePortalCredentials && filled($this->userData['password'])
             ? $this->userData['password']
@@ -133,8 +144,13 @@ class ProviderCreatePage extends Component
         }
 
         $providerData = $this->formData;
+        unset($providerData['practice_id']);
         $providerData['user_id'] = $user->id;
         $provider = ProviderDetails::create($this->normalizeMalpracticeFields($providerData));
+
+        $provider->practices()->syncWithoutDetaching([
+            (int) $this->practiceId => ['primary_flag' => true],
+        ]);
 
         $this->persistCredentialRows($provider);
 
@@ -182,6 +198,50 @@ class ProviderCreatePage extends Component
         }
     }
 
+    protected function fillAddressFromPractice(mixed $practiceId): void
+    {
+        if (! $practiceId) {
+            return;
+        }
+
+        $practice = Practice::query()
+            ->with(['mailingAddress', 'primaryAddress', 'primaryLocation'])
+            ->find($practiceId);
+
+        if (! $practice) {
+            return;
+        }
+
+        $this->formData['practice'] = $practice->legal_name;
+
+        $address = $practice->mailingAddress ?? $practice->primaryAddress;
+        $location = $practice->primaryLocation;
+
+        if ($address && filled($address->address1)) {
+            $this->formData['address'] = trim($address->address1.($address->address2 ? ', '.$address->address2 : ''));
+            $this->formData['city'] = (string) ($address->city ?? '');
+            $this->formData['state'] = UsStates::normalize($address->state) ?? (string) ($address->state ?? '');
+            $this->formData['zip'] = (string) ($address->zip_code ?? '');
+
+            return;
+        }
+
+        if ($location) {
+            $this->formData['address'] = trim($location->address1.($location->address2 ? ', '.$location->address2 : ''));
+            $this->formData['city'] = (string) ($location->city ?? '');
+            $this->formData['state'] = UsStates::normalize($location->state) ?? (string) ($location->state ?? '');
+            $this->formData['zip'] = (string) ($location->zip_code ?? '');
+        }
+    }
+
+    protected function assertPracticeInScope(int $practiceId): void
+    {
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, $practiceId)) {
+            abort(403);
+        }
+    }
+
     protected function emptyCredentialRow(bool $primary): array
     {
         return [
@@ -193,12 +253,17 @@ class ProviderCreatePage extends Component
         ];
     }
 
-    public function render()
+    public function render(AdminScopeService $scope)
     {
-        $users = User::whereDoesntHave('providerDetails')->get();
+        $admin = Auth::guard('admin')->user();
+        $practiceQuery = Practice::query()->orderBy('legal_name');
+        if ($admin) {
+            $scope->scopePractices($practiceQuery, $admin);
+        }
 
         return view('livewire.admin.provider.provider-create-page', [
-            'users' => $users,
+            'users' => User::whereDoesntHave('providerDetails')->get(),
+            'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'states' => UsStates::all(),
             'credentialTypes' => ProviderCredentialType::cases(),
         ]);

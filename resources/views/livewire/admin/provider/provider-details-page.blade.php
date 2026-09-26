@@ -290,7 +290,7 @@
     @endif
 
     {{-- 2. Practice IDs --}}
-    @if ($activeTab === 'practice_ids')
+    <div class="{{ $activeTab === 'practice_ids' ? '' : 'd-none' }}">
         <div class="row g-4">
             <div class="col-12">
                 <livewire:admin.provider.provider-locations-section :provider-id="$provider->id" :key="'ppl-'.$provider->id" />
@@ -373,10 +373,10 @@
                 </div>
             </div>
         </div>
-    @endif
+    </div>
 
     {{-- 3. Licenses --}}
-    @if ($activeTab === 'licenses')
+    <div class="{{ $activeTab === 'licenses' ? '' : 'd-none' }}">
         <div class="row g-4">
             <div class="col-12">
                 <livewire:admin.provider.provider-credentials-section :provider-id="$provider->id" :key="'creds-'.$provider->id" />
@@ -423,13 +423,20 @@
                     </div>
                 </div>
             </div>
+            <div class="col-lg-6">
+                <livewire:admin.documents.entity-documents-section
+                    :provider-id="$provider->id"
+                    locked-type-name="Malpractice Insurance"
+                    heading="Malpractice Documents"
+                    :key="'malpractice-docs-'.$provider->id" />
+            </div>
         </div>
-    @endif
+    </div>
 
     {{-- 4. Documents --}}
-    @if ($activeTab === 'documents')
+    <div class="{{ $activeTab === 'documents' ? '' : 'd-none' }}">
         <livewire:admin.documents.entity-documents-section :provider-id="$provider->id" :key="'provider-docs-'.$provider->id" />
-    @endif
+    </div>
 
     {{-- 5. Payer Applications --}}
     @if ($activeTab === 'payer_applications')

@@ -96,10 +96,54 @@
                         @endif
 
                         @if ($canEditCredentials)
-                        <h6 class="fw-semibold mb-3 mt-4">Add Note</h6>
+                        <h6 class="fw-semibold mb-3 mt-4">Notes</h6>
                         <textarea wire:model="newNote" rows="3" class="form-control mb-2" placeholder="Log a call, follow-up, or note..."></textarea>
                         @error('newNote')<div class="text-danger small">{{ $message }}</div>@enderror
-                        <button type="button" wire:click="addNote" class="btn btn-sm btn-outline-primary">Add Note</button>
+                        <button type="button" wire:click="addNote" class="btn btn-sm btn-outline-primary mb-3">Add Note</button>
+                        @endif
+
+                        @php
+                            $detailNotes = $case->activities
+                                ->where('activity_type', 'note')
+                                ->sortByDesc('id')
+                                ->values();
+                        @endphp
+                        <div class="border rounded p-3 mb-3" style="max-height: 240px; overflow-y: auto;">
+                            @forelse ($detailNotes as $activity)
+                                <div class="mb-2 pb-2 {{ ! $loop->last ? 'border-bottom' : '' }} small">
+                                    <div class="text-muted">
+                                        {{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}
+                                        · {{ $activity->created_at?->format('m/d/Y g:i A') }}
+                                    </div>
+                                    <div>{{ $activity->summary }}</div>
+                                </div>
+                            @empty
+                                <p class="text-muted small mb-0">No notes yet. Notes added here also appear on the Timeline tab.</p>
+                            @endforelse
+                        </div>
+
+                        @if ($canManageTasks)
+                        <h6 class="fw-semibold mb-3">Create follow-up</h6>
+                        <p class="small text-muted mb-2">Sets the case follow-up date and creates a follow-up task.</p>
+                        <input type="text" wire:model="newTaskTitle" class="form-control form-control-sm mb-2" placeholder="Follow-up title (optional)">
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small mb-1">Follow-up date</label>
+                                <input type="date" wire:model="newTaskDueDate" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small mb-1">Assign to</label>
+                                <select wire:model="newTaskAssigneeId" class="form-select form-select-sm">
+                                    <option value="">Unassigned</option>
+                                    @foreach ($admins as $admin)
+                                        <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" wire:click="createFollowUpFromDetails" class="btn btn-sm btn-primary">
+                            <i class="ti tabler-calendar-plus me-1"></i>Create follow-up
+                        </button>
                         @endif
                     </div>
                 </div>

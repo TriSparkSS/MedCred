@@ -20,6 +20,10 @@ class EntityDocumentsSection extends Component
 
     public ?int $practiceId = null;
 
+    public ?string $lockedTypeName = null;
+
+    public ?string $heading = null;
+
     public bool $canUpload = false;
 
     public bool $canVerify = false;
@@ -180,12 +184,25 @@ class EntityDocumentsSection extends Component
         return $query->findOrFail($id);
     }
 
+    private function lockedType(): ?DocumentType
+    {
+        if (! filled($this->lockedTypeName)) {
+            return null;
+        }
+
+        return DocumentType::query()
+            ->where('name', $this->lockedTypeName)
+            ->first();
+    }
+
     private function resetForm(): void
     {
         $this->formData = [
             'provider_id' => $this->providerId,
             'practice_id' => $this->practiceId,
             'sync_credential' => (bool) $this->providerId,
+            'document_type_id' => $this->lockedType()?->id,
+            'title' => $this->lockedTypeName ?: '',
         ];
         $this->uploadFile = null;
         $this->resetValidation();
@@ -201,13 +218,18 @@ class EntityDocumentsSection extends Component
             $query->where('practice_id', $this->practiceId);
         }
 
+        $lockedType = $this->lockedType();
+        if ($lockedType) {
+            $query->where('document_type_id', $lockedType->id);
+        }
+
         $typesQuery = DocumentType::where('is_active', true)->orderBy('name');
         if (! $this->providerId) {
             $typesQuery->where('is_state_specific', false);
         }
 
         $legacy = null;
-        if ($this->practiceId) {
+        if ($this->practiceId && ! $lockedType) {
             $practice = Practice::find($this->practiceId);
             if ($practice?->document_path) {
                 $legacy = [
@@ -221,14 +243,22 @@ class EntityDocumentsSection extends Component
             ? ['provider' => $this->providerId]
             : ['practice' => $this->practiceId];
 
+        $heading = $this->heading
+            ?: (($this->providerId ? 'Provider' : 'Practice').' Documents');
+
         return view('livewire.admin.documents.partials.entity-documents-section', [
             'documents' => $query->latest()->get(),
             'documentTypes' => $typesQuery->get(),
             'states' => UsStates::all(),
-            'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? null),
+            'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? $lockedType?->id),
             'legacy' => $legacy,
             'hubUrl' => route('admin.documents', $hubParams),
             'isProvider' => (bool) $this->providerId,
+            'heading' => $heading,
+            'typeIsLocked' => (bool) $lockedType,
+            'viewAllTabUrl' => $this->providerId
+                ? route('admin.providers.show', ['provider' => $this->providerId, 'tab' => 'documents'])
+                : null,
         ]);
     }
 }

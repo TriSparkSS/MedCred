@@ -151,11 +151,33 @@
         </div>
 
         {{-- Applications Table --}}
-        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate,toggleEscalation">
+        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate,toggleEscalation,bulkAssignSelected">
+            @if ($canAssignCredentials)
+                <div class="card-body border-bottom py-3 d-flex flex-wrap align-items-center gap-2">
+                    <span class="small text-muted me-1">{{ count($selectedCaseIds) }} selected</span>
+                    <select wire:model="bulkAssigneeId" class="form-select form-select-sm" style="width: auto; min-width: 180px;">
+                        <option value="">Unassigned</option>
+                        @foreach ($admins as $admin)
+                            <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" wire:click="bulkAssignSelected" class="btn btn-sm btn-primary" @disabled(count($selectedCaseIds) === 0)>
+                        Assign selected
+                    </button>
+                </div>
+            @endif
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
+                            @if ($canAssignCredentials)
+                                @php $pageCaseIds = $cases->pluck('id')->map(fn ($id) => (string) $id)->all(); @endphp
+                                <th style="width: 36px;">
+                                    <input type="checkbox" class="form-check-input"
+                                        wire:click="toggleSelectPage(@js($pageCaseIds))"
+                                        @checked(count($pageCaseIds) && collect($pageCaseIds)->every(fn ($id) => in_array($id, $selectedCaseIds, true)))>
+                                </th>
+                            @endif
                             <th>Case #</th>
                             <th>Provider</th>
                             <th>Payer</th>
@@ -174,6 +196,11 @@
                                 $isOverdue = $case->isOverdue();
                             @endphp
                             <tr wire:key="case-row-{{ $case->id }}-{{ $case->is_escalated ? 'esc' : 'normal' }}" class="{{ $case->is_escalated ? 'table-danger' : ($isOverdue ? 'table-warning' : '') }}">
+                                @if ($canAssignCredentials)
+                                    <td>
+                                        <input type="checkbox" class="form-check-input" value="{{ $case->id }}" wire:model.live="selectedCaseIds">
+                                    </td>
+                                @endif
                                 <td>
                                     <span class="fw-semibold">{{ $case->case_number }}</span>
                                     @if($case->is_escalated)<span class="badge bg-danger ms-1">Escalated</span>@endif
@@ -263,7 +290,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center py-5 text-muted">
+                                <td colspan="{{ $canAssignCredentials ? 11 : 10 }}" class="text-center py-5 text-muted">
                                     <i class="ti tabler-clipboard-off d-block mb-2" style="font-size:2rem"></i>
                                     No applications found. Create applications from a Practice or Provider detail page.
                                 </td>

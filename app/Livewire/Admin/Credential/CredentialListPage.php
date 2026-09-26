@@ -2,8 +2,12 @@
 
 namespace App\Livewire\Admin\Credential;
 
+use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
+use App\Models\Payer;
+use App\Models\Practice;
+use App\Models\ProviderDetails;
 use App\Models\Status;
 use App\Services\AdminScopeService;
 use App\Services\CredentialingCaseService;
@@ -48,6 +52,11 @@ class CredentialListPage extends Component
     #[Url(as: 'recent', history: true)]
     public bool $filterRecentlySubmitted = false;
 
+    /** @var list<string> */
+    public array $selectedCaseIds = [];
+
+    public string $bulkAssigneeId = '';
+
     public function updated($propertyName): void
     {
         if (in_array($propertyName, [
@@ -57,6 +66,7 @@ class CredentialListPage extends Component
             if ($propertyName === 'filterPracticeId') {
                 $this->filterProviderId = '';
             }
+            $this->selectedCaseIds = [];
             $this->resetPage();
         }
     }
@@ -73,6 +83,7 @@ class CredentialListPage extends Component
         $this->filterState = '';
         $this->filterRevalidation = '';
         $this->filterRecentlySubmitted = false;
+        $this->selectedCaseIds = [];
         $this->resetPage();
     }
 
@@ -143,6 +154,48 @@ class CredentialListPage extends Component
             Auth::guard('admin')->id()
         );
         flash()->success($case->is_escalated ? 'Case escalated.' : 'Escalation removed.');
+    }
+
+    public function toggleSelectPage(array $ids): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        $allSelected = $ids !== [] && collect($ids)->every(fn ($id) => in_array($id, $this->selectedCaseIds, true));
+
+        if ($allSelected) {
+            $this->selectedCaseIds = array_values(array_diff($this->selectedCaseIds, $ids));
+
+            return;
+        }
+
+        $this->selectedCaseIds = array_values(array_unique(array_merge($this->selectedCaseIds, $ids)));
+    }
+
+    public function bulkAssignSelected(): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.credentials.assign'), 403);
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $this->selectedCaseIds))));
+
+        if ($ids === []) {
+            flash()->error('Select at least one case to assign.');
+
+            return;
+        }
+
+        $assigneeId = $this->bulkAssigneeId !== '' ? (int) $this->bulkAssigneeId : null;
+        $service = app(CredentialingCaseService::class);
+        $updated = 0;
+
+        foreach (CredentialingCase::query()->whereIn('id', $ids)->get() as $case) {
+            $this->authorizeCaseScope($case);
+            $service->updateInline($case, ['assigned_admin_id' => $assigneeId], $admin->id);
+            $updated++;
+        }
+
+        $this->selectedCaseIds = [];
+        $this->bulkAssigneeId = '';
+        flash()->success($updated === 1 ? 'Assigned 1 case.' : "Assigned {$updated} cases.");
     }
 
     protected function authorizeCaseScope(CredentialingCase $case): void
@@ -244,21 +297,21 @@ class CredentialListPage extends Component
         ];
 
         $statuses = Status::where('is_active', true)->orderBy('sort_order')->get();
-        $payers = \App\Models\Payer::where('is_active', true)->orderBy('name')->get(['id', 'name']);
-        $practiceQuery = \App\Models\Practice::orderBy('legal_name');
+        $payers = Payer::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $practiceQuery = Practice::orderBy('legal_name');
         if ($admin) {
             $scope->scopePractices($practiceQuery, $admin);
         }
         $practices = $practiceQuery->get(['id', 'legal_name', 'client_code']);
         $providers = $this->filterPracticeId
-            ? \App\Models\ProviderDetails::query()
+            ? ProviderDetails::query()
                 ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId))
                 ->with('user:id,name')
                 ->get()
             : collect();
 
         $delayOwners = DelayOwner::where('is_active', true)->orderBy('name')->get();
-        $admins = \App\Models\Admin::assignable()->get(['id', 'name', 'username']);
+        $admins = Admin::assignable()->get(['id', 'name', 'username']);
 
         return view('livewire.admin.credential.credential-list-page', compact(
             'cases', 'stats', 'statuses', 'payers', 'practices', 'providers', 'delayOwners', 'admins'

@@ -8,7 +8,9 @@
             <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-primary">
                 <i class="ti tabler-plus me-1"></i>Add Credential
             </button>
-        @endif
+            @else
+            <small class="text-muted">You can view credentials but do not have permission to edit them.</small>
+            @endif
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -66,8 +68,8 @@
                         </td>
                         @if ($canEdit)
                             <td class="text-end">
-                                <button type="button" wire:click="openEditModal({{ $credential->id }})" class="btn btn-sm btn-outline-primary" title="Edit">
-                                    <i class="ti tabler-edit"></i>
+                                <button type="button" wire:click="openEditModal({{ $credential->id }})" class="btn btn-sm btn-outline-primary">
+                                    <i class="ti tabler-edit me-1"></i>Edit
                                 </button>
                                 <button type="button" wire:click="delete({{ $credential->id }})" class="btn btn-sm btn-outline-danger" title="Remove">
                                     <i class="ti tabler-trash"></i>

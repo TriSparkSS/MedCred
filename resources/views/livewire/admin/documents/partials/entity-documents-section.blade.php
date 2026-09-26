@@ -29,10 +29,21 @@
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
         <div>
-            <h6 class="mb-0 fw-semibold">{{ $ownerLabel }} Documents</h6>
-            <small class="text-muted">View and upload files. These records also appear in the Document Hub.</small>
+            <h6 class="mb-0 fw-semibold">{{ $heading }}</h6>
+            <small class="text-muted">
+                @if ($typeIsLocked)
+                    Upload malpractice insurance files for this provider.
+                @else
+                    View and upload files. These records also appear in the Document Hub.
+                @endif
+            </small>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            @if ($typeIsLocked && $viewAllTabUrl)
+                <a href="{{ $viewAllTabUrl }}" class="btn btn-sm btn-outline-secondary">
+                    View all documents
+                </a>
+            @endif
             @if (auth('admin')->user()?->can('admin.documents.view'))
                 <a href="{{ $hubUrl }}" class="btn btn-sm btn-outline-secondary">
                     <i class="ti tabler-external-link me-1"></i>Open in Document Hub
@@ -177,12 +188,16 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Document Type</label>
-                                <select wire:model.live="formData.document_type_id" class="form-select">
-                                    <option value="">Select type...</option>
-                                    @foreach ($documentTypes as $type)
-                                        <option value="{{ $type->id }}">{{ $type->name }}{{ $type->is_state_specific ? ' (state-specific)' : '' }}</option>
-                                    @endforeach
-                                </select>
+                                @if ($typeIsLocked)
+                                    <input type="text" class="form-control" value="{{ $selectedType?->name ?? $lockedTypeName }}" readonly>
+                                @else
+                                    <select wire:model.live="formData.document_type_id" class="form-select">
+                                        <option value="">Select type...</option>
+                                        @foreach ($documentTypes as $type)
+                                            <option value="{{ $type->id }}">{{ $type->name }}{{ $type->is_state_specific ? ' (state-specific)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Effective Date</label>
