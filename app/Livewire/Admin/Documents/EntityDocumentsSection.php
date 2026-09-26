@@ -24,6 +24,8 @@ class EntityDocumentsSection extends Component
 
     public ?string $heading = null;
 
+    public bool $showProfileLink = true;
+
     public bool $canUpload = false;
 
     public bool $canVerify = false;
@@ -256,8 +258,10 @@ class EntityDocumentsSection extends Component
             'isProvider' => (bool) $this->providerId,
             'heading' => $heading,
             'typeIsLocked' => (bool) $lockedType,
-            'viewAllTabUrl' => $this->providerId
-                ? route('admin.providers.show', ['provider' => $this->providerId, 'tab' => 'documents'])
+            'viewAllTabUrl' => $this->showProfileLink
+                ? ($this->providerId
+                    ? route('admin.providers.show', ['provider' => $this->providerId, 'tab' => 'documents'])
+                    : route('admin.practices.show', ['practice' => $this->practiceId, 'tab' => 'documents']))
                 : null,
         ]);
     }

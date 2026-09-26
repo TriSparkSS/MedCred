@@ -488,8 +488,12 @@
         @endif
 
         {{-- Documents Tab --}}
-        @if ($activeTab === 'documents')
-            <livewire:admin.documents.entity-documents-section :practice-id="$practice->id" :key="'practice-docs-'.$practice->id" />
-        @endif
+        <div class="{{ $activeTab === 'documents' ? '' : 'd-none' }}">
+            <livewire:admin.documents.entity-documents-section
+                :practice-id="$practice->id"
+                heading="Practice Documents"
+                :show-profile-link="false"
+                :key="'practice-docs-'.$practice->id" />
+        </div>
     </div>
 </div>

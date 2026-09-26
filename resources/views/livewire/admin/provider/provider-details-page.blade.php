@@ -435,7 +435,11 @@
 
     {{-- 4. Documents --}}
     <div class="{{ $activeTab === 'documents' ? '' : 'd-none' }}">
-        <livewire:admin.documents.entity-documents-section :provider-id="$provider->id" :key="'provider-docs-'.$provider->id" />
+        <livewire:admin.documents.entity-documents-section
+            :provider-id="$provider->id"
+            heading="Provider Documents"
+            :show-profile-link="false"
+            :key="'provider-docs-'.$provider->id" />
     </div>
 
     {{-- 5. Payer Applications --}}

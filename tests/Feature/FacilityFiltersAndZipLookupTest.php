@@ -213,7 +213,8 @@ test('practice edit page mounts location and contact sections outside the parent
 
     expect($formClose)->not->toBeFalse()
         ->and($locations)->toBeGreaterThan($formClose)
-        ->and($contacts)->toBeGreaterThan($formClose);
+        ->and($contacts)->toBeGreaterThan($formClose)
+        ->and(strpos($blade, 'entity-documents-section'))->toBeGreaterThan($formClose);
 });
 
 test('creating a practice redirects to the details locations tab', function () {

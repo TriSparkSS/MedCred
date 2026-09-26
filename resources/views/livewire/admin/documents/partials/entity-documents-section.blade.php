@@ -34,7 +34,7 @@
                 @if ($typeIsLocked)
                     Upload malpractice insurance files for this provider.
                 @else
-                    View and upload files. These records also appear in the Document Hub.
+                    Dedicated documents for this {{ strtolower($ownerLabel) }}. View and upload files here; they are stored in the Document Hub.
                 @endif
             </small>
         </div>
@@ -42,6 +42,10 @@
             @if ($typeIsLocked && $viewAllTabUrl)
                 <a href="{{ $viewAllTabUrl }}" class="btn btn-sm btn-outline-secondary">
                     View all documents
+                </a>
+            @elseif ($viewAllTabUrl)
+                <a href="{{ $viewAllTabUrl }}" class="btn btn-sm btn-outline-secondary">
+                    Open profile documents
                 </a>
             @endif
             @if (auth('admin')->user()?->can('admin.documents.view'))

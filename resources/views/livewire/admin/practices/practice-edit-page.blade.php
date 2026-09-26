@@ -253,7 +253,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>License & Documents
                     </h6>
-                    <p class="text-muted small mb-0">Practice license and supporting credentialing documents.</p>
+                    <p class="text-muted small mb-0">Practice license number. Use the Practice Documents section below to view and upload files in the Document Hub.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -297,6 +297,12 @@
     </div>
 
     @if ($practiceId)
+        <div class="mt-4">
+            <livewire:admin.documents.entity-documents-section
+                :practice-id="$practiceId"
+                heading="Practice Documents"
+                :key="'edit-practice-docs-'.$practiceId" />
+        </div>
         <div class="card shadow-sm border-0 mt-4">
             <div class="card-body p-4">
                 <livewire:admin.practices.practice-contacts-section :practice-id="$practiceId" :key="'contacts-'.$practiceId" />

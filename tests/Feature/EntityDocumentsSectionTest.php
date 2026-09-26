@@ -2,6 +2,10 @@
 
 use App\Livewire\Admin\Documents\DocumentListPage;
 use App\Livewire\Admin\Documents\EntityDocumentsSection;
+use App\Livewire\Admin\Practices\PracticeDetailsPage;
+use App\Livewire\Admin\Practices\PracticeEditPage;
+use App\Livewire\Admin\Provider\ProviderDetailsPage;
+use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Models\Admin;
 use App\Models\Document;
 use App\Models\DocumentType;
@@ -108,4 +112,42 @@ test('practice documents section upload stores practice_id and appears in the hu
         ->test(DocumentListPage::class)
         ->set('filterPractice', (string) $practice->id)
         ->assertSee('Practice W-9');
+});
+
+test('provider and practice details pages have dedicated documents sections linked to the hub', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $provider = documentsTestProvider();
+    $practice = documentsTestPractice();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderDetailsPage::class, ['provider' => $provider, 'activeTab' => 'documents'])
+        ->assertSee('Provider Documents')
+        ->assertSee('Open in Document Hub')
+        ->assertSee('Upload Document')
+        ->assertSee(route('admin.documents', ['provider' => $provider->id], false));
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(PracticeDetailsPage::class, ['practice' => $practice->id, 'activeTab' => 'documents'])
+        ->assertSee('Practice Documents')
+        ->assertSee('Open in Document Hub')
+        ->assertSee('Upload Document')
+        ->assertSee(route('admin.documents', ['practice' => $practice->id], false));
+});
+
+test('provider and practice edit pages have dedicated documents sections for view and upload', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $provider = documentsTestProvider();
+    $practice = documentsTestPractice();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->assertSee('Provider Documents')
+        ->assertSee('Open in Document Hub')
+        ->assertSee('Upload Document');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(PracticeEditPage::class, ['practice' => $practice->id])
+        ->assertSee('Practice Documents')
+        ->assertSee('Open in Document Hub')
+        ->assertSee('Upload Document');
 });

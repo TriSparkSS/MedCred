@@ -234,6 +234,12 @@
     </div>
 
     <div class="mt-4">
+        <livewire:admin.documents.entity-documents-section
+            :provider-id="$providerId"
+            heading="Provider Documents"
+            :key="'edit-provider-docs-'.$providerId" />
+    </div>
+    <div class="mt-4">
         <livewire:admin.provider.provider-credentials-section :provider-id="$providerId" :key="'edit-creds-'.$providerId" />
     </div>
     <div class="mt-4">
