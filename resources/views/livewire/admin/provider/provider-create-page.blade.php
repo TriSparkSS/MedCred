@@ -68,6 +68,7 @@
                         @error('userData.password')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        <small class="text-muted">Initial portal password. Reset later in Admin Settings → Portal Accounts.</small>
                         @else
                         <p class="text-muted small mb-0 mt-4">Portal login credentials are managed by a system administrator.</p>
                         @endif
@@ -84,10 +85,12 @@
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Specialty</label>
+                        <input type="search" wire:model.live.debounce.300ms="specialtySearch"
+                            class="form-control form-control-sm mb-2" placeholder="Search specialties...">
                         <select wire:model="formData.specialty_id"
                             class="form-select @error('formData.specialty_id') is-invalid @enderror">
                             <option value="">Select specialty...</option>
-                            @foreach ($specialties as $specialty)
+                            @foreach ($specialtyOptions as $specialty)
                                 <option value="{{ $specialty->id }}">{{ $specialty->name }}</option>
                             @endforeach
                         </select>
@@ -110,18 +113,29 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">Status <span class="text-danger">*</span></label>
-                        <select wire:model="formData.status"
+                        <label class="form-label fw-medium">Provider Status <span class="text-danger">*</span></label>
+                        <select wire:model.live="formData.status"
                             class="form-select @error('formData.status') is-invalid @enderror">
                             <option value="">Select status...</option>
-                            <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
-                            <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
-                            <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
+                            @foreach (ProviderStatus::cases() as $status)
+                                <option value="{{ $status->value }}">{{ $status->label() }}</option>
+                            @endforeach
                         </select>
                         @error('formData.status')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                    @if (($formData['status'] ?? '') === ProviderStatus::ON_HOLD->value)
+                    <div class="col-md-12">
+                        <label class="form-label fw-medium">Remarks <span class="text-danger">*</span></label>
+                        <textarea wire:model="formData.status_remarks" rows="3"
+                            class="form-control @error('formData.status_remarks') is-invalid @enderror"
+                            placeholder="Required when status is On Hold"></textarea>
+                        @error('formData.status_remarks')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Licenses & Credentials --}}
@@ -196,27 +210,10 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Mailing Address
                     </h6>
-                    <p class="text-muted small mb-0">Select an existing practice. Mailing address fills in automatically when that practice already has an address on file.</p>
+                    <p class="text-muted small mb-0">Select a practice, then pick Primary, Secondary, or a service location. Fields below stay editable.</p>
                 </div>
                 <div class="row g-4 mb-4">
-                    <div class="col-12">
-                        <label class="form-label fw-medium">Practice <span class="text-danger">*</span></label>
-                        <select wire:model.live="practiceId"
-                            class="form-select @error('practiceId') is-invalid @enderror">
-                            <option value="">Select an existing practice...</option>
-                            @foreach ($practices as $practice)
-                                <option value="{{ $practice->id }}">
-                                    {{ $practice->legal_name }}@if($practice->client_code) ({{ $practice->client_code }})@endif
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('practiceId')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        @error('formData.practice')
-                            <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-                    </div>
+                    @include('livewire.admin.provider.partials.practice-address-fields')
 
                     <div class="col-12">
                         <label class="form-label fw-medium">Street Address <span class="text-danger">*</span></label>

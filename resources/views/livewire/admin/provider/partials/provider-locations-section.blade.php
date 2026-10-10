@@ -1,3 +1,4 @@
+<div>
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
@@ -5,7 +6,7 @@
             <small class="text-muted">All practice locations this provider works at — not just the primary site.</small>
         </div>
         @if ($canEdit)
-            <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-primary">
+            <button type="button" wire:click.stop="openCreateModal" class="btn btn-sm btn-primary">
                 <i class="ti tabler-plus me-1"></i>Add Location
             </button>
             @else
@@ -63,10 +64,10 @@
                         <td><small>{{ $link->end_date?->format('m/d/Y') ?: '—' }}</small></td>
                         @if ($canEdit)
                             <td class="text-end">
-                                <button type="button" wire:click="openEditModal({{ $link->id }})" class="btn btn-sm btn-outline-primary">
+                                <button type="button" wire:click.stop="openEditModal({{ $link->id }})" class="btn btn-sm btn-outline-primary">
                                     <i class="ti tabler-edit me-1"></i>Edit
                                 </button>
-                                <button type="button" wire:click="delete({{ $link->id }})" class="btn btn-sm btn-outline-danger" title="Remove">
+                                <button type="button" wire:click.stop="delete({{ $link->id }})" class="btn btn-sm btn-outline-danger" title="Remove">
                                     <i class="ti tabler-trash"></i>
                                 </button>
                             </td>
@@ -84,8 +85,9 @@
     </div>
 </div>
 
+@teleport('body')
 @if ($showModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -134,8 +136,8 @@
                             </div>
                         </div>
                         <div class="form-check form-switch mt-3">
-                            <input class="form-check-input" type="checkbox" wire:model="formData.is_primary" id="pplPrimary">
-                            <label class="form-check-label" for="pplPrimary">Primary location for this provider</label>
+                            <input class="form-check-input" type="checkbox" wire:model="formData.is_primary" id="pplPrimary-{{ $providerId }}">
+                            <label class="form-check-label" for="pplPrimary-{{ $providerId }}">Primary location for this provider</label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -147,3 +149,5 @@
         </div>
     </div>
 @endif
+@endteleport
+</div>

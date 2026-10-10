@@ -32,6 +32,8 @@ class EntityDocumentsSection extends Component
 
     public bool $showModal = false;
 
+    public string $modalMode = 'upload';
+
     public bool $showVersionModal = false;
 
     public $uploadFile;
@@ -64,6 +66,7 @@ class EntityDocumentsSection extends Component
 
         return [
             'formData.title' => 'required|string|max:255',
+            'formData.document_number' => 'nullable|string|max:100',
             'formData.document_type_id' => 'nullable|exists:document_types,id',
             'formData.effective_date' => 'nullable|date',
             'formData.expiry_date' => 'nullable|date',
@@ -71,7 +74,7 @@ class EntityDocumentsSection extends Component
                 ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
                 : 'nullable|string|max:50',
             'formData.sync_credential' => 'boolean',
-            'uploadFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'uploadFile' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ];
     }
 
@@ -79,7 +82,33 @@ class EntityDocumentsSection extends Component
     {
         abort_unless($this->canUpload, 403);
 
+        $this->modalMode = 'upload';
+        $this->selectedDocumentId = null;
         $this->resetForm();
+        $this->showModal = true;
+    }
+
+    public function openEditModal(int $documentId): void
+    {
+        abort_unless($this->canUpload, 403);
+
+        $document = $this->documentForOwner($documentId);
+
+        $this->modalMode = 'edit';
+        $this->selectedDocumentId = $document->id;
+        $this->uploadFile = null;
+        $this->formData = [
+            'provider_id' => $this->providerId,
+            'practice_id' => $this->practiceId,
+            'sync_credential' => (bool) $this->providerId,
+            'document_type_id' => $document->document_type_id,
+            'title' => $document->title,
+            'document_number' => $document->document_number,
+            'effective_date' => $document->effective_date?->format('Y-m-d'),
+            'expiry_date' => $document->expiry_date?->format('Y-m-d'),
+            'state' => $document->state,
+        ];
+        $this->resetValidation();
         $this->showModal = true;
     }
 
@@ -99,11 +128,23 @@ class EntityDocumentsSection extends Component
             unset($payload['sync_credential'], $payload['state']);
         }
 
-        $documentService->upload($payload, $this->uploadFile, Auth::guard('admin')->id());
+        if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
+            $documentService->update(
+                $this->documentForOwner((int) $this->selectedDocumentId),
+                $payload,
+                $this->uploadFile,
+                Auth::guard('admin')->id()
+            );
+            flash()->success('Document updated successfully.');
+        } else {
+            $documentService->upload($payload, $this->uploadFile, Auth::guard('admin')->id());
+            flash()->success('Document uploaded successfully.');
+        }
 
         $this->showModal = false;
+        $this->modalMode = 'upload';
+        $this->selectedDocumentId = null;
         $this->resetForm();
-        flash()->success('Document uploaded successfully.');
     }
 
     public function openVersionModal(int $documentId): void
@@ -205,6 +246,7 @@ class EntityDocumentsSection extends Component
             'sync_credential' => (bool) $this->providerId,
             'document_type_id' => $this->lockedType()?->id,
             'title' => $this->lockedTypeName ?: '',
+            'document_number' => '',
         ];
         $this->uploadFile = null;
         $this->resetValidation();

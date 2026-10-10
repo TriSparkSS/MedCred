@@ -79,6 +79,7 @@ class SpreadsheetImportService
         'license_state',
         'license_expiry',
         'status',
+        'status_remarks',
         'password',
     ];
 
@@ -153,7 +154,8 @@ class SpreadsheetImportService
                 '',
                 '',
                 '',
-                'pending',
+                'active',
+                '',
                 '',
             ],
         );
@@ -324,10 +326,10 @@ class SpreadsheetImportService
         $this->requireCells($data, ['legal_name', 'client_code', 'email', 'address1', 'city', 'state', 'zip_code']);
 
         $email = $this->cell($data, 'email');
-        $clientCode = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $this->cell($data, 'client_code')) ?? '', 0, 3));
+        $clientCode = Practice::normalizeClientCode($this->cell($data, 'client_code'));
 
-        if (strlen($clientCode) !== 3) {
-            throw new InvalidArgumentException('client_code must be 3 letters');
+        if (! Practice::isValidClientCode($clientCode)) {
+            throw new InvalidArgumentException('client_code must be 3–12 letters or numbers');
         }
 
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -427,9 +429,11 @@ class SpreadsheetImportService
             throw new InvalidArgumentException("npi {$npi} already exists");
         }
 
-        $status = strtolower($this->optional($data, 'status') ?? ProviderStatus::PENDING->value);
-        if (! in_array($status, ['pending', 'approved', 'rejected'], true)) {
-            throw new InvalidArgumentException('status must be pending, approved, or rejected');
+        $status = $this->normalizeProviderStatus($this->optional($data, 'status'));
+        $statusRemarks = $this->optional($data, 'status_remarks');
+
+        if ($status === ProviderStatus::ON_HOLD->value && blank($statusRemarks)) {
+            throw new InvalidArgumentException('status_remarks is required when status is on_hold');
         }
 
         $state = $this->requireState($data);
@@ -455,6 +459,7 @@ class SpreadsheetImportService
             'npi' => $npi,
             'specialty_id' => $specialtyId,
             'status' => $status,
+            'status_remarks' => $statusRemarks,
             'caqh_id' => $this->optional($data, 'caqh_id'),
             'taxonomy_code' => $this->optional($data, 'taxonomy_code'),
             'pecos_id' => $this->optional($data, 'pecos_id'),
@@ -495,5 +500,23 @@ class SpreadsheetImportService
         }
 
         return in_array(strtolower($value), ['1', 'true', 'yes', 'y'], true);
+    }
+
+    protected function normalizeProviderStatus(?string $value): string
+    {
+        $status = strtolower(trim(str_replace(['-', ' '], '_', $value ?? ProviderStatus::INACTIVE->value)));
+
+        $mapped = match ($status) {
+            'approved', 'active' => ProviderStatus::ACTIVE->value,
+            'pending', 'rejected', 'inactive' => ProviderStatus::INACTIVE->value,
+            'on_hold', 'onhold' => ProviderStatus::ON_HOLD->value,
+            default => null,
+        };
+
+        if ($mapped === null) {
+            throw new InvalidArgumentException('status must be active, inactive, or on_hold');
+        }
+
+        return $mapped;
     }
 }

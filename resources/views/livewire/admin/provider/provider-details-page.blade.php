@@ -3,18 +3,11 @@
         use App\Enums\DocumentVerificationStatus;
         use App\Enums\ProviderStatus;
 
-        $statusKey = $provider->status instanceof ProviderStatus
-            ? $provider->status->value
-            : ($provider->status ?? null);
-        $statusBadge = match ($statusKey) {
-            ProviderStatus::APPROVED->value => 'success',
-            ProviderStatus::PENDING->value => 'warning',
-            ProviderStatus::REJECTED->value => 'danger',
-            default => 'secondary',
-        };
-        $statusLabel = $provider->status instanceof ProviderStatus
-            ? strtoupper($provider->status->value)
-            : strtoupper($statusKey ?? 'N/A');
+        $statusEnum = $provider->status instanceof ProviderStatus
+            ? $provider->status
+            : ProviderStatus::tryFrom((string) ($provider->status ?? ''));
+        $statusBadge = $statusEnum?->badgeColor() ?? 'secondary';
+        $statusLabel = $statusEnum?->label() ?? 'N/A';
 
         $closedCategories = ['approved', 'closed'];
         $openCases = $cases->filter(
@@ -166,7 +159,7 @@
                             {{ $latestCaseFollowUp?->format('m/d/Y') ?: '—' }}
                         </h3>
                         @if ($latestCase)
-                            <small class="text-muted">{{ $latestCase->case_number }}</small>
+                            <small><a href="{{ route('admin.credentials.show', $latestCase) }}" class="text-muted">{{ $latestCase->case_number }}</a></small>
                         @endif
                     </div>
                 </div>
@@ -209,7 +202,7 @@
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Demographics</h5>
-                        <span class="badge bg-label-{{ $statusBadge }} text-uppercase">{{ $statusLabel }}</span>
+                        <span class="badge bg-label-{{ $statusBadge }}">{{ $statusLabel }}</span>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
@@ -266,6 +259,12 @@
                                 <span class="text-muted">Provider Status</span>
                                 <span class="badge bg-label-{{ $statusBadge }}">{{ $statusLabel }}</span>
                             </li>
+                            @if (filled($provider->status_remarks))
+                            <li class="py-2 border-bottom">
+                                <span class="text-muted d-block mb-1">Status Remarks</span>
+                                <span class="small">{{ $provider->status_remarks }}</span>
+                            </li>
+                            @endif
                             <li class="d-flex justify-content-between py-2 border-bottom">
                                 <span class="text-muted">Total Applications</span>
                                 <span class="fw-semibold">{{ $cases->count() }}</span>
@@ -286,6 +285,9 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div class="mt-4">
+            <livewire:admin.portal.portal-logins-section owner-type="provider" :owner-id="$provider->id" :key="'provider-logins-'.$provider->id" />
         </div>
     @endif
 
@@ -470,7 +472,7 @@
                         @forelse($cases as $case)
                             <tr>
                                 <td>
-                                    <a href="{{ route('admin.credentials') }}" wire:navigate class="fw-semibold">{{ $case->case_number }}</a>
+                                    <a href="{{ route('admin.credentials.show', $case) }}" class="fw-semibold">{{ $case->case_number }}</a>
                                 </td>
                                 <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                 <td><small>{{ $case->practice->legal_name ?? 'N/A' }}</small></td>
@@ -711,7 +713,7 @@
                             <tbody>
                                 @forelse($cases as $case)
                                     <tr>
-                                        <td class="fw-semibold">{{ $case->case_number }}</td>
+                                        <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case) }}">{{ $case->case_number }}</a></td>
                                         <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                         <td><span class="badge bg-label-info">{{ $case->status->name ?? 'N/A' }}</span></td>
                                         <td>
@@ -823,7 +825,7 @@
                                 $ready = count($missing) === 0;
                             @endphp
                             <tr>
-                                <td class="fw-semibold">{{ $case->case_number }}</td>
+                                <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case) }}">{{ $case->case_number }}</a></td>
                                 <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                 <td><small>{{ $case->practice->legal_name ?? 'N/A' }}</small></td>
                                 <td><small>{{ $case->approval_date?->format('m/d/Y') ?: '—' }}</small></td>

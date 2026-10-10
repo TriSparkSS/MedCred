@@ -19,6 +19,7 @@ class Document extends Model
         'credentialing_case_id',
         'payer_id',
         'title',
+        'document_number',
         'effective_date',
         'expiry_date',
         'state',

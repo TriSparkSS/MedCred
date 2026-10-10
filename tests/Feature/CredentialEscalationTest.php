@@ -49,7 +49,7 @@ function escalationCase(): CredentialingCase
             'password' => 'password',
         ])->id,
         'npi' => '9999999999',
-        'status' => 'approved',
+        'status' => 'active',
     ]);
     $provider->practices()->attach($practice->id, ['primary_flag' => true]);
 

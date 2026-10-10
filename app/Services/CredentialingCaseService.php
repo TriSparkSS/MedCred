@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Events\CaseStatusChanged;
 use App\Models\CredentialingCase;
+use App\Models\Practice;
 use App\Models\Status;
 use App\Repositories\Contracts\CredentialingCaseRepositoryInterface;
 use Illuminate\Support\Facades\DB;
@@ -14,8 +15,7 @@ class CredentialingCaseService
         protected CredentialingCaseRepositoryInterface $cases,
         protected DelayOwnershipService $delayService,
         protected SlaEngineService $slaEngine,
-    ) {
-    }
+    ) {}
 
     public function create(array $data, ?int $adminId = null, bool $allowDuplicate = false): CredentialingCase
     {
@@ -37,10 +37,10 @@ class CredentialingCaseService
         }
 
         return DB::transaction(function () use ($data, $adminId) {
-            $practice = \App\Models\Practice::find($data['practice_id'] ?? null);
-            if (! $practice || ! preg_match('/^[A-Z]{3}$/', strtoupper(trim((string) $practice->client_code)))) {
+            $practice = Practice::find($data['practice_id'] ?? null);
+            if (! $practice || ! Practice::isValidClientCode(Practice::normalizeClientCode($practice->client_code))) {
                 throw new \InvalidArgumentException(
-                    'This practice needs a 3-letter client code before creating a case. Edit the practice and set Client Code.'
+                    'This practice needs a client code (3–12 letters or numbers) before creating a case. Edit the practice and set Client Code.'
                 );
             }
 

@@ -71,7 +71,7 @@ test('provider excel import creates a provider and rejects duplicate npi and ema
     $row = fn (string $name, string $email, string $npi) => [
         $name, $email, '', $npi, 'Family Medicine', 'Alpha Medical Group',
         '200 Oak Ave', 'Dallas', 'TX', '75201',
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'pending', '',
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'inactive', '', '',
     ];
 
     $first = spreadsheetImportFile('providers.xlsx', $headers, [

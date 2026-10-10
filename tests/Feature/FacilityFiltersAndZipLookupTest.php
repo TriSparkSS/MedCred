@@ -53,7 +53,7 @@ function facilityTestProvider(string $name, string $npi, string $email): Provide
             'password' => 'password',
         ])->id,
         'npi' => $npi,
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => 'Placeholder',
         'address' => '1 Test St',
         'city' => 'Austin',

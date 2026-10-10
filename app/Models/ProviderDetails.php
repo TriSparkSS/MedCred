@@ -6,7 +6,7 @@ use App\Enums\ProviderStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['user_id', 'specialty_id', 'status', 'npi', 'caqh_id', 'license_number', 'license_state', 'dea', 'taxonomy_code', 'pecos_id', 'pecos_enrolled', 'malpractice_carrier', 'malpractice_policy_number', 'malpractice_expiry', 'malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date', 'board_certification', 'board_cert_expiry', 'cds_number', 'cds_state', 'work_history', 'licensed_states', 'practice', 'address', 'city', 'state', 'zip'])]
+#[Fillable(['user_id', 'specialty_id', 'status', 'status_remarks', 'npi', 'caqh_id', 'license_number', 'license_state', 'dea', 'taxonomy_code', 'pecos_id', 'pecos_enrolled', 'malpractice_carrier', 'malpractice_policy_number', 'malpractice_expiry', 'malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date', 'board_certification', 'board_cert_expiry', 'cds_number', 'cds_state', 'work_history', 'licensed_states', 'practice', 'address', 'city', 'state', 'zip'])]
 class ProviderDetails extends Model
 {
     protected $casts = [
@@ -41,6 +41,11 @@ class ProviderDetails extends Model
             ->using(ProviderPractice::class)
             ->withPivot('id', 'primary_flag', 'start_date', 'end_date')
             ->withTimestamps();
+    }
+
+    public function portalLogins()
+    {
+        return $this->morphMany(PortalLogin::class, 'loginable');
     }
 
     public function credentialingCases()

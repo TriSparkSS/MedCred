@@ -26,6 +26,7 @@
     $ownerLabel = $isProvider ? 'Provider' : 'Practice';
 @endphp
 
+<div>
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
         <div>
@@ -54,7 +55,7 @@
                 </a>
             @endif
             @if ($canUpload)
-                <button type="button" wire:click="openUploadModal" class="btn btn-sm btn-primary">
+                <button type="button" wire:click.stop.prevent="openUploadModal" class="btn btn-sm btn-primary">
                     <i class="ti tabler-upload me-1"></i>Upload Document
                 </button>
             @endif
@@ -65,6 +66,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Document</th>
+                    <th>Number</th>
                     <th>Type</th>
                     @if ($isProvider)
                         <th>State</th>
@@ -88,6 +90,7 @@
                     @endphp
                     <tr>
                         <td class="fw-semibold">{{ $document->title }}</td>
+                        <td>{{ $document->document_number ?: '—' }}</td>
                         <td>{{ $document->documentType->name ?? '—' }}</td>
                         @if ($isProvider)
                             <td>
@@ -136,7 +139,10 @@
                                     </a>
                                 @endif
                                 @if ($canUpload)
-                                    <button type="button" wire:click="openVersionModal({{ $document->id }})" class="btn btn-outline-primary" title="New Version">
+                                    <button type="button" wire:click.stop.prevent="openEditModal({{ $document->id }})" class="btn btn-outline-secondary" title="Edit">
+                                        <i class="ti tabler-edit"></i>
+                                    </button>
+                                    <button type="button" wire:click.stop.prevent="openVersionModal({{ $document->id }})" class="btn btn-outline-primary" title="New Version">
                                         <i class="ti tabler-versions"></i>
                                     </button>
                                     <button type="button" wire:click="deleteDocument({{ $document->id }})" wire:confirm="Delete this document?" class="btn btn-outline-danger" title="Delete">
@@ -153,6 +159,7 @@
                             <td>—</td>
                             <td>—</td>
                             <td>—</td>
+                            <td>—</td>
                             <td><span class="badge bg-label-secondary">Profile file</span></td>
                             <td><span class="badge bg-label-success">Active</span></td>
                             <td class="text-end">
@@ -163,7 +170,7 @@
                         </tr>
                     @else
                         <tr>
-                            <td colspan="{{ $isProvider ? 8 : 7 }}" class="text-center text-muted py-4">
+                            <td colspan="{{ $isProvider ? 9 : 8 }}" class="text-center text-muted py-4">
                                 No documents on file for this {{ strtolower($ownerLabel) }}.
                             </td>
                         </tr>
@@ -174,23 +181,29 @@
     </div>
 </div>
 
+@teleport('body')
 @if ($showModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Upload {{ $ownerLabel }} Document</h5>
+                    <h5 class="modal-title">{{ $modalMode === 'edit' ? 'Edit' : 'Upload' }} {{ $ownerLabel }} Document</h5>
                     <button type="button" class="btn-close" wire:click="$set('showModal', false)"></button>
                 </div>
                 <form wire:submit.prevent="saveDocument">
                     <div class="modal-body">
                         <div class="row g-3">
-                            <div class="col-md-8">
-                                <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <div class="col-md-6">
+                                <label class="form-label">Name <span class="text-danger">*</span></label>
                                 <input type="text" wire:model="formData.title" class="form-control @error('formData.title') is-invalid @enderror">
                                 @error('formData.title')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label class="form-label">Number</label>
+                                <input type="text" wire:model="formData.document_number" class="form-control @error('formData.document_number') is-invalid @enderror" placeholder="License / document number">
+                                @error('formData.document_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
                                 <label class="form-label">Document Type</label>
                                 @if ($typeIsLocked)
                                     <input type="text" class="form-control" value="{{ $selectedType?->name ?? $lockedTypeName }}" readonly>
@@ -232,17 +245,20 @@
                                 @endif
                             @endif
                             <div class="col-12">
-                                <label class="form-label">File <span class="text-danger">*</span></label>
+                                <label class="form-label">File @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>
                                 <input type="file" wire:model="uploadFile" class="form-control @error('uploadFile') is-invalid @enderror" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
                                 @error('uploadFile')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">Uploading...</div>
+                                @if ($modalMode === 'edit')
+                                    <div class="form-text">Leave empty to keep the current file. Upload a file to replace it.</div>
+                                @endif
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" wire:click="$set('showModal', false)">Cancel</button>
                         <button type="submit" class="btn btn-primary" wire:loading.attr="disabled">
-                            <span wire:loading.remove wire:target="saveDocument">Save Document</span>
+                            <span wire:loading.remove wire:target="saveDocument">{{ $modalMode === 'edit' ? 'Save Changes' : 'Save Document' }}</span>
                             <span wire:loading wire:target="saveDocument">Saving...</span>
                         </button>
                     </div>
@@ -253,7 +269,7 @@
 @endif
 
 @if ($showVersionModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -283,7 +299,7 @@
 @endif
 
 @if ($rejectDocumentId)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -303,3 +319,5 @@
         </div>
     </div>
 @endif
+@endteleport
+</div>

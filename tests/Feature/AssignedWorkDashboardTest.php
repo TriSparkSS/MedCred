@@ -60,7 +60,7 @@ function dashboardTestProvider(?User $user = null): ProviderDetails
     return ProviderDetails::create([
         'user_id' => $user->id,
         'npi' => '1666666666',
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => 'Dashboard Practice',
         'address' => '1 Dash St',
         'city' => 'Austin',

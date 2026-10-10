@@ -107,6 +107,14 @@ test('scoped roles only see assigned practices', function () {
         ->get(route('admin.settings.mail'))
         ->assertForbidden();
 
+    $this->actingAs($superadmin, 'admin')
+        ->get(route('admin.settings.portal-accounts'))
+        ->assertOk();
+
+    $this->actingAs($billing, 'admin')
+        ->get(route('admin.settings.portal-accounts'))
+        ->assertForbidden();
+
     $this->actingAs(adminByUsername('executive'), 'admin')
         ->get(route('admin.providers.create'))
         ->assertForbidden();

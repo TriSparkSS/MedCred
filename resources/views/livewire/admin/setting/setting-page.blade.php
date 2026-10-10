@@ -126,6 +126,23 @@
                         </div>
                     </div>
                 </div>
+                @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
+                <div class="col-12">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start gap-3 mb-3">
+                                <span class="badge bg-secondary text-white rounded-3 p-2"><i
+                                        class="ti tabler-lock"></i></span>
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-bold mb-1">Portal Accounts</h6>
+                                    <p class="text-muted mb-2">Reset practice and provider logins for the credentialing portal.</p>
+                                    <a href="{{ route('admin.settings.portal-accounts') }}" class="btn btn-sm btn-outline-primary">Manage Portal Accounts</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
                 <div class="col-12">
                     <div class="card shadow-sm border-0 h-100">
                         <div class="card-body">

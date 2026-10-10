@@ -6,7 +6,7 @@
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-files me-2"></i>Document Repository</h4>
                 <p class="text-muted mb-0">Upload, version, and track provider, practice, and case documents.</p>
             </div>
-            <button wire:click="openUploadModal" class="btn btn-primary">
+            <button type="button" wire:click="openUploadModal" class="btn btn-primary">
                 <i class="ti tabler-upload me-1"></i>Upload Document
             </button>
         </div>
@@ -67,7 +67,7 @@
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                         <input type="search" wire:model.live="search" class="form-control border-start-0"
-                            placeholder="Search by title or provider...">
+                            placeholder="Search by provider, practice, client code, or payer...">
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -125,6 +125,9 @@
                                     <i class="ti tabler-file-text me-1 text-muted"></i>
                                     {{ $document->title }}
                                 </div>
+                                @if ($document->document_number)
+                                    <small class="text-muted d-block">#{{ $document->document_number }}</small>
+                                @endif
                                 @if ($version)
                                     <small class="text-muted">v{{ $version->version_number }} ·
                                         {{ $version->original_name }}</small>
@@ -174,14 +177,20 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
+                                    @if ($canUpload)
+                                        <button type="button" wire:click="openEditModal({{ $document->id }})"
+                                            class="btn btn-outline-primary" title="Edit">
+                                            <i class="ti tabler-edit"></i>
+                                        </button>
+                                    @endif
                                     @if ($vStatus !== 'verified')
-                                        <button wire:click="verifyDocument({{ $document->id }})"
+                                        <button type="button" wire:click="verifyDocument({{ $document->id }})"
                                             class="btn btn-outline-success" title="Verify">
                                             <i class="ti tabler-check"></i>
                                         </button>
                                     @endif
                                     @if ($vStatus !== 'rejected')
-                                        <button wire:click="openRejectModal({{ $document->id }})"
+                                        <button type="button" wire:click="openRejectModal({{ $document->id }})"
                                             class="btn btn-outline-danger" title="Reject">
                                             <i class="ti tabler-x"></i>
                                         </button>
@@ -192,11 +201,11 @@
                                             <i class="ti tabler-download"></i>
                                         </a>
                                     @endif
-                                    <button wire:click="openVersionModal({{ $document->id }})"
+                                    <button type="button" wire:click="openVersionModal({{ $document->id }})"
                                         class="btn btn-outline-primary" title="New Version">
                                         <i class="ti tabler-versions"></i>
                                     </button>
-                                    <button wire:click="deleteDocument({{ $document->id }})"
+                                    <button type="button" wire:click="deleteDocument({{ $document->id }})"
                                         wire:confirm="Delete this document?" class="btn btn-outline-danger"
                                         title="Delete">
                                         <i class="ti tabler-trash"></i>
@@ -218,13 +227,13 @@
         <div class="card-footer bg-white">{{ $documents->links('livewire::bootstrap') }}</div>
     </div>
 
-    {{-- Upload Modal --}}
+    @teleport('body')
     @if ($showModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Upload Document</h5>
+                        <h5 class="modal-title">{{ $modalMode === 'edit' ? 'Edit Document' : 'Upload Document' }}</h5>
                         <button type="button" class="btn-close" wire:click="$set('showModal', false)"></button>
                     </div>
                     <form wire:submit.prevent="saveDocument">
@@ -240,41 +249,62 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Document Type</label>
-                                    <select wire:model.live="formData.document_type_id" class="form-select">
+                                    <select wire:model.live="formData.document_type_id" class="form-select @error('formData.document_type_id') is-invalid @enderror">
                                         <option value="">Select type...</option>
                                         @foreach ($documentTypes as $type)
                                             <option value="{{ $type->id }}">{{ $type->name }}{{ $type->is_state_specific ? ' (state-specific)' : '' }}</option>
                                         @endforeach
                                     </select>
+                                    @error('formData.document_type_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">License / Certification / DEA number</label>
+                                    <input type="text" wire:model="formData.document_number"
+                                        class="form-control @error('formData.document_number') is-invalid @enderror"
+                                        placeholder="License, certification, or DEA number">
+                                    @error('formData.document_number')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Practice</label>
-                                    <select wire:model="formData.practice_id" class="form-select">
+                                    <select wire:model="formData.practice_id" class="form-select @error('formData.practice_id') is-invalid @enderror">
                                         <option value="">None</option>
                                         @foreach ($practices as $practice)
                                             <option value="{{ $practice->id }}">{{ $practice->legal_name }}</option>
                                         @endforeach
                                     </select>
+                                    @error('formData.practice_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Provider</label>
-                                    <select wire:model="formData.provider_id" class="form-select">
+                                    <select wire:model.live="formData.provider_id" class="form-select @error('formData.provider_id') is-invalid @enderror">
                                         <option value="">None</option>
                                         @foreach ($providers as $provider)
                                             <option value="{{ $provider->id }}">
                                                 {{ $provider->user->name ?? 'Provider #' . $provider->id }}</option>
                                         @endforeach
                                     </select>
+                                    @error('formData.provider_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Credentialing Case</label>
-                                    <select wire:model="formData.credentialing_case_id" class="form-select">
+                                    <select wire:model="formData.credentialing_case_id" class="form-select @error('formData.credentialing_case_id') is-invalid @enderror">
                                         <option value="">None</option>
                                         @foreach ($cases as $case)
                                             <option value="{{ $case->id }}">{{ $case->case_number }} —
                                                 {{ $case->provider->user->name ?? '' }}</option>
                                         @endforeach
                                     </select>
+                                    @error('formData.credentialing_case_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Effective Date</label>
@@ -302,15 +332,15 @@
                                 @if ($selectedType?->is_state_specific)
                                     <div class="col-12">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" wire:model="formData.sync_credential" id="syncCredential">
-                                            <label class="form-check-label" for="syncCredential">
+                                            <input class="form-check-input" type="checkbox" wire:model="formData.sync_credential" id="syncCredentialHub">
+                                            <label class="form-check-label" for="syncCredentialHub">
                                                 Create or update the matching provider credential for this state
                                             </label>
                                         </div>
                                     </div>
                                 @endif
                                 <div class="col-12">
-                                    <label class="form-label">File <span class="text-danger">*</span></label>
+                                    <label class="form-label">File @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>
                                     <input type="file" wire:model="uploadFile"
                                         class="form-control @error('uploadFile') is-invalid @enderror"
                                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
@@ -319,6 +349,9 @@
                                     @enderror
                                     <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">
                                         Uploading...</div>
+                                    @if ($modalMode === 'edit')
+                                        <div class="form-text">Leave empty to keep the current file. Upload a file to replace it.</div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -326,7 +359,7 @@
                             <button type="button" class="btn btn-outline-secondary"
                                 wire:click="$set('showModal', false)">Cancel</button>
                             <button type="submit" class="btn btn-primary" wire:loading.attr="disabled">
-                                <span wire:loading.remove wire:target="saveDocument">Save Document</span>
+                                <span wire:loading.remove wire:target="saveDocument">{{ $modalMode === 'edit' ? 'Save Changes' : 'Save Document' }}</span>
                                 <span wire:loading wire:target="saveDocument">Saving...</span>
                             </button>
                         </div>
@@ -338,7 +371,7 @@
 
     {{-- Version Modal --}}
     @if ($showVersionModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -375,7 +408,7 @@
 
     {{-- Reject Modal --}}
     @if ($rejectDocumentId)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -400,4 +433,5 @@
             </div>
         </div>
     @endif
+@endteleport
 </div>

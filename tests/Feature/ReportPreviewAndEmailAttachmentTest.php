@@ -70,7 +70,7 @@ function makeProvider(string $name, string $npi, Practice $practice): ProviderDe
     $provider = ProviderDetails::create([
         'user_id' => $user->id,
         'npi' => $npi,
-        'status' => 'approved',
+        'status' => 'active',
     ]);
 
     $provider->practices()->attach($practice->id, ['primary_flag' => true]);

@@ -52,7 +52,7 @@ function bulkTaskProvider(): ProviderDetails
             'password' => 'password',
         ])->id,
         'npi' => '1555555555',
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => 'Bulk Task Practice',
         'address' => '2 Bulk St',
         'city' => 'Austin',

@@ -49,7 +49,7 @@ class ProviderListPage extends Component
 
     public function mount()
     {
-        $this->specialties = Specialty::all();
+        $this->specialties = Specialty::orderBy('name')->get();
     }
 
     public function updated($propertyName)
@@ -192,8 +192,9 @@ class ProviderListPage extends Component
 
         $stats = [
             'total' => (clone $statsBase)->count(),
-            'active' => (clone $statsBase)->where('status', ProviderStatus::APPROVED->value)->count(),
-            'pending' => (clone $statsBase)->where('status', ProviderStatus::PENDING->value)->count(),
+            'active' => (clone $statsBase)->where('status', ProviderStatus::ACTIVE->value)->count(),
+            'inactive' => (clone $statsBase)->where('status', ProviderStatus::INACTIVE->value)->count(),
+            'on_hold' => (clone $statsBase)->where('status', ProviderStatus::ON_HOLD->value)->count(),
         ];
 
         $specialties = Specialty::orderBy('name')->get();

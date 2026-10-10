@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Practices;
 use App\Livewire\Admin\Practices\Concerns\ManagesPracticeForm;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -44,7 +45,7 @@ class PracticeEditPage extends Component
     {
         $practiceModel = Practice::with('addresses')->findOrFail($practice);
         $admin = Auth::guard('admin')->user();
-        if ($admin && ! app(\App\Services\AdminScopeService::class)->canAccessPractice($admin, (int) $practiceModel->id)) {
+        if ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $practiceModel->id)) {
             abort(403, 'You do not have access to this practice.');
         }
         $this->practiceId = $practiceModel->id;
@@ -71,6 +72,9 @@ class PracticeEditPage extends Component
             'website' => $practiceModel->website,
             'status' => $practiceModel->status?->value ?? $practiceModel->status,
             'license_number' => $practiceModel->license_number,
+            'license_name' => $practiceModel->license_name,
+            'license_effective_date' => $practiceModel->license_effective_date?->format('Y-m-d'),
+            'license_expiry_date' => $practiceModel->license_expiry_date?->format('Y-m-d'),
             'bank_name' => $practiceModel->bank_name,
             'bank_account' => $practiceModel->bank_account,
             'bank_routing_number' => $practiceModel->bank_routing_number,
@@ -94,10 +98,10 @@ class PracticeEditPage extends Component
         return array_merge(
             $this->basePracticeRules(),
             [
-                'formData.client_code' => 'required|string|size:3|regex:/^[A-Za-z]{3}$/|unique:practices,client_code,' . $this->practiceId,
-                'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin,' . $this->practiceId,
-                'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi,' . $this->practiceId,
-                'formData.email' => 'required|email|max:255|unique:practices,email,' . $this->practiceId . '|unique:users,email,' . $practice->user_id,
+                'formData.client_code' => Practice::clientCodeValidationRule().'|unique:practices,client_code,'.$this->practiceId,
+                'formData.ein_tin' => 'nullable|string|max:50|unique:practices,ein_tin,'.$this->practiceId,
+                'formData.group_npi' => 'nullable|string|max:50|unique:practices,group_npi,'.$this->practiceId,
+                'formData.email' => 'required|email|max:255|unique:practices,email,'.$this->practiceId.'|unique:users,email,'.$practice->user_id,
                 'userData.password' => 'nullable|string|min:6',
             ],
             $this->addressRules('addressData', true),

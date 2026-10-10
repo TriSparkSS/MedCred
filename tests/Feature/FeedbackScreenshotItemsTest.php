@@ -6,6 +6,7 @@ use App\Livewire\Admin\Documents\EntityDocumentsSection;
 use App\Livewire\Admin\Provider\ProviderCreatePage;
 use App\Livewire\Admin\Provider\ProviderCredentialsSection;
 use App\Livewire\Admin\Provider\ProviderDetailsPage;
+use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Livewire\Admin\Provider\ProviderLocationsSection;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
@@ -88,7 +89,7 @@ function screenshotProvider(?Practice $practice = null): ProviderDetails
             'password' => 'password',
         ])->id,
         'npi' => (string) random_int(1000000000, 1999999999),
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => $practice->legal_name,
         'address' => '1 Test St',
         'city' => 'Austin',
@@ -131,7 +132,7 @@ test('add provider fills mailing address from selected practice and links the pr
         ->set('userData.email', 'dr-linked@example.com')
         ->set('userData.password', 'secret123')
         ->set('formData.npi', '1444444444')
-        ->set('formData.status', 'pending')
+        ->set('formData.status', 'inactive')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -221,4 +222,36 @@ test('case details shows notes and creates a follow-up from the details tab', fu
 
     expect($case->fresh()->next_follow_up_date?->toDateString())->toBe(now()->addDays(5)->toDateString());
     expect(Task::where('credentialing_case_id', $case->id)->where('title', 'Follow-up for '.$case->case_number)->exists())->toBeTrue();
+});
+
+test('edit provider address dropdown fills from a selected service location', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = screenshotPractice();
+    $west = Location::create([
+        'practice_id' => $practice->id,
+        'name' => 'West Clinic',
+        'address1' => '90 West Blvd',
+        'city' => 'Houston',
+        'state' => 'TX',
+        'zip_code' => '77001',
+        'country' => 'United States',
+        'status' => 'active',
+        'is_primary' => false,
+    ]);
+    $provider = screenshotProvider($practice);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->assertSet('practiceId', (string) $practice->id)
+        ->assertSee('Primary')
+        ->assertSee('West Clinic')
+        ->set('addressKey', 'location:'.$west->id)
+        ->assertSet('formData.address', '90 West Blvd')
+        ->assertSet('formData.city', 'Houston')
+        ->assertSet('formData.zip', '77001')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($provider->fresh()->address)->toBe('90 West Blvd')
+        ->and($provider->fresh()->city)->toBe('Houston');
 });

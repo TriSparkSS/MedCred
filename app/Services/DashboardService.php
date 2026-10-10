@@ -30,7 +30,7 @@ class DashboardService
     {
         $admin = $this->admin();
 
-        $providerQuery = ProviderDetails::query()->where('status', ProviderStatus::APPROVED);
+        $providerQuery = ProviderDetails::query()->where('status', ProviderStatus::ACTIVE);
         if ($admin) {
             $this->scope->scopeProviders($providerQuery, $admin);
         }

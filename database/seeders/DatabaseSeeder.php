@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             AdminPermissionSeeder::class,
             AdminSeeder::class,
             MasterDataSeeder::class,
+            SpecialtySeeder::class,
             PdfRefactorSeeder::class,
         ]);
 

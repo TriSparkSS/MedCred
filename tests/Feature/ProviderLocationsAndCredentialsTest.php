@@ -2,7 +2,9 @@
 
 use App\Enums\ProviderCredentialType;
 use App\Livewire\Admin\Documents\DocumentListPage;
+use App\Livewire\Admin\Documents\EntityDocumentsSection;
 use App\Livewire\Admin\Provider\ProviderCredentialsSection;
+use App\Livewire\Admin\Provider\ProviderDetailsPage;
 use App\Livewire\Admin\Provider\ProviderLocationsSection;
 use App\Models\Admin;
 use App\Models\Document;
@@ -83,7 +85,7 @@ function locationsTestProvider(): ProviderDetails
             'password' => 'password',
         ])->id,
         'npi' => '1234567890',
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => 'Placeholder',
         'address' => '1 Test St',
         'city' => 'Austin',
@@ -204,4 +206,79 @@ test('state license document upload requires a state', function () {
     expect(Document::where('provider_id', $provider->id)->count())->toBe(1);
     expect(Document::first()->state)->toBe('TX');
     expect(ProviderCredential::where('provider_id', $provider->id)->where('state', 'TX')->exists())->toBeTrue();
+});
+
+test('provider credential and location section blades wrap in a single root and teleport modals', function () {
+    $credentials = file_get_contents(resource_path('views/livewire/admin/provider/partials/provider-credentials-section.blade.php'));
+    $locations = file_get_contents(resource_path('views/livewire/admin/provider/partials/provider-locations-section.blade.php'));
+
+    expect(str_starts_with(trim($credentials), '<div>'))->toBeTrue()
+        ->and(substr_count($credentials, '@teleport(\'body\')'))->toBe(1)
+        ->and(str_contains($credentials, 'credPrimary-{{ $providerId }}'))->toBeTrue()
+        ->and(str_starts_with(trim($locations), '<div>'))->toBeTrue()
+        ->and(substr_count($locations, '@teleport(\'body\')'))->toBe(1)
+        ->and(str_contains($locations, 'pplPrimary-{{ $providerId }}'))->toBeTrue();
+});
+
+test('provider credential and location rows can be edited after create', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = locationsTestPractice();
+    $provider = locationsTestProvider();
+    $main = $practice->locations->firstWhere('name', 'Main Clinic');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->set('formData.credential_type', ProviderCredentialType::License->value)
+        ->set('formData.state', 'TX')
+        ->set('formData.number', 'TX-EDIT-1')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $credential = ProviderCredential::where('provider_id', $provider->id)->firstOrFail();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
+        ->call('openEditModal', $credential->id)
+        ->assertSet('showModal', true)
+        ->set('formData.number', 'TX-EDIT-2')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($credential->fresh()->number)->toBe('TX-EDIT-2');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->set('formData.practice_id', $practice->id)
+        ->set('formData.location_id', $main->id)
+        ->set('formData.role', 'Attending')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $link = ProviderPracticeLocation::where('provider_id', $provider->id)->firstOrFail();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
+        ->call('openEditModal', $link->id)
+        ->assertSet('showModal', true)
+        ->set('formData.role', 'Covering')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($link->fresh()->role)->toBe('Covering');
+});
+
+test('provider details page shows upload credential and location actions', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $provider = locationsTestProvider();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderDetailsPage::class, ['provider' => $provider])
+        ->assertSeeLivewire(ProviderCredentialsSection::class)
+        ->assertSeeLivewire(ProviderLocationsSection::class)
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSee('Add Credential')
+        ->assertSee('Add Location')
+        ->assertSee('Upload Document');
 });

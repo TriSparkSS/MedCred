@@ -18,7 +18,7 @@ trait ManagesPracticeForm
     {
         return [
             'formData.legal_name' => 'required|string|max:255',
-            'formData.client_code' => 'required|string|size:3|regex:/^[A-Za-z]{3}$/',
+            'formData.client_code' => Practice::clientCodeValidationRule(),
             'formData.dba_name' => 'nullable|string|max:255',
             'formData.ein_tin' => 'nullable|string|max:50',
             'formData.group_npi' => 'nullable|string|max:50',
@@ -29,6 +29,9 @@ trait ManagesPracticeForm
             'formData.website' => 'nullable|max:255',
             'formData.status' => 'required|in:pending,active,inactive',
             'formData.license_number' => 'nullable|string|max:50',
+            'formData.license_name' => 'nullable|string|max:255',
+            'formData.license_effective_date' => 'nullable|date',
+            'formData.license_expiry_date' => 'nullable|date|after_or_equal:formData.license_effective_date',
             'formData.bank_name' => 'nullable|string|max:255',
             'formData.bank_account' => 'nullable|string|max:50',
             'formData.bank_routing_number' => 'nullable|string|max:20|regex:/^[0-9]+$/',

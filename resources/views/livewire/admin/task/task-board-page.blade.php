@@ -62,6 +62,14 @@
             </select>
         </div>
         <div class="col-md-2">
+            <select wire:model.live="filterPracticeId" class="form-select form-select-sm">
+                <option value="">All Practices</option>
+                @foreach ($practices as $practice)
+                    <option value="{{ $practice->id }}">{{ $practice->legal_name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
             <select wire:model.live="filterProviderId" class="form-select form-select-sm">
                 <option value="">All Providers</option>
                 @foreach ($providers as $provider)
@@ -81,16 +89,9 @@
         <div class="col-md-2">
             <select wire:model.live="filterTaskType" class="form-select form-select-sm">
                 <option value="">All Types</option>
-                <option value="manual">Manual</option>
-                <option value="provider_follow_up">Provider Follow-up</option>
-                <option value="payer_follow_up">Payer Follow-up</option>
-                <option value="document">Document</option>
-                <option value="escalation">Escalation</option>
-                <option value="review">Review</option>
-                <option value="renewal">Renewal</option>
-                <option value="billing_readiness">Billing Readiness</option>
-                <option value="expiry">Expiry</option>
-                <option value="sla">SLA</option>
+                @foreach (\App\Enums\TaskType::cases() as $type)
+                    <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                @endforeach
             </select>
         </div>
         <div class="col-md-2">
@@ -109,6 +110,49 @@
             {{ $openCount }} open task{{ $openCount !== 1 ? 's' : '' }}
         </div>
     </div>
+
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        @if ($canAssignTasks)
+            <button type="button" wire:click="selectAllMatching" class="btn btn-sm btn-outline-primary">
+                Select all matching filters
+            </button>
+        @endif
+    </div>
+
+    @if ($openApplications->isNotEmpty())
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom">
+                <h6 class="mb-0 fw-semibold">Open applications</h6>
+                <small class="text-muted">Active cases for the selected practice or provider.</small>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Case #</th>
+                            <th>Type</th>
+                            <th>Provider</th>
+                            <th>Practice</th>
+                            <th>Payer</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($openApplications as $app)
+                            <tr wire:key="open-app-{{ $app->id }}">
+                                <td><a href="{{ route('admin.credentials.show', $app) }}" class="fw-semibold">{{ $app->case_number }}</a></td>
+                                <td><small>{{ $app->enrollment_level?->label() ?? 'Individual' }}</small></td>
+                                <td><small>{{ $app->provider?->user?->name ?? '—' }}</small></td>
+                                <td><small>{{ $app->practice?->legal_name ?? '—' }}</small></td>
+                                <td><small>{{ $app->payer?->name ?? '—' }}</small></td>
+                                <td><small>{{ $app->status?->name ?? '—' }}</small></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 
     @if (count($selectedTaskIds) > 0)
         <div class="card shadow-sm border-primary mb-3 sticky-top" style="z-index: 1020; top: 0.75rem;">

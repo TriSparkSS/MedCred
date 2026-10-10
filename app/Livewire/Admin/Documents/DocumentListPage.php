@@ -37,6 +37,8 @@ class DocumentListPage extends Component
 
     public $showModal = false;
 
+    public string $modalMode = 'upload';
+
     public $showVersionModal = false;
 
     public $selectedDocumentId = null;
@@ -49,6 +51,8 @@ class DocumentListPage extends Component
 
     public $formData = [];
 
+    public ?int $autoFilledPracticeId = null;
+
     public $rejectionReason = '';
 
     public $rejectDocumentId = null;
@@ -60,6 +64,7 @@ class DocumentListPage extends Component
 
         return [
             'formData.title' => 'required|string|max:255',
+            'formData.document_number' => 'nullable|string|max:100',
             'formData.document_type_id' => 'nullable|exists:document_types,id',
             'formData.provider_id' => $stateSpecific ? 'required|exists:provider_details,id' : 'nullable|exists:provider_details,id',
             'formData.practice_id' => 'nullable|exists:practices,id',
@@ -70,7 +75,7 @@ class DocumentListPage extends Component
                 ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
                 : 'nullable|string|max:50',
             'formData.sync_credential' => 'boolean',
-            'uploadFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'uploadFile' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ];
     }
 
@@ -81,15 +86,65 @@ class DocumentListPage extends Component
         }
     }
 
+    public function updatedFormDataProviderId($value): void
+    {
+        if (! $value) {
+            return;
+        }
+
+        $provider = ProviderDetails::with('practices')->find($value);
+        $practice = $provider?->practices
+            ->sortByDesc(fn ($item) => (int) ($item->pivot->primary_flag ?? 0))
+            ->first();
+
+        if (! $practice) {
+            return;
+        }
+
+        $current = $this->formData['practice_id'] ?? null;
+        if (! $current || (int) $current === (int) $this->autoFilledPracticeId) {
+            $this->formData['practice_id'] = $practice->id;
+            $this->autoFilledPracticeId = $practice->id;
+        }
+    }
+
     public function openUploadModal(): void
     {
+        $this->modalMode = 'upload';
+        $this->selectedDocumentId = null;
         $this->resetForm();
         if ($this->filterProvider) {
             $this->formData['provider_id'] = $this->filterProvider;
+            $this->updatedFormDataProviderId($this->filterProvider);
         }
         if ($this->filterPractice) {
             $this->formData['practice_id'] = $this->filterPractice;
         }
+        $this->showModal = true;
+    }
+
+    public function openEditModal(int $documentId): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.upload'), 403);
+
+        $document = Document::findOrFail($documentId);
+
+        $this->modalMode = 'edit';
+        $this->selectedDocumentId = $document->id;
+        $this->uploadFile = null;
+        $this->formData = [
+            'title' => $document->title,
+            'document_number' => $document->document_number,
+            'document_type_id' => $document->document_type_id,
+            'provider_id' => $document->provider_id,
+            'practice_id' => $document->practice_id,
+            'credentialing_case_id' => $document->credentialing_case_id,
+            'effective_date' => $document->effective_date?->format('Y-m-d'),
+            'expiry_date' => $document->expiry_date?->format('Y-m-d'),
+            'state' => $document->state,
+            'sync_credential' => (bool) $document->provider_id,
+        ];
+        $this->resetValidation();
         $this->showModal = true;
     }
 
@@ -118,8 +173,6 @@ class DocumentListPage extends Component
 
     protected function syncExpiringDocumentTasks(): void
     {
-        $adminId = Auth::guard('admin')->id();
-
         Document::expiringSoon(30)->with('documentType')->each(function (Document $document) {
             $this->createExpiryTask($document);
         });
@@ -127,23 +180,38 @@ class DocumentListPage extends Component
 
     public function saveDocument(DocumentService $documentService): void
     {
+        $this->normalizeEmptyIds();
         $this->validate();
 
         $adminId = Auth::guard('admin')->id();
-        $document = $documentService->upload($this->formData, $this->uploadFile, $adminId);
 
-        if ($document->credentialing_case_id) {
-            $case = CredentialingCase::find($document->credentialing_case_id);
-            $case?->syncChecklistFromDocument($document);
-        }
+        if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
+            $documentService->update(
+                Document::findOrFail($this->selectedDocumentId),
+                $this->formData,
+                $this->uploadFile,
+                $adminId
+            );
+            flash()->success('Document updated successfully.');
+        } else {
+            $document = $documentService->upload($this->formData, $this->uploadFile, $adminId);
 
-        if ($document->expiry_date && $document->expiry_date->lte(now()->addDays(30))) {
-            $this->createExpiryTask($document);
+            if ($document->credentialing_case_id) {
+                $case = CredentialingCase::find($document->credentialing_case_id);
+                $case?->syncChecklistFromDocument($document);
+            }
+
+            if ($document->expiry_date && $document->expiry_date->lte(now()->addDays(30))) {
+                $this->createExpiryTask($document);
+            }
+
+            flash()->success('Document uploaded successfully.');
         }
 
         $this->showModal = false;
+        $this->modalMode = 'upload';
+        $this->selectedDocumentId = null;
         $this->resetForm();
-        flash()->success('Document uploaded successfully.');
     }
 
     public function openVersionModal(int $documentId): void
@@ -217,12 +285,23 @@ class DocumentListPage extends Component
         );
     }
 
+    private function normalizeEmptyIds(): void
+    {
+        foreach (['practice_id', 'provider_id', 'credentialing_case_id', 'document_type_id'] as $key) {
+            if (($this->formData[$key] ?? '') === '') {
+                $this->formData[$key] = null;
+            }
+        }
+    }
+
     private function resetForm(): void
     {
         $this->formData = [
             'sync_credential' => true,
+            'document_number' => '',
         ];
         $this->uploadFile = null;
+        $this->autoFilledPracticeId = null;
         $this->resetValidation();
     }
 
@@ -230,7 +309,14 @@ class DocumentListPage extends Component
     {
         $admin = Auth::guard('admin')->user();
         $scope = app(AdminScopeService::class);
-        $query = Document::with(['documentType', 'provider.user', 'practice', 'versions' => fn ($q) => $q->where('is_current', true)]);
+        $query = Document::with([
+            'documentType',
+            'provider.user',
+            'practice',
+            'payer',
+            'credentialingCase.payer',
+            'versions' => fn ($q) => $q->where('is_current', true),
+        ]);
         if ($admin) {
             $scope->scopeDocuments($query, $admin);
         }
@@ -239,7 +325,20 @@ class DocumentListPage extends Component
             $search = '%'.$this->search.'%';
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
-                    ->orWhereHas('provider.user', fn ($q) => $q->where('name', 'like', $search));
+                    ->orWhere('document_number', 'like', $search)
+                    ->orWhereHas('provider.user', fn ($pq) => $pq->where('name', 'like', $search))
+                    ->orWhereHas('practice', function ($pq) use ($search) {
+                        $pq->where('legal_name', 'like', $search)
+                            ->orWhere('dba_name', 'like', $search)
+                            ->orWhere('client_code', 'like', $search);
+                    })
+                    ->orWhereHas('provider.practices', function ($pq) use ($search) {
+                        $pq->where('legal_name', 'like', $search)
+                            ->orWhere('dba_name', 'like', $search)
+                            ->orWhere('client_code', 'like', $search);
+                    })
+                    ->orWhereHas('payer', fn ($pq) => $pq->where('name', 'like', $search))
+                    ->orWhereHas('credentialingCase.payer', fn ($pq) => $pq->where('name', 'like', $search));
             });
         }
 
@@ -293,6 +392,7 @@ class DocumentListPage extends Component
             'cases' => $caseQuery->limit(50)->get(),
             'states' => UsStates::all(),
             'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? null),
+            'canUpload' => (bool) $admin?->can('admin.documents.upload'),
         ]);
     }
 }

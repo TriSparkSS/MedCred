@@ -39,22 +39,23 @@ use App\Livewire\Admin\Reports\PracticeCredentialingReportPage;
 use App\Livewire\Admin\Reports\ReportListPage;
 use App\Livewire\Admin\Setting\AdminUserManager;
 use App\Livewire\Admin\Setting\MailSettingsManager;
+use App\Livewire\Admin\Setting\PortalAccountManager;
 use App\Livewire\Admin\Setting\SettingPage;
 use App\Livewire\Admin\Setting\Specialty\SpecialtyListPage;
 use App\Livewire\Admin\Task\TaskBoardPage;
 use App\Livewire\Authenticate\LoginPage;
 use App\Livewire\Authenticate\PortalLoginPage;
 use App\Livewire\Authenticate\ProviderLoginPage;
-use App\Livewire\Provider\ProviderActionItemsPage;
-use App\Livewire\Provider\ProviderCaseDetailPage;
-use App\Livewire\Provider\ProviderCasesPage;
-use App\Livewire\Provider\ProviderDashboardPage;
-use App\Livewire\Provider\ProviderDocumentsPage;
 use App\Livewire\Practice\PracticeActionItemsPage;
 use App\Livewire\Practice\PracticeCaseDetailPage;
 use App\Livewire\Practice\PracticeCasesPage;
 use App\Livewire\Practice\PracticeDashboardPage;
 use App\Livewire\Practice\PracticeDocumentsPage;
+use App\Livewire\Provider\ProviderActionItemsPage;
+use App\Livewire\Provider\ProviderCaseDetailPage;
+use App\Livewire\Provider\ProviderCasesPage;
+use App\Livewire\Provider\ProviderDashboardPage;
+use App\Livewire\Provider\ProviderDocumentsPage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -107,6 +108,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
 
     Route::get('provider-practices', ProviderPracticeAssignmentPage::class)->middleware('admin.permission:admin.practices.manage')->name('provider-practices');
 
+    Route::get('applications', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('applications');
     Route::get('credentials', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials');
     Route::get('credentials/create', CredentialCreatePage::class)->middleware('admin.permission:admin.credentials.create')->name('credentials.create');
     Route::get('credentials/{case}/packet', [CredentialPacketController::class, 'download'])->middleware('admin.permission:admin.credentials.view')->name('credentials.packet');
@@ -132,6 +134,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('settings/specialties', SpecialtyListPage::class)->middleware('admin.permission:admin.settings.manage')->name('settings.specialties');
     Route::get('settings/mail', MailSettingsManager::class)->middleware('admin.permission:admin.settings.mail')->name('settings.mail');
     Route::get('settings/users', AdminUserManager::class)->middleware('admin.permission:admin.users.manage')->name('settings.users');
+    Route::get('settings/portal-accounts', PortalAccountManager::class)->middleware('admin.permission:admin.portal-credentials.manage')->name('settings.portal-accounts');
 
     Route::get('payers', PayerListPage::class)->middleware('admin.permission:admin.settings.manage')->name('payers');
     Route::get('payers/create', PayerCreatePage::class)->middleware('admin.permission:admin.settings.manage')->name('payers.create');

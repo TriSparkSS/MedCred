@@ -43,10 +43,10 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Client Code <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.client_code" maxlength="3"
+                        <input type="text" wire:model="formData.client_code" maxlength="12"
                             class="form-control text-uppercase @error('formData.client_code') is-invalid @enderror"
-                            placeholder="e.g. RVA" style="letter-spacing: 0.1em;">
-                        <small class="text-muted">3 letters used in case numbers (e.g. RVA-2026-0001).</small>
+                            placeholder="e.g. RVA or 116" style="letter-spacing: 0.1em;">
+                        <small class="text-muted">3–12 letters or numbers used in case numbers (e.g. RVA-2026-0001 or 116-2026-0001).</small>
                         @error('formData.client_code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-4">
@@ -117,30 +117,16 @@
                     </div>
                 </div>
 
-                {{-- Portal Account --}}
                 @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
-                <div class="mb-3 pb-3 border-bottom">
-                    <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-lock me-2"></i>Portal Account
-                    </h6>
-                    <p class="text-muted small mb-0">Credentialing portal login for this practice.</p>
-                </div>
-                <div class="row g-4 mb-4">
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">Portal Login Email</label>
-                        <input type="email" class="form-control bg-light" value="{{ $formData['email'] ?? '' }}" readonly>
-                        <small class="text-muted">Same as practice email above. Used to sign in at the portal.</small>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">New Password</label>
-                        <input type="password" wire:model="userData.password"
-                            class="form-control @error('userData.password') is-invalid @enderror"
-                            placeholder="Leave blank to keep current">
-                        @error('userData.password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <small class="text-muted">Leave blank to keep the current password. Minimum 6 characters.</small>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-center">
-                        <small class="text-muted mb-0">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
+                <div class="alert alert-light border mb-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <strong class="d-block">Portal login</strong>
+                            <small class="text-muted">Practice email above is the login email. Passwords are managed in Admin Settings.</small>
+                        </div>
+                        <a href="{{ route('admin.settings.portal-accounts') }}" class="btn btn-sm btn-outline-primary">
+                            Manage Portal Accounts
+                        </a>
                     </div>
                 </div>
                 @endif
@@ -253,15 +239,34 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>License & Documents
                     </h6>
-                    <p class="text-muted small mb-0">Practice license number. Use the Practice Documents section below to view and upload files in the Document Hub.</p>
+                    <p class="text-muted small mb-0">Each document needs a name, number, effective date, and expiration. Use Practice Documents below for additional files.</p>
                 </div>
                 <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">License / document name</label>
+                        <input type="text" wire:model="formData.license_name"
+                            class="form-control @error('formData.license_name') is-invalid @enderror"
+                            placeholder="e.g. State facility license">
+                        @error('formData.license_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">License Number</label>
                         <input type="text" wire:model="formData.license_number"
                             class="form-control @error('formData.license_number') is-invalid @enderror"
                             placeholder="Practice license number">
                         @error('formData.license_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-medium">Effective date</label>
+                        <input type="date" wire:model="formData.license_effective_date"
+                            class="form-control @error('formData.license_effective_date') is-invalid @enderror">
+                        @error('formData.license_effective_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-medium">Expiration</label>
+                        <input type="date" wire:model="formData.license_expiry_date"
+                            class="form-control @error('formData.license_expiry_date') is-invalid @enderror">
+                        @error('formData.license_expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-8">
                         <label class="form-label fw-medium">Upload Document</label>
@@ -297,6 +302,9 @@
     </div>
 
     @if ($practiceId)
+        <div class="mt-4">
+            <livewire:admin.portal.portal-logins-section owner-type="practice" :owner-id="$practiceId" :key="'edit-practice-logins-'.$practiceId" />
+        </div>
         <div class="mt-4">
             <livewire:admin.documents.entity-documents-section
                 :practice-id="$practiceId"

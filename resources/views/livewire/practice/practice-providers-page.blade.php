@@ -13,7 +13,7 @@
                 <x-practice.stat-card label="Active Applications" :value="$activeCases ?? 0" valueClass="text-primary" />
             </div>
             <div class="col-sm-6 col-md-4">
-                <x-practice.stat-card label="Approved Providers" :value="$approvedProviders ?? 0" valueClass="text-success" />
+                <x-practice.stat-card label="Active Providers" :value="$approvedProviders ?? 0" valueClass="text-success" />
             </div>
         </div>
 
@@ -45,8 +45,13 @@
                                 <td>{{ $provider->npi ?: '—' }}</td>
                                 <td>{{ $provider->specialty->name ?? '—' }}</td>
                                 <td>
-                                    <span class="badge bg-label-{{ ($provider->status->value ?? $provider->status) === 'approved' ? 'success' : 'warning' }}">
-                                        {{ ucfirst($provider->status->value ?? $provider->status) }}
+                                    @php
+                                        $rowStatus = $provider->status instanceof \App\Enums\ProviderStatus
+                                            ? $provider->status
+                                            : \App\Enums\ProviderStatus::tryFrom((string) ($provider->status ?? ''));
+                                    @endphp
+                                    <span class="badge bg-label-{{ $rowStatus?->badgeColor() ?? 'secondary' }}">
+                                        {{ $rowStatus?->label() ?? 'N/A' }}
                                     </span>
                                 </td>
                                 <td>{{ $provider->credentialingCases->where('practice_id', $practice->id)->count() }}</td>

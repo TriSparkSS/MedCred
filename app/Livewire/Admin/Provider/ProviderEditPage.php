@@ -3,7 +3,9 @@
 namespace App\Livewire\Admin\Provider;
 
 use App\Enums\ProviderStatus;
+use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
+use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
@@ -17,7 +19,7 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Edit Provider'])]
 class ProviderEditPage extends Component
 {
-    use LooksUpUsZip;
+    use LooksUpUsZip, SelectsPracticeAddress;
 
     public $providerId;
 
@@ -26,6 +28,8 @@ class ProviderEditPage extends Component
     public $userData = [];
 
     public $specialties = [];
+
+    public string $specialtySearch = '';
 
     protected function rules(): array
     {
@@ -53,21 +57,29 @@ class ProviderEditPage extends Component
             'formData.board_certification' => 'nullable|string|max:255',
             'formData.board_cert_expiry' => 'nullable|date',
             'formData.work_history' => 'nullable|string|max:5000',
+            'practiceId' => 'nullable|exists:practices,id',
+            'addressKey' => 'nullable|string',
             'formData.practice' => 'required|string|max:255',
             'formData.address' => 'required|string|max:500',
             'formData.city' => 'required|string|max:100',
             'formData.state' => ['required', 'string', 'size:2', Rule::in(UsStates::codes())],
             'formData.zip' => 'required|string|max:20',
-            'formData.status' => 'required|in:pending,approved,rejected',
+            'formData.status' => ['required', Rule::enum(ProviderStatus::class)],
+            'formData.status_remarks' => [
+                Rule::requiredIf(fn () => ($this->formData['status'] ?? null) === ProviderStatus::ON_HOLD->value),
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ];
     }
 
     public function mount($provider)
     {
         $this->providerId = $provider;
-        $this->specialties = Specialty::all();
+        $this->specialties = Specialty::orderBy('name')->get();
 
-        $providerModel = ProviderDetails::with('user')->findOrFail($this->providerId);
+        $providerModel = ProviderDetails::with(['user', 'practices'])->findOrFail($this->providerId);
         $admin = Auth::guard('admin')->user();
         if ($admin && ! app(AdminScopeService::class)->canAccessProvider($admin, $providerModel)) {
             abort(403, 'You do not have access to this provider.');
@@ -97,6 +109,7 @@ class ProviderEditPage extends Component
             'status' => $providerModel->status instanceof ProviderStatus
                 ? $providerModel->status->value
                 : $providerModel->status,
+            'status_remarks' => $providerModel->status_remarks,
         ];
 
         $this->userData = [
@@ -105,6 +118,13 @@ class ProviderEditPage extends Component
             'phone' => $providerModel->user->phone ?? '',
             'password' => '',
         ];
+
+        $linked = $providerModel->practices
+            ->sortByDesc(fn ($practice) => (int) ($practice->pivot->primary_flag ?? 0))
+            ->values();
+        $this->practiceId = (string) ($linked->first()?->id ?? '');
+        $this->loadAddressOptions($this->practiceId);
+        $this->matchAddressKeyFromCurrentFields();
     }
 
     public function save()
@@ -134,6 +154,13 @@ class ProviderEditPage extends Component
 
         $provider->update($this->normalizeMalpracticeFields($this->formData));
 
+        if ($this->practiceId) {
+            $this->assertPracticeInScope((int) $this->practiceId);
+            $provider->practices()->syncWithoutDetaching([
+                (int) $this->practiceId => ['primary_flag' => true],
+            ]);
+        }
+
         flash()->success('Provider updated successfully!');
 
         return redirect()->route('admin.providers.show', $provider->id);
@@ -150,8 +177,33 @@ class ProviderEditPage extends Component
         return $data;
     }
 
-    public function render()
+    public function render(AdminScopeService $scope)
     {
-        return view('livewire.admin.provider.provider-edit-page');
+        $admin = Auth::guard('admin')->user();
+        $practiceQuery = Practice::query()->orderBy('legal_name');
+        if ($admin) {
+            $scope->scopePractices($practiceQuery, $admin);
+        }
+
+        return view('livewire.admin.provider.provider-edit-page', [
+            'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
+            'specialtyOptions' => $this->filteredSpecialtyOptions(),
+        ]);
+    }
+
+    protected function filteredSpecialtyOptions()
+    {
+        $term = mb_strtolower(trim($this->specialtySearch));
+        $selected = (string) ($this->formData['specialty_id'] ?? '');
+        $items = collect($this->specialties);
+
+        if ($term === '') {
+            return $items;
+        }
+
+        return $items->filter(function ($specialty) use ($term, $selected) {
+            return str_contains(mb_strtolower($specialty->name), $term)
+                || (string) $specialty->id === $selected;
+        })->values();
     }
 }

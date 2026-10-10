@@ -37,19 +37,6 @@ class DummyContentSeeder extends Seeder
 
     private array $states = ['TX', 'CA', 'NY', 'FL', 'IL', 'PA', 'OH', 'GA', 'NC', 'AZ'];
 
-    private array $specialtyNames = [
-        'Family Medicine',
-        'Internal Medicine',
-        'Pediatrics',
-        'Cardiology',
-        'Dermatology',
-        'Orthopedic Surgery',
-        'Psychiatry',
-        'Obstetrics & Gynecology',
-        'Emergency Medicine',
-        'Radiology',
-    ];
-
     private array $payerNames = [
         'Blue Cross Blue Shield',
         'Aetna',
@@ -81,7 +68,8 @@ class DummyContentSeeder extends Seeder
             return;
         }
 
-        $specialties = $this->seedSpecialties();
+        $this->call(SpecialtySeeder::class);
+        $specialties = Specialty::orderBy('name')->limit(self::COUNT)->get()->all();
         $practices = $this->seedPractices();
         $providers = $this->seedProviders($specialties);
         $payers = $this->seedPayers($documentTypes);
@@ -92,7 +80,7 @@ class DummyContentSeeder extends Seeder
         $this->seedTasks($cases, $providers, $priorities, $admin);
         $this->assignPracticesToDemoAdmins($practices);
 
-        $this->command->info('Dummy content seeded: 10 specialties, practices, providers, payers, cases, and tasks.');
+        $this->command->info('Dummy content seeded: specialties, practices, providers, payers, cases, and tasks.');
         $this->command->line('Portal login password for all dummy users: '.self::PASSWORD);
     }
 
@@ -120,20 +108,6 @@ class DummyContentSeeder extends Seeder
             PermissionSeeder::class,
             MasterDataSeeder::class,
         ]);
-    }
-
-    private function seedSpecialties(): array
-    {
-        $specialties = [];
-
-        foreach ($this->specialtyNames as $index => $name) {
-            $specialties[] = Specialty::firstOrCreate(
-                ['name' => $name],
-                ['description' => 'Dummy specialty #'.($index + 1)]
-            );
-        }
-
-        return $specialties;
     }
 
     private function seedPractices(): array
@@ -257,7 +231,7 @@ class DummyContentSeeder extends Seeder
                 ['user_id' => $user->id],
                 [
                     'specialty_id' => $specialties[$i - 1]->id,
-                    'status' => ProviderStatus::APPROVED,
+                    'status' => ProviderStatus::ACTIVE,
                     'npi' => '100000000'.$i,
                     'caqh_id' => (string) (10000000 + $i),
                     'license_number' => 'LIC-'.str_pad((string) $i, 6, '0', STR_PAD_LEFT),

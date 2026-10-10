@@ -1,3 +1,4 @@
+<div>
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
@@ -5,7 +6,7 @@
             <small class="text-muted">Record License, DEA, and CDS details separately for each state.</small>
         </div>
         @if ($canEdit)
-            <button type="button" wire:click="openCreateModal" class="btn btn-sm btn-primary">
+            <button type="button" wire:click.stop="openCreateModal" class="btn btn-sm btn-primary">
                 <i class="ti tabler-plus me-1"></i>Add Credential
             </button>
             @else
@@ -68,10 +69,10 @@
                         </td>
                         @if ($canEdit)
                             <td class="text-end">
-                                <button type="button" wire:click="openEditModal({{ $credential->id }})" class="btn btn-sm btn-outline-primary">
+                                <button type="button" wire:click.stop="openEditModal({{ $credential->id }})" class="btn btn-sm btn-outline-primary">
                                     <i class="ti tabler-edit me-1"></i>Edit
                                 </button>
-                                <button type="button" wire:click="delete({{ $credential->id }})" class="btn btn-sm btn-outline-danger" title="Remove">
+                                <button type="button" wire:click.stop="delete({{ $credential->id }})" class="btn btn-sm btn-outline-danger" title="Remove">
                                     <i class="ti tabler-trash"></i>
                                 </button>
                             </td>
@@ -89,8 +90,9 @@
     </div>
 </div>
 
+@teleport('body')
 @if ($showModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -144,8 +146,8 @@
                             <div class="col-md-6 d-flex align-items-end">
                                 @if (($formData['credential_type'] ?? '') === 'license')
                                     <div class="form-check form-switch mb-2">
-                                        <input class="form-check-input" type="checkbox" wire:model="formData.is_primary" id="credPrimary">
-                                        <label class="form-check-label" for="credPrimary">Primary license</label>
+                                        <input class="form-check-input" type="checkbox" wire:model="formData.is_primary" id="credPrimary-{{ $providerId }}">
+                                        <label class="form-check-label" for="credPrimary-{{ $providerId }}">Primary license</label>
                                     </div>
                                 @endif
                             </div>
@@ -164,3 +166,5 @@
         </div>
     </div>
 @endif
+@endteleport
+</div>

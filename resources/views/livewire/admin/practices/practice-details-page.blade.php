@@ -172,8 +172,20 @@
                                     <span class="fw-semibold">{{ $practice->taxonomy_code ?: 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
+                                    <small class="text-muted d-block mb-1">License / document name</small>
+                                    <span class="fw-semibold">{{ $practice->license_name ?: 'N/A' }}</span>
+                                </div>
+                                <div class="col-md-4">
                                     <small class="text-muted d-block mb-1">License Number</small>
                                     <span class="fw-semibold">{{ $practice->license_number ?: 'N/A' }}</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted d-block mb-1">License effective</small>
+                                    <span class="fw-semibold">{{ $practice->license_effective_date?->format('m/d/Y') ?: 'N/A' }}</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted d-block mb-1">License expiration</small>
+                                    <span class="fw-semibold">{{ $practice->license_expiry_date?->format('m/d/Y') ?: 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
                                     <small class="text-muted d-block mb-1">Assigned Admins</small>
@@ -281,6 +293,9 @@
                     @endif
                 </div>
             </div>
+            <div class="mt-4">
+                <livewire:admin.portal.portal-logins-section owner-type="practice" :owner-id="$practice->id" :key="'practice-logins-'.$practice->id" />
+            </div>
         @endif
 
         {{-- Credentialing Tab --}}
@@ -315,7 +330,7 @@
                         <tbody>
                             @forelse($practice->credentialingCases as $case)
                                 <tr>
-                                    <td><a href="{{ route('admin.credentials') }}"
+                                    <td><a href="{{ route('admin.credentials.show', $case) }}"
                                             class="fw-semibold">{{ $case->case_number }}</a></td>
                                     <td>{{ $case->provider->user->name ?? 'N/A' }}</td>
                                     <td>{{ $case->payer->name ?? 'N/A' }}</td>

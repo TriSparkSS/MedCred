@@ -3,6 +3,8 @@
 namespace App\Livewire\Admin\Provider;
 
 use App\Enums\ProviderCredentialType;
+use App\Enums\ProviderStatus;
+use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
@@ -20,7 +22,7 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Add Provider'])]
 class ProviderCreatePage extends Component
 {
-    use LooksUpUsZip;
+    use LooksUpUsZip, SelectsPracticeAddress;
 
     public $formData = [];
 
@@ -33,11 +35,11 @@ class ProviderCreatePage extends Component
 
     public $specialties = [];
 
+    public string $specialtySearch = '';
+
     public $npiDuplicateWarning = '';
 
     public array $credentialRows = [];
-
-    public string $practiceId = '';
 
     protected function rules(): array
     {
@@ -70,18 +72,25 @@ class ProviderCreatePage extends Component
             'credentialRows.*.number' => 'nullable|string|max:50',
             'credentialRows.*.expiry_date' => 'nullable|date',
             'practiceId' => 'required|exists:practices,id',
+            'addressKey' => 'nullable|string',
             'formData.practice' => 'required|string|max:255',
             'formData.address' => 'required|string|max:500',
             'formData.city' => 'required|string|max:100',
             'formData.state' => ['required', 'string', 'size:2', Rule::in(UsStates::codes())],
             'formData.zip' => 'required|string|max:20',
-            'formData.status' => 'required|in:pending,approved,rejected',
+            'formData.status' => ['required', Rule::enum(ProviderStatus::class)],
+            'formData.status_remarks' => [
+                Rule::requiredIf(fn () => ($this->formData['status'] ?? null) === ProviderStatus::ON_HOLD->value),
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ];
     }
 
     public function mount()
     {
-        $this->specialties = Specialty::all();
+        $this->specialties = Specialty::orderBy('name')->get();
         $this->credentialRows = [$this->emptyCredentialRow(true)];
     }
 
@@ -97,11 +106,6 @@ class ProviderCreatePage extends Component
         if ($this->credentialRows === []) {
             $this->credentialRows = [$this->emptyCredentialRow(true)];
         }
-    }
-
-    public function updatedPracticeId($value): void
-    {
-        $this->fillAddressFromPractice($value);
     }
 
     public function updatedFormDataNpi($value): void
@@ -198,50 +202,6 @@ class ProviderCreatePage extends Component
         }
     }
 
-    protected function fillAddressFromPractice(mixed $practiceId): void
-    {
-        if (! $practiceId) {
-            return;
-        }
-
-        $practice = Practice::query()
-            ->with(['mailingAddress', 'primaryAddress', 'primaryLocation'])
-            ->find($practiceId);
-
-        if (! $practice) {
-            return;
-        }
-
-        $this->formData['practice'] = $practice->legal_name;
-
-        $address = $practice->mailingAddress ?? $practice->primaryAddress;
-        $location = $practice->primaryLocation;
-
-        if ($address && filled($address->address1)) {
-            $this->formData['address'] = trim($address->address1.($address->address2 ? ', '.$address->address2 : ''));
-            $this->formData['city'] = (string) ($address->city ?? '');
-            $this->formData['state'] = UsStates::normalize($address->state) ?? (string) ($address->state ?? '');
-            $this->formData['zip'] = (string) ($address->zip_code ?? '');
-
-            return;
-        }
-
-        if ($location) {
-            $this->formData['address'] = trim($location->address1.($location->address2 ? ', '.$location->address2 : ''));
-            $this->formData['city'] = (string) ($location->city ?? '');
-            $this->formData['state'] = UsStates::normalize($location->state) ?? (string) ($location->state ?? '');
-            $this->formData['zip'] = (string) ($location->zip_code ?? '');
-        }
-    }
-
-    protected function assertPracticeInScope(int $practiceId): void
-    {
-        $admin = Auth::guard('admin')->user();
-        if ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, $practiceId)) {
-            abort(403);
-        }
-    }
-
     protected function emptyCredentialRow(bool $primary): array
     {
         return [
@@ -251,6 +211,22 @@ class ProviderCreatePage extends Component
             'expiry_date' => '',
             'is_primary' => $primary,
         ];
+    }
+
+    protected function filteredSpecialtyOptions()
+    {
+        $term = mb_strtolower(trim($this->specialtySearch));
+        $selected = (string) ($this->formData['specialty_id'] ?? '');
+        $items = collect($this->specialties);
+
+        if ($term === '') {
+            return $items;
+        }
+
+        return $items->filter(function ($specialty) use ($term, $selected) {
+            return str_contains(mb_strtolower($specialty->name), $term)
+                || (string) $specialty->id === $selected;
+        })->values();
     }
 
     public function render(AdminScopeService $scope)
@@ -266,6 +242,7 @@ class ProviderCreatePage extends Component
             'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'states' => UsStates::all(),
             'credentialTypes' => ProviderCredentialType::cases(),
+            'specialtyOptions' => $this->filteredSpecialtyOptions(),
         ]);
     }
 }

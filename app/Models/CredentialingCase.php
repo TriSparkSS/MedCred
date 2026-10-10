@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\EnrollmentLevel;
 use App\Services\DelayOwnershipService;
+use App\Services\TaskSyncService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +22,7 @@ class CredentialingCase extends Model
         'provider_practice_location_id',
         'payer_id',
         'case_type_id',
+        'enrollment_level',
         'status_id',
         'delay_owner_id',
         'priority_id',
@@ -64,6 +67,7 @@ class CredentialingCase extends Model
         'revalidation_due_date' => 'date',
         'next_follow_up_date' => 'date',
         'is_escalated' => 'boolean',
+        'enrollment_level' => EnrollmentLevel::class,
         'last_action_at' => 'datetime',
     ];
 
@@ -75,6 +79,9 @@ class CredentialingCase extends Model
             }
             if (empty($case->intake_date)) {
                 $case->intake_date = now()->toDateString();
+            }
+            if (empty($case->enrollment_level)) {
+                $case->enrollment_level = EnrollmentLevel::Individual;
             }
             if (empty($case->last_action_at)) {
                 $case->last_action_at = now();
@@ -88,11 +95,11 @@ class CredentialingCase extends Model
             ? Practice::find($practiceId)
             : null;
 
-        $clientCode = strtoupper(trim((string) ($practice?->client_code ?? '')));
+        $clientCode = Practice::normalizeClientCode($practice?->client_code);
 
-        if (! preg_match('/^[A-Z]{3}$/', $clientCode)) {
+        if (! Practice::isValidClientCode($clientCode)) {
             throw new \RuntimeException(
-                'Practice client code is required (3 letters) before creating a credentialing case. Set it on the Practice.'
+                'Practice client code is required (3–12 letters or numbers) before creating a credentialing case. Set it on the Practice.'
             );
         }
 
@@ -105,7 +112,7 @@ class CredentialingCase extends Model
             ->value('case_number');
 
         $sequence = 1;
-        if ($latest && preg_match('/^[A-Z]{3}-\d{4}-(\d+)$/', $latest, $matches)) {
+        if ($latest && preg_match('/^[A-Z0-9]{3,12}-\d{4}-(\d+)$/', $latest, $matches)) {
             $sequence = (int) $matches[1] + 1;
         }
 
@@ -264,7 +271,7 @@ class CredentialingCase extends Model
             ]);
 
             $item->load('documentType');
-            app(\App\Services\TaskSyncService::class)->completeDocumentTask($this, $item);
+            app(TaskSyncService::class)->completeDocumentTask($this, $item);
         }
     }
 
@@ -343,7 +350,7 @@ class CredentialingCase extends Model
             'credentialing_case_id' => $this->id,
             'activity_type' => 'status_change',
             'admin_id' => $adminId,
-            'summary' => 'Status changed to ' . $status->name . ($notes ? ": {$notes}" : ''),
+            'summary' => 'Status changed to '.$status->name.($notes ? ": {$notes}" : ''),
         ]);
 
         app(DelayOwnershipService::class)->applyOnStatusChange($this->fresh(), $status, $adminId);

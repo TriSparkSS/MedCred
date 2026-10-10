@@ -35,7 +35,7 @@
                             <div>
                                 <p class="text-uppercase text-muted small mb-1">Total Providers</p>
                             </div>
-                            <span class="badge bg-label-success">Active</span>
+                            <span class="badge bg-label-primary">All</span>
                         </div>
                         <h3 class="fw-bold mb-0">{{ $stats['total'] ?? 0 }}</h3>
                     </div>
@@ -46,9 +46,9 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <p class="text-uppercase text-muted small mb-1">Approved</p>
+                                <p class="text-uppercase text-muted small mb-1">Active</p>
                             </div>
-                            <span class="badge bg-label-info">Status</span>
+                            <span class="badge bg-label-success">Status</span>
                         </div>
                         <h3 class="fw-bold mb-0">{{ $stats['active'] ?? 0 }}</h3>
                     </div>
@@ -59,11 +59,24 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <p class="text-uppercase text-muted small mb-1">Pending</p>
+                                <p class="text-uppercase text-muted small mb-1">Inactive</p>
                             </div>
-                            <span class="badge bg-label-warning">In Progress</span>
+                            <span class="badge bg-label-secondary">Status</span>
                         </div>
-                        <h3 class="fw-bold mb-0">{{ $stats['pending'] ?? 0 }}</h3>
+                        <h3 class="fw-bold mb-0">{{ $stats['inactive'] ?? 0 }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <p class="text-uppercase text-muted small mb-1">On Hold</p>
+                            </div>
+                            <span class="badge bg-label-warning">Status</span>
+                        </div>
+                        <h3 class="fw-bold mb-0">{{ $stats['on_hold'] ?? 0 }}</h3>
                     </div>
                 </div>
             </div>
@@ -118,9 +131,9 @@
                         <div class="d-flex gap-2">
                             <select wire:model.live="filterStatus" class="form-select">
                                 <option value="">All Statuses</option>
-                                <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
-                                <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
-                                <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
+                                @foreach (ProviderStatus::cases() as $status)
+                                    <option value="{{ $status->value }}">{{ $status->label() }}</option>
+                                @endforeach
                             </select>
                             @if ($search || $filterSpecialty || $filterStatus || $filterPractice || $filterLocation)
                                 <button type="button" wire:click="clearFilters" class="btn btn-outline-secondary" title="Clear">
@@ -247,13 +260,13 @@
                                                     <tbody>
                                                         @foreach ($apps as $app)
                                                             <tr>
-                                                                <td class="fw-semibold">{{ $app->case_number }}</td>
+                                                                <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $app) }}">{{ $app->case_number }}</a></td>
                                                                 <td>{{ $app->payer->name ?? 'N/A' }}</td>
                                                                 <td>
                                                                     <span class="badge bg-label-secondary">{{ $app->status->name ?? 'N/A' }}</span>
                                                                 </td>
                                                                 <td class="text-end">
-                                                                    <a href="{{ route('admin.credentials', ['search' => $app->case_number]) }}" class="btn btn-sm btn-outline-primary">Open in Tracker</a>
+                                                                    <a href="{{ route('admin.credentials.show', $app) }}" class="btn btn-sm btn-outline-primary">Open</a>
                                                                 </td>
                                                             </tr>
                                                         @endforeach

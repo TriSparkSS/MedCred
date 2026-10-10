@@ -18,7 +18,7 @@ class PracticeProvidersPage extends Component
             ->first();
 
         $activeCases = $practice->credentialingCases()->active()->count();
-        $approvedProviders = $practice->providers->filter(fn ($p) => ($p->status->value ?? $p->status) === 'approved')->count();
+        $approvedProviders = $practice->providers->filter(fn ($p) => ($p->status->value ?? $p->status) === 'active')->count();
 
         return view('livewire.practice.practice-providers-page', compact('practice', 'activeCases', 'approvedProviders'));
     }

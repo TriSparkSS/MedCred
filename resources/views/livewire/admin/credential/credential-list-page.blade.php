@@ -4,9 +4,18 @@
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
                 <div>
-                    <h3 class="fw-bold text-primary mb-1">Credentialing Tracker</h3>
-                    <p class="text-muted mb-0">Track payer enrollment applications, status, and follow-ups.</p>
+                    <h3 class="fw-bold text-primary mb-1">{{ $isApplicationsHub ? 'Applications' : 'Credentialing Tracker' }}</h3>
+                    <p class="text-muted mb-0">
+                        {{ $isApplicationsHub
+                            ? 'Review and create payer enrollment applications for practices and providers.'
+                            : 'Track payer enrollment applications, status, and follow-ups.' }}
+                    </p>
                 </div>
+                @if ($canCreateCredentials)
+                    <a href="{{ route('admin.credentials.create') }}" class="btn btn-primary">
+                        <i class="ti tabler-file-plus me-1"></i> New Application
+                    </a>
+                @endif
             </div>
         </div>
 
@@ -76,6 +85,15 @@
                             <option value="">{{ $filterPracticeId ? 'All Providers' : 'Select a practice first' }}</option>
                             @foreach ($providers as $provider)
                                 <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #'.$provider->id }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Enrollment</label>
+                        <select wire:model.live="filterEnrollment" class="form-select">
+                            <option value="">All types</option>
+                            @foreach ($enrollmentLevels as $level)
+                                <option value="{{ $level->value }}">{{ $level->label() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -151,7 +169,7 @@
         </div>
 
         {{-- Applications Table --}}
-        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate,toggleEscalation,bulkAssignSelected">
+        <div class="card shadow-sm border-0" wire:loading.class="opacity-50" wire:target="caseSearch,filterPayerId,filterPracticeId,filterProviderId,filterStatusId,filterOwnerId,filterState,filterRevalidation,filterRecentlySubmitted,filterEnrollment,filterCategory,clearFilters,setFilterCategory,updateCaseStatus,inlineUpdate,toggleEscalation,bulkAssignSelected">
             @if ($canAssignCredentials)
                 <div class="card-body border-bottom py-3 d-flex flex-wrap align-items-center gap-2">
                     <span class="small text-muted me-1">{{ count($selectedCaseIds) }} selected</span>
@@ -179,6 +197,7 @@
                                 </th>
                             @endif
                             <th>Case #</th>
+                            <th>Type</th>
                             <th>Provider</th>
                             <th>Payer</th>
                             <th>Status</th>
@@ -202,8 +221,13 @@
                                     </td>
                                 @endif
                                 <td>
-                                    <span class="fw-semibold">{{ $case->case_number }}</span>
+                                    <a href="{{ route('admin.credentials.show', $case) }}" class="fw-semibold">{{ $case->case_number }}</a>
                                     @if($case->is_escalated)<span class="badge bg-danger ms-1">Escalated</span>@endif
+                                </td>
+                                <td>
+                                    <span class="badge bg-label-{{ $case->enrollment_level === \App\Enums\EnrollmentLevel::Group ? 'info' : 'secondary' }}">
+                                        {{ $case->enrollment_level?->label() ?? 'Individual' }}
+                                    </span>
                                 </td>
                                 <td>
                                     <a href="{{ route('admin.providers.show', $case->provider_id) }}" class="fw-semibold">

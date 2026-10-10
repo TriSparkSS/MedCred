@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Credential;
 
+use App\Enums\EnrollmentLevel;
 use App\Models\Admin;
 use App\Models\CaseType;
 use App\Models\DelayOwner;
@@ -31,6 +32,8 @@ class CredentialCreatePage extends Component
 
     public string $duplicateWarning = '';
 
+    public string $payerName = '';
+
     protected function rules(): array
     {
         return [
@@ -38,8 +41,10 @@ class CredentialCreatePage extends Component
             'formData.practice_id' => 'required|exists:practices,id',
             'formData.location_id' => 'nullable|exists:locations,id',
             'formData.provider_practice_location_id' => 'nullable|exists:provider_practice_locations,id',
-            'formData.payer_id' => 'required|exists:payers,id',
+            'formData.payer_id' => 'nullable|required_without:payerName|exists:payers,id',
+            'payerName' => 'nullable|required_without:formData.payer_id|string|max:255',
             'formData.case_type_id' => 'nullable|exists:case_types,id',
+            'formData.enrollment_level' => ['required', Rule::enum(EnrollmentLevel::class)],
             'formData.status_id' => 'required|exists:statuses,id',
             'formData.delay_owner_id' => 'nullable|exists:delay_owners,id',
             'formData.priority_id' => 'nullable|exists:priorities,id',
@@ -66,11 +71,24 @@ class CredentialCreatePage extends Component
             'status_id' => $defaultStatus?->id,
             'delay_owner_id' => $defaultStatus?->delay_owner_id,
             'assigned_admin_id' => Auth::guard('admin')->id(),
+            'enrollment_level' => EnrollmentLevel::Individual->value,
         ];
 
         if ($providerId = request()->query('provider')) {
             $this->formData['provider_id'] = $providerId;
+            $this->applyProviderPractice($providerId);
         }
+
+        if ($practiceId = request()->query('practice')) {
+            $this->formData['practice_id'] = $practiceId;
+            $this->formData['enrollment_level'] = EnrollmentLevel::Group->value;
+            $this->updatedFormDataPracticeId($practiceId);
+        }
+    }
+
+    public function updatedFormDataProviderId($value): void
+    {
+        $this->applyProviderPractice($value);
     }
 
     public function updatedFormDataPracticeId($value): void
@@ -94,6 +112,11 @@ class CredentialCreatePage extends Component
 
     public function save(CredentialingCaseService $caseService, TaskSyncService $taskSync)
     {
+        if (($this->formData['payer_id'] ?? '') === '') {
+            $this->formData['payer_id'] = null;
+        }
+
+        $this->resolvePayerFromName();
         $this->validate();
 
         $admin = Auth::guard('admin')->user();
@@ -124,7 +147,49 @@ class CredentialCreatePage extends Component
 
         flash()->success('Credentialing application created: '.$case->case_number);
 
-        return redirect()->route('admin.credentials');
+        return redirect()->route('admin.applications');
+    }
+
+    protected function applyProviderPractice(mixed $providerId): void
+    {
+        if (! $providerId) {
+            return;
+        }
+
+        $provider = ProviderDetails::with('practices')->find($providerId);
+        $practice = $provider?->practices
+            ->sortByDesc(fn ($item) => (int) ($item->pivot->primary_flag ?? 0))
+            ->first();
+
+        $isGroup = ($this->formData['enrollment_level'] ?? '') === EnrollmentLevel::Group->value;
+        if ($isGroup && ! empty($this->formData['practice_id'])) {
+            $this->updatedFormDataPracticeId($this->formData['practice_id']);
+
+            return;
+        }
+
+        if ($practice) {
+            $this->formData['practice_id'] = $practice->id;
+            $this->updatedFormDataPracticeId($practice->id);
+        }
+    }
+
+    protected function resolvePayerFromName(): void
+    {
+        $name = trim($this->payerName);
+        if ($name === '') {
+            return;
+        }
+
+        $payer = Payer::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+
+        if (! $payer) {
+            $payer = Payer::create(['name' => $name, 'is_active' => true]);
+        }
+
+        $this->formData['payer_id'] = $payer->id;
     }
 
     public function saveAnyway(CredentialingCaseService $caseService, TaskSyncService $taskSync)

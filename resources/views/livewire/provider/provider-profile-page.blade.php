@@ -1,13 +1,11 @@
 <div>
     @php
         use App\Enums\ProviderStatus;
-        $statusKey = is_object($provider->status) ? $provider->status->value : $provider->status;
-        $statusBadge = match ($statusKey) {
-            ProviderStatus::APPROVED->value => 'success',
-            ProviderStatus::PENDING->value => 'warning',
-            ProviderStatus::REJECTED->value => 'danger',
-            default => 'secondary',
-        };
+        $statusEnum = $provider->status instanceof ProviderStatus
+            ? $provider->status
+            : ProviderStatus::tryFrom((string) ($provider->status ?? ''));
+        $statusBadge = $statusEnum?->badgeColor() ?? 'secondary';
+        $statusLabel = $statusEnum?->label() ?? 'N/A';
     @endphp
 
     <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
@@ -21,7 +19,7 @@
                     <div>
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                             <h4 class="fw-bold text-primary mb-0">{{ $provider->user->name }}</h4>
-                            <span class="badge bg-label-{{ $statusBadge }} text-uppercase">{{ strtoupper($statusKey ?? 'N/A') }}</span>
+                            <span class="badge bg-label-{{ $statusBadge }}">{{ $statusLabel }}</span>
                         </div>
                         <p class="text-muted mb-0">
                             {{ $provider->specialty->name ?? 'No specialty' }}

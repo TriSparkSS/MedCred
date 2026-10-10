@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Credential;
 
+use App\Enums\EnrollmentLevel;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
@@ -52,6 +53,9 @@ class CredentialListPage extends Component
     #[Url(as: 'recent', history: true)]
     public bool $filterRecentlySubmitted = false;
 
+    #[Url(as: 'enrollment', history: true)]
+    public string $filterEnrollment = '';
+
     /** @var list<string> */
     public array $selectedCaseIds = [];
 
@@ -62,6 +66,7 @@ class CredentialListPage extends Component
         if (in_array($propertyName, [
             'caseSearch', 'filterCategory', 'filterPayerId', 'filterPracticeId', 'filterProviderId',
             'filterStatusId', 'filterOwnerId', 'filterState', 'filterRevalidation', 'filterRecentlySubmitted',
+            'filterEnrollment',
         ])) {
             if ($propertyName === 'filterPracticeId') {
                 $this->filterProviderId = '';
@@ -83,6 +88,7 @@ class CredentialListPage extends Component
         $this->filterState = '';
         $this->filterRevalidation = '';
         $this->filterRecentlySubmitted = false;
+        $this->filterEnrollment = '';
         $this->selectedCaseIds = [];
         $this->resetPage();
     }
@@ -92,7 +98,7 @@ class CredentialListPage extends Component
         return (bool) (trim($this->caseSearch) || $this->filterCategory || $this->filterPayerId
             || $this->filterPracticeId || $this->filterProviderId
             || $this->filterStatusId || $this->filterOwnerId || $this->filterState
-            || $this->filterRevalidation || $this->filterRecentlySubmitted);
+            || $this->filterRevalidation || $this->filterRecentlySubmitted || $this->filterEnrollment);
     }
 
     public function setFilterCategory(?string $category): void
@@ -207,18 +213,8 @@ class CredentialListPage extends Component
         }
     }
 
-    public function render(AdminScopeService $scope)
+    protected function applyListFilters($query, bool $includeCategory = true)
     {
-        $admin = Auth::guard('admin')->user();
-
-        $query = CredentialingCase::with([
-            'provider.user', 'payer', 'practice', 'status', 'delayOwner', 'assignedAdmin', 'priority',
-        ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
-
-        if ($admin) {
-            $scope->scopeCredentialingCases($query, $admin);
-        }
-
         if (trim($this->caseSearch) !== '') {
             $search = '%'.trim($this->caseSearch).'%';
             $query->where(function ($q) use ($search) {
@@ -267,33 +263,45 @@ class CredentialListPage extends Component
             $query->where('submission_date', '>=', now()->subDays(14)->toDateString());
         }
 
-        $query->filterCategory($this->filterCategory ?: null);
+        if ($this->filterEnrollment && in_array($this->filterEnrollment, EnrollmentLevel::values(), true)) {
+            $query->where('enrollment_level', $this->filterEnrollment);
+        }
+
+        if ($includeCategory) {
+            $query->filterCategory($this->filterCategory ?: null);
+        }
+
+        return $query;
+    }
+
+    public function render(AdminScopeService $scope)
+    {
+        $admin = Auth::guard('admin')->user();
+
+        $query = CredentialingCase::with([
+            'provider.user', 'payer', 'practice', 'status', 'delayOwner', 'assignedAdmin', 'priority',
+        ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
+
+        if ($admin) {
+            $scope->scopeCredentialingCases($query, $admin);
+        }
+
+        $this->applyListFilters($query, true);
 
         $cases = $query->orderByDesc('last_action_at')->paginate(15);
 
+        $statsQuery = CredentialingCase::query();
+        if ($admin) {
+            $scope->scopeCredentialingCases($statsQuery, $admin);
+        }
+        $this->applyListFilters($statsQuery, false);
+
         $closedCategories = ['approved', 'closed'];
-        $statsQuery = fn () => tap(CredentialingCase::query(), function ($q) use ($admin, $scope) {
-            if ($admin) {
-                $scope->scopeCredentialingCases($q, $admin);
-            }
-        });
         $stats = [
-            'total_active' => $statsQuery()->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))->count(),
-            'pending_provider' => tap(CredentialingCase::filterCategory('provider'), function ($q) use ($admin, $scope) {
-                if ($admin) {
-                    $scope->scopeCredentialingCases($q, $admin);
-                }
-            })->count(),
-            'pending_payer' => tap(CredentialingCase::filterCategory('payer'), function ($q) use ($admin, $scope) {
-                if ($admin) {
-                    $scope->scopeCredentialingCases($q, $admin);
-                }
-            })->count(),
-            'overdue' => tap(CredentialingCase::filterCategory('overdue'), function ($q) use ($admin, $scope) {
-                if ($admin) {
-                    $scope->scopeCredentialingCases($q, $admin);
-                }
-            })->count(),
+            'total_active' => (clone $statsQuery)->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))->count(),
+            'pending_provider' => (clone $statsQuery)->filterCategory('provider')->count(),
+            'pending_payer' => (clone $statsQuery)->filterCategory('payer')->count(),
+            'overdue' => (clone $statsQuery)->filterCategory('overdue')->count(),
         ];
 
         $statuses = Status::where('is_active', true)->orderBy('sort_order')->get();
@@ -316,6 +324,9 @@ class CredentialListPage extends Component
         return view('livewire.admin.credential.credential-list-page', compact(
             'cases', 'stats', 'statuses', 'payers', 'practices', 'providers', 'delayOwners', 'admins'
         ) + [
+            'isApplicationsHub' => request()->routeIs('admin.applications'),
+            'enrollmentLevels' => EnrollmentLevel::cases(),
+            'canCreateCredentials' => $admin?->can('admin.credentials.create') ?? false,
             'canEditCredentials' => $admin?->can('admin.credentials.edit') ?? false,
             'canAssignCredentials' => $admin?->can('admin.credentials.assign') ?? false,
             'canOverrideDelay' => $admin?->can('admin.delay.override') ?? false,

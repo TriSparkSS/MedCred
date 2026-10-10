@@ -5,7 +5,7 @@
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-clipboard-plus me-2"></i>New Credentialing Application</h4>
                 <p class="text-muted mb-0">Create a payer enrollment case linked to a provider and practice.</p>
             </div>
-            <a href="{{ route('admin.credentials') }}" class="btn btn-outline-secondary"><i class="ti tabler-arrow-left me-1"></i>Back to Tracker</a>
+            <a href="{{ route('admin.applications') }}" class="btn btn-outline-secondary"><i class="ti tabler-arrow-left me-1"></i>Back to Applications</a>
         </div>
     </div>
 
@@ -18,7 +18,7 @@
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Provider <span class="text-danger">*</span></label>
-                        <select wire:model="formData.provider_id" class="form-select @error('formData.provider_id') is-invalid @enderror">
+                        <select wire:model.live="formData.provider_id" class="form-select @error('formData.provider_id') is-invalid @enderror">
                             <option value="">Select provider...</option>
                             @foreach ($providers as $provider)
                                 <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'N/A' }} ({{ $provider->npi }})</option>
@@ -54,6 +54,20 @@
                             @endforeach
                         </select>
                         @error('formData.payer_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label class="form-label fw-medium small mt-2 mb-1">Or enter payer name</label>
+                        <input type="text" wire:model="payerName" class="form-control @error('payerName') is-invalid @enderror"
+                            placeholder="Type a new or existing payer">
+                        @error('payerName')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Application type <span class="text-danger">*</span></label>
+                        <select wire:model="formData.enrollment_level" class="form-select @error('formData.enrollment_level') is-invalid @enderror">
+                            @foreach (\App\Enums\EnrollmentLevel::cases() as $level)
+                                <option value="{{ $level->value }}">{{ $level->label() }}</option>
+                            @endforeach
+                        </select>
+                        @error('formData.enrollment_level')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Group maps to the practice; Individual maps to the provider. Both records are stored on the case.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Case Type</label>
@@ -153,7 +167,7 @@
                             <button type="button" wire:click="saveAnyway" class="btn btn-sm btn-warning ms-2">Create Anyway</button>
                         </div>
                     @endif
-                    <a href="{{ route('admin.credentials') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <a href="{{ route('admin.applications') }}" class="btn btn-outline-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary"><i class="ti tabler-check me-1"></i>Create Application</button>
                 </div>
             </form>

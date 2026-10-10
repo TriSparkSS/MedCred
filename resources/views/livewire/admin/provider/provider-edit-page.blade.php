@@ -65,19 +65,11 @@
                     </div>
 
                     @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">New Password</label>
-                        <input type="password" wire:model="userData.password"
-                            class="form-control @error('userData.password') is-invalid @enderror"
-                            placeholder="Leave blank to keep current">
-                        @error('userData.password')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        <small class="text-muted">Leave blank to keep the current password. Minimum 6 characters.</small>
-                    </div>
-
                     <div class="col-12">
-                        <small class="text-muted">Portal login URL: <code>{{ url('/portal/login') }}</code></small>
+                        <small class="text-muted">
+                            Portal login uses the email above.
+                            <a href="{{ route('admin.settings.portal-accounts') }}">Manage passwords in Admin Settings → Portal Accounts</a>
+                        </small>
                     </div>
                     @endif
                 </div>
@@ -92,10 +84,12 @@
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Specialty</label>
+                        <input type="search" wire:model.live.debounce.300ms="specialtySearch"
+                            class="form-control form-control-sm mb-2" placeholder="Search specialties...">
                         <select wire:model="formData.specialty_id"
                             class="form-select @error('formData.specialty_id') is-invalid @enderror">
                             <option value="">Select specialty...</option>
-                            @foreach ($specialties as $specialty)
+                            @foreach ($specialtyOptions as $specialty)
                                 <option value="{{ $specialty->id }}">{{ $specialty->name }}</option>
                             @endforeach
                         </select>
@@ -115,18 +109,29 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label fw-medium">Status <span class="text-danger">*</span></label>
-                        <select wire:model="formData.status"
+                        <label class="form-label fw-medium">Provider Status <span class="text-danger">*</span></label>
+                        <select wire:model.live="formData.status"
                             class="form-select @error('formData.status') is-invalid @enderror">
                             <option value="">Select status...</option>
-                            <option value="{{ ProviderStatus::PENDING->value }}">Pending</option>
-                            <option value="{{ ProviderStatus::APPROVED->value }}">Approved</option>
-                            <option value="{{ ProviderStatus::REJECTED->value }}">Rejected</option>
+                            @foreach (ProviderStatus::cases() as $status)
+                                <option value="{{ $status->value }}">{{ $status->label() }}</option>
+                            @endforeach
                         </select>
                         @error('formData.status')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                    @if (($formData['status'] ?? '') === ProviderStatus::ON_HOLD->value)
+                    <div class="col-md-12">
+                        <label class="form-label fw-medium">Remarks <span class="text-danger">*</span></label>
+                        <textarea wire:model="formData.status_remarks" rows="3"
+                            class="form-control @error('formData.status_remarks') is-invalid @enderror"
+                            placeholder="Required when status is On Hold"></textarea>
+                        @error('formData.status_remarks')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Licenses & Credentials --}}
@@ -157,18 +162,10 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Location
                     </h6>
-                    <p class="text-muted small mb-0">Mailing address for this provider (practice sites are managed below).</p>
+                    <p class="text-muted small mb-0">Select a practice, then pick Primary, Secondary, or a service location. Fields below stay editable.</p>
                 </div>
                 <div class="row g-4 mb-4">
-                    <div class="col-12">
-                        <label class="form-label fw-medium">Practice Name <span class="text-danger">*</span></label>
-                        <input type="text" wire:model="formData.practice"
-                            class="form-control @error('formData.practice') is-invalid @enderror"
-                            placeholder="Associated practice or clinic name">
-                        @error('formData.practice')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                    @include('livewire.admin.provider.partials.practice-address-fields')
 
                     <div class="col-12">
                         <label class="form-label fw-medium">Street Address <span class="text-danger">*</span></label>
@@ -233,6 +230,9 @@
         </div>
     </div>
 
+    <div class="mt-4">
+        <livewire:admin.portal.portal-logins-section owner-type="provider" :owner-id="$providerId" :key="'edit-provider-logins-'.$providerId" />
+    </div>
     <div class="mt-4">
         <livewire:admin.documents.entity-documents-section
             :provider-id="$providerId"

@@ -20,7 +20,8 @@ class StoreProviderRequest extends FormRequest
             'userData.password' => 'required|string|min:6',
             'formData.npi' => 'required|string|max:50',
             'formData.specialty_id' => 'nullable|exists:specialties,id',
-            'formData.status' => 'required|in:pending,approved,rejected',
+            'formData.status' => 'required|in:active,inactive,on_hold',
+            'formData.status_remarks' => 'required_if:formData.status,on_hold|nullable|string|max:2000',
         ];
     }
 }

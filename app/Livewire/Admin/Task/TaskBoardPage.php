@@ -7,6 +7,7 @@ use App\Enums\TaskStatus;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\Payer;
+use App\Models\Practice;
 use App\Models\Priority;
 use App\Models\ProviderDetails;
 use App\Models\Task;
@@ -67,6 +68,9 @@ class TaskBoardPage extends Component
 
     #[Url(as: 'provider_id', history: true)]
     public string $filterProviderId = '';
+
+    #[Url(as: 'practice_id', history: true)]
+    public string $filterPracticeId = '';
 
     #[Url(as: 'payer_id', history: true)]
     public string $filterPayerId = '';
@@ -308,6 +312,16 @@ class TaskBoardPage extends Component
             : array_values(array_unique(array_merge($selected, $ids)));
     }
 
+    public function selectAllMatching(): void
+    {
+        $ids = $this->baseQuery()->orderByDesc('updated_at')->limit(200)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->selectedTaskIds = array_values(array_unique($ids));
+
+        if ($ids === []) {
+            flash()->info('No tasks match the current filters.');
+        }
+    }
+
     public function clearSelection(): void
     {
         $this->selectedTaskIds = [];
@@ -498,6 +512,10 @@ class TaskBoardPage extends Component
             $query->where('provider_id', $this->filterProviderId);
         }
 
+        if ($this->filterPracticeId) {
+            $query->whereHas('credentialingCase', fn ($q) => $q->where('practice_id', (int) $this->filterPracticeId));
+        }
+
         if ($this->filterPayerId) {
             $query->where('payer_id', $this->filterPayerId);
         }
@@ -614,11 +632,30 @@ class TaskBoardPage extends Component
 
         $openCount = (clone $this->baseQuery())->open()->count();
         $closedCategories = ['approved', 'closed'];
+        $admin = Auth::guard('admin')->user();
+
+        $openAppsQuery = CredentialingCase::query()->active()->with(['provider.user', 'practice', 'payer', 'status']);
+        if ($this->filterPracticeId) {
+            $openAppsQuery->where('practice_id', (int) $this->filterPracticeId);
+        }
+        if ($this->filterProviderId) {
+            $openAppsQuery->where('provider_id', (int) $this->filterProviderId);
+        }
+        if ($admin) {
+            app(AdminScopeService::class)->scopeCredentialingCases($openAppsQuery, $admin);
+        }
+
+        $practiceQuery = Practice::orderBy('legal_name');
+        if ($admin) {
+            app(AdminScopeService::class)->scopePractices($practiceQuery, $admin);
+        }
 
         return view('livewire.admin.task.task-board-page', [
             'board' => $board,
             'listTasks' => $listTasks,
             'openCount' => $openCount,
+            'openApplications' => $openAppsQuery->orderByDesc('last_action_at')->limit(25)->get(),
+            'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'admins' => Admin::assignable()->get(['id', 'name', 'username']),
             'providers' => ProviderDetails::with('user')->orderBy('id')->limit(200)->get(),
             'payers' => Payer::orderBy('name')->get(['id', 'name']),

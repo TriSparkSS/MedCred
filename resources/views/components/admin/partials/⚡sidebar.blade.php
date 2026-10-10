@@ -57,7 +57,13 @@ new class extends Component {
             @endif
 
             @if ($canAdmin('admin.credentials.view'))
-            <li class="menu-item {{ request()->routeIs('admin.credentials*') ? 'active' : '' }}">
+            <li class="menu-item {{ request()->routeIs('admin.applications') || request()->routeIs('admin.credentials.create') ? 'active' : '' }}">
+                <a href="{{ route('admin.applications') }}" class="menu-link">
+                    <i class="menu-icon icon-base ti tabler-file-plus"></i>
+                    <div>Applications</div>
+                </a>
+            </li>
+            <li class="menu-item {{ request()->routeIs('admin.credentials') || request()->routeIs('admin.credentials.show') || request()->routeIs('admin.credentials.packet') ? 'active' : '' }}">
                 <a href="{{ route('admin.credentials') }}" class="menu-link">
                     <i class="menu-icon icon-base ti tabler-clipboard-check"></i>
                     <div>Credentialing Tracker</div>
@@ -119,7 +125,7 @@ new class extends Component {
             </li>
             @endif
 
-            @if ($canAdmin('admin.settings.manage') || $canAdmin('admin.users.manage') || $canAdmin('admin.settings.mail'))
+            @if ($canAdmin('admin.settings.manage') || $canAdmin('admin.users.manage') || $canAdmin('admin.settings.mail') || $canAdmin('admin.portal-credentials.manage'))
             <li class="menu-item {{ request()->routeIs('admin.settings*') || request()->routeIs('admin.master*') || request()->routeIs('admin.payers*') ? 'active open' : '' }}">
                 <a href="javascript:void(0);" class="menu-link menu-toggle">
                     <i class="menu-icon icon-base ti tabler-settings"></i>
@@ -177,6 +183,11 @@ new class extends Component {
                     @if ($canAdmin('admin.users.manage'))
                     <li class="menu-item {{ request()->routeIs('admin.settings.users') ? 'active' : '' }}">
                         <a href="{{ route('admin.settings.users') }}" class="menu-link"><div>User Management</div></a>
+                    </li>
+                    @endif
+                    @if ($canAdmin('admin.portal-credentials.manage'))
+                    <li class="menu-item {{ request()->routeIs('admin.settings.portal-accounts') ? 'active' : '' }}">
+                        <a href="{{ route('admin.settings.portal-accounts') }}" class="menu-link"><div>Portal Accounts</div></a>
                     </li>
                     @endif
                 </ul>

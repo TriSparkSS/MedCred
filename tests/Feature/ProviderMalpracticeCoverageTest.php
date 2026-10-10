@@ -49,7 +49,7 @@ test('creating a provider stores malpractice coverage amounts and effective date
         ->set('formData.city', 'Austin')
         ->set('formData.state', 'TX')
         ->set('formData.zip', '78701')
-        ->set('formData.status', 'pending')
+        ->set('formData.status', 'inactive')
         ->set('formData.pecos_enrolled', false)
         ->set('formData.malpractice_carrier', 'MedPro')
         ->set('formData.malpractice_policy_number', 'MP-100')
@@ -76,7 +76,7 @@ test('editing a provider persists malpractice coverage fields and they show on d
             'password' => 'password',
         ])->id,
         'npi' => '1888888888',
-        'status' => 'approved',
+        'status' => 'active',
         'practice' => 'Existing Clinic',
         'address' => '2 Main St',
         'city' => 'Dallas',
