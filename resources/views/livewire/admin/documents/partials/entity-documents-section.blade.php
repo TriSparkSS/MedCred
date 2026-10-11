@@ -181,9 +181,8 @@
     </div>
 </div>
 
-@teleport('body')
 @if ($showModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -269,7 +268,7 @@
 @endif
 
 @if ($showVersionModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -299,7 +298,7 @@
 @endif
 
 @if ($rejectDocumentId)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -319,5 +318,4 @@
         </div>
     </div>
 @endif
-@endteleport
 </div>

@@ -5,6 +5,7 @@ use App\Livewire\Admin\Documents\DocumentListPage;
 use App\Livewire\Admin\Documents\EntityDocumentsSection;
 use App\Livewire\Admin\Provider\ProviderCredentialsSection;
 use App\Livewire\Admin\Provider\ProviderDetailsPage;
+use App\Livewire\Admin\Provider\ProviderEditPage;
 use App\Livewire\Admin\Provider\ProviderLocationsSection;
 use App\Models\Admin;
 use App\Models\Document;
@@ -208,16 +209,23 @@ test('state license document upload requires a state', function () {
     expect(ProviderCredential::where('provider_id', $provider->id)->where('state', 'TX')->exists())->toBeTrue();
 });
 
-test('provider credential and location section blades wrap in a single root and teleport modals', function () {
+test('provider credential and location section blades wrap in a single root with inline modals', function () {
     $credentials = file_get_contents(resource_path('views/livewire/admin/provider/partials/provider-credentials-section.blade.php'));
     $locations = file_get_contents(resource_path('views/livewire/admin/provider/partials/provider-locations-section.blade.php'));
+    $documents = file_get_contents(resource_path('views/livewire/admin/documents/partials/entity-documents-section.blade.php'));
 
     expect(str_starts_with(trim($credentials), '<div>'))->toBeTrue()
-        ->and(substr_count($credentials, '@teleport(\'body\')'))->toBe(1)
+        ->and(str_contains($credentials, '@teleport'))->toBeFalse()
+        ->and(str_contains($credentials, 'position: fixed; inset: 0'))->toBeTrue()
         ->and(str_contains($credentials, 'credPrimary-{{ $providerId }}'))->toBeTrue()
         ->and(str_starts_with(trim($locations), '<div>'))->toBeTrue()
-        ->and(substr_count($locations, '@teleport(\'body\')'))->toBe(1)
-        ->and(str_contains($locations, 'pplPrimary-{{ $providerId }}'))->toBeTrue();
+        ->and(str_contains($locations, '@teleport'))->toBeFalse()
+        ->and(str_contains($locations, 'position: fixed; inset: 0'))->toBeTrue()
+        ->and(str_contains($locations, 'pplPrimary-{{ $providerId }}'))->toBeTrue()
+        ->and(str_contains($documents, "@php\n"))->toBeTrue()
+        ->and(str_contains($documents, "@endphp\n\n<div>"))->toBeTrue()
+        ->and(str_contains($documents, '@teleport'))->toBeFalse()
+        ->and(str_contains($documents, 'position: fixed; inset: 0'))->toBeTrue();
 });
 
 test('provider credential and location rows can be edited after create', function () {
@@ -241,6 +249,8 @@ test('provider credential and location rows can be edited after create', functio
         ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
         ->call('openEditModal', $credential->id)
         ->assertSet('showModal', true)
+        ->assertSee('Edit Credential')
+        ->assertSeeHtml('position: fixed; inset: 0')
         ->set('formData.number', 'TX-EDIT-2')
         ->call('save')
         ->assertHasNoErrors();
@@ -262,6 +272,8 @@ test('provider credential and location rows can be edited after create', functio
         ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
         ->call('openEditModal', $link->id)
         ->assertSet('showModal', true)
+        ->assertSee('Edit Location Link')
+        ->assertSeeHtml('position: fixed; inset: 0')
         ->set('formData.role', 'Covering')
         ->call('save')
         ->assertHasNoErrors();
@@ -281,4 +293,39 @@ test('provider details page shows upload credential and location actions', funct
         ->assertSee('Add Credential')
         ->assertSee('Add Location')
         ->assertSee('Upload Document');
+});
+
+test('provider edit page opens document credential and location modals', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $provider = locationsTestProvider();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSeeLivewire(ProviderCredentialsSection::class)
+        ->assertSeeLivewire(ProviderLocationsSection::class)
+        ->assertSee('Upload Document')
+        ->assertSee('Add Credential')
+        ->assertSee('Add Location');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['providerId' => $provider->id])
+        ->call('openUploadModal')
+        ->assertSet('showModal', true)
+        ->assertSee('Upload Provider Document')
+        ->assertSeeHtml('position: fixed; inset: 0');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->assertSet('showModal', true)
+        ->assertSee('Add Credential')
+        ->assertSeeHtml('position: fixed; inset: 0');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->assertSet('showModal', true)
+        ->assertSee('Link Location')
+        ->assertSeeHtml('position: fixed; inset: 0');
 });

@@ -150,15 +150,31 @@ test('provider and practice edit pages have dedicated documents sections for vie
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
         ->assertSee('Provider Documents')
         ->assertSee('Open in Document Hub')
         ->assertSee('Upload Document');
 
     Livewire::actingAs($admin, 'admin')
         ->test(PracticeEditPage::class, ['practice' => $practice->id])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
         ->assertSee('Practice Documents')
         ->assertSee('Open in Document Hub')
         ->assertSee('Upload Document');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['providerId' => $provider->id])
+        ->call('openUploadModal')
+        ->assertSet('showModal', true)
+        ->assertSee('Upload Provider Document')
+        ->assertSeeHtml('position: fixed; inset: 0');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $practice->id])
+        ->call('openUploadModal')
+        ->assertSet('showModal', true)
+        ->assertSee('Upload Practice Document')
+        ->assertSeeHtml('position: fixed; inset: 0');
 });
 
 test('practice documents section opens the upload modal', function () {
@@ -195,6 +211,7 @@ test('provider documents section can edit an existing document', function () {
         ->call('openEditModal', $document->id)
         ->assertSet('showModal', true)
         ->assertSee('Edit Provider Document')
+        ->assertSeeHtml('position: fixed; inset: 0')
         ->set('formData.title', 'State License')
         ->set('formData.expiry_date', now()->addYear()->toDateString())
         ->call('saveDocument')
