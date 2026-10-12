@@ -103,6 +103,7 @@ class PracticeCreatePage extends Component
             $this->syncPracticeAddress($practice, 'alternative', $this->alternativeAddressData);
             $this->syncPracticeAddress($practice, 'mailing', $this->mailingAddressData);
             $this->syncPracticeAddress($practice, 'billing', $this->billingAddressData);
+            $this->syncPracticeLicenseDocument($practice->fresh(), $this->document);
 
             $admin = Auth::guard('admin')->user();
             if ($admin && app(AdminScopeService::class)->isPracticeScoped($admin)) {

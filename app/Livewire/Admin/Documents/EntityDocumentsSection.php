@@ -73,8 +73,10 @@ class EntityDocumentsSection extends Component
             'formData.state' => $stateSpecific
                 ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
                 : 'nullable|string|max:50',
-            'formData.sync_credential' => 'boolean',
-            'uploadFile' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'formData.sync_credential' => 'nullable|boolean',
+            'uploadFile' => $this->modalMode === 'edit'
+                ? 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240'
+                : 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ];
     }
 
@@ -102,10 +104,10 @@ class EntityDocumentsSection extends Component
             'practice_id' => $this->practiceId,
             'sync_credential' => (bool) $this->providerId,
             'document_type_id' => $document->document_type_id,
-            'title' => $document->title,
-            'document_number' => $document->document_number,
-            'effective_date' => $document->effective_date?->format('Y-m-d'),
-            'expiry_date' => $document->expiry_date?->format('Y-m-d'),
+            'title' => $document->title ?? '',
+            'document_number' => $document->document_number ?? '',
+            'effective_date' => $document->effective_date?->format('Y-m-d') ?? '',
+            'expiry_date' => $document->expiry_date?->format('Y-m-d') ?? '',
             'state' => $document->state,
         ];
         $this->resetValidation();
@@ -116,20 +118,28 @@ class EntityDocumentsSection extends Component
     {
         abort_unless($this->canUpload, 403);
 
+        if (! $this->uploadFile) {
+            $this->uploadFile = null;
+        }
+
         $this->validate();
 
-        $payload = [
-            ...$this->formData,
-            'provider_id' => $this->providerId,
-            'practice_id' => $this->practiceId,
-        ];
+        $payload = $this->formData;
 
-        if (! $this->providerId) {
-            unset($payload['sync_credential'], $payload['state']);
+        if ($this->providerId) {
+            $payload['provider_id'] = $this->providerId;
+        } else {
+            unset($payload['provider_id'], $payload['sync_credential'], $payload['state']);
+        }
+
+        if ($this->practiceId) {
+            $payload['practice_id'] = $this->practiceId;
+        } else {
+            unset($payload['practice_id']);
         }
 
         if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
-            $documentService->update(
+            $document = $documentService->update(
                 $this->documentForOwner((int) $this->selectedDocumentId),
                 $payload,
                 $this->uploadFile,
@@ -137,9 +147,11 @@ class EntityDocumentsSection extends Component
             );
             flash()->success('Document updated successfully.');
         } else {
-            $documentService->upload($payload, $this->uploadFile, Auth::guard('admin')->id());
+            $document = $documentService->upload($payload, $this->uploadFile, Auth::guard('admin')->id());
             flash()->success('Document uploaded successfully.');
         }
+
+        $this->syncPracticeLicenseFromDocument($document);
 
         $this->showModal = false;
         $this->modalMode = 'upload';
@@ -214,9 +226,23 @@ class EntityDocumentsSection extends Component
         flash()->info('Document deleted.');
     }
 
+    private function syncPracticeLicenseFromDocument(Document $document): void
+    {
+        if (! $this->practiceId || $document->documentType?->name !== Practice::LICENSE_DOCUMENT_TYPE) {
+            return;
+        }
+
+        Practice::whereKey($this->practiceId)->update([
+            'license_name' => $document->title,
+            'license_number' => $document->document_number,
+            'license_effective_date' => $document->effective_date,
+            'license_expiry_date' => $document->expiry_date,
+        ]);
+    }
+
     private function documentForOwner(int $id): Document
     {
-        $query = Document::query();
+        $query = Document::query()->with('documentType');
 
         if ($this->providerId) {
             $query->where('provider_id', $this->providerId);
@@ -247,6 +273,9 @@ class EntityDocumentsSection extends Component
             'document_type_id' => $this->lockedType()?->id,
             'title' => $this->lockedTypeName ?: '',
             'document_number' => '',
+            'effective_date' => '',
+            'expiry_date' => '',
+            'state' => null,
         ];
         $this->uploadFile = null;
         $this->resetValidation();
@@ -277,7 +306,10 @@ class EntityDocumentsSection extends Component
             $practice = Practice::find($this->practiceId);
             if ($practice?->document_path) {
                 $legacy = [
-                    'name' => $practice->document_original_name ?: 'Practice document',
+                    'name' => $practice->license_name ?: ($practice->document_original_name ?: 'Practice document'),
+                    'number' => $practice->license_number,
+                    'effective' => $practice->license_effective_date?->format('m/d/Y'),
+                    'expiration' => $practice->license_expiry_date?->format('m/d/Y'),
                     'path' => $practice->document_path,
                 ];
             }
@@ -288,7 +320,7 @@ class EntityDocumentsSection extends Component
             : ['practice' => $this->practiceId];
 
         $heading = $this->heading
-            ?: (($this->providerId ? 'Provider' : 'Practice').' Documents');
+            ?: ($this->providerId ? 'Provider Documents' : 'License & Documents');
 
         return view('livewire.admin.documents.partials.entity-documents-section', [
             'documents' => $query->latest()->get(),

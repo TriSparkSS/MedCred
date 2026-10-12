@@ -41,6 +41,8 @@ class Practice extends Model
 
     public const CLIENT_CODE_PATTERN = '/^[A-Z0-9]{3,12}$/';
 
+    public const LICENSE_DOCUMENT_TYPE = 'Practice License';
+
     protected $casts = [
         'status' => PracticeStatus::class,
         'license_effective_date' => 'date',

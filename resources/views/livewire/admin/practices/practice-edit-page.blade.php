@@ -237,9 +237,9 @@
                 {{-- License & Documents --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-certificate me-2"></i>License & Documents
+                        <i class="ti tabler-certificate me-2"></i>License &amp; Documents
                     </h6>
-                    <p class="text-muted small mb-0">Each document needs a name, number, effective date, and expiration. Use Practice Documents below for additional files.</p>
+                    <p class="text-muted small mb-0">Each document needs a name, number, effective date, and expiration. Additional files are listed in License &amp; Documents below.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -308,7 +308,7 @@
         <div class="mt-4">
             <livewire:admin.documents.entity-documents-section
                 :practice-id="$practiceId"
-                heading="Practice Documents"
+                heading="License & Documents"
                 :key="'edit-practice-docs-'.$practiceId" />
         </div>
         <div class="card shadow-sm border-0 mt-4">

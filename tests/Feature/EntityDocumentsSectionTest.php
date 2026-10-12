@@ -137,7 +137,7 @@ test('provider and practice details pages have dedicated documents sections link
 
     Livewire::actingAs($admin, 'admin')
         ->test(PracticeDetailsPage::class, ['practice' => $practice->id, 'activeTab' => 'documents'])
-        ->assertSee('Practice Documents')
+        ->assertSee('License & Documents')
         ->assertSee('Open in Document Hub')
         ->assertSee('Upload Document')
         ->assertSee(route('admin.documents', ['practice' => $practice->id], false));
@@ -158,7 +158,7 @@ test('provider and practice edit pages have dedicated documents sections for vie
     Livewire::actingAs($admin, 'admin')
         ->test(PracticeEditPage::class, ['practice' => $practice->id])
         ->assertSeeLivewire(EntityDocumentsSection::class)
-        ->assertSee('Practice Documents')
+        ->assertSee('License & Documents')
         ->assertSee('Open in Document Hub')
         ->assertSee('Upload Document');
 
@@ -198,8 +198,11 @@ test('provider documents section can edit an existing document', function () {
         ->test(EntityDocumentsSection::class, ['providerId' => $provider->id])
         ->call('openUploadModal')
         ->set('formData.title', 'LICENSE')
+        ->set('formData.document_number', 'TX-MD-100')
         ->set('formData.document_type_id', $type->id)
         ->set('formData.state', 'TX')
+        ->set('formData.effective_date', '2026-01-15')
+        ->set('formData.expiry_date', '2027-01-15')
         ->set('uploadFile', $file)
         ->call('saveDocument')
         ->assertHasNoErrors();
@@ -208,17 +211,172 @@ test('provider documents section can edit an existing document', function () {
 
     Livewire::actingAs($admin, 'admin')
         ->test(EntityDocumentsSection::class, ['providerId' => $provider->id])
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$document->id.')"')
         ->call('openEditModal', $document->id)
         ->assertSet('showModal', true)
+        ->assertSet('modalMode', 'edit')
+        ->assertSet('formData.title', 'LICENSE')
+        ->assertSet('formData.document_number', 'TX-MD-100')
+        ->assertSet('formData.effective_date', '2026-01-15')
+        ->assertSet('formData.expiry_date', '2027-01-15')
         ->assertSee('Edit Provider Document')
+        ->assertSee('Name')
+        ->assertSee('Number')
+        ->assertSee('Document Type')
+        ->assertSee('Effective Date')
+        ->assertSee('Expiry Date')
+        ->assertSee('Leave empty to keep the current file')
         ->assertSeeHtml('position: fixed; inset: 0')
+        ->assertSeeHtml('wire:click.stop="saveDocument"')
         ->set('formData.title', 'State License')
-        ->set('formData.expiry_date', now()->addYear()->toDateString())
+        ->set('formData.document_number', 'TX-MD-200')
+        ->set('formData.effective_date', '2026-03-01')
+        ->set('formData.expiry_date', '2027-03-01')
+        ->call('saveDocument')
+        ->assertHasNoErrors()
+        ->assertSet('showModal', false);
+
+    $document->refresh();
+
+    expect($document->title)->toBe('State License')
+        ->and($document->document_number)->toBe('TX-MD-200')
+        ->and($document->effective_date?->toDateString())->toBe('2026-03-01')
+        ->and($document->expiry_date?->toDateString())->toBe('2027-03-01');
+});
+
+test('practice documents section can edit name number and dates', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = documentsTestPractice();
+    $type = DocumentType::where('name', 'W-9')->firstOrFail();
+    $file = UploadedFile::fake()->create('practice-w9.pdf', 80, 'application/pdf');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $practice->id])
+        ->call('openUploadModal')
+        ->set('formData.title', 'Practice W-9')
+        ->set('formData.document_number', 'W9-100')
+        ->set('formData.document_type_id', $type->id)
+        ->set('formData.effective_date', '2026-02-01')
+        ->set('formData.expiry_date', '2027-02-01')
+        ->set('uploadFile', $file)
         ->call('saveDocument')
         ->assertHasNoErrors();
 
-    expect($document->fresh()->title)->toBe('State License')
-        ->and($document->fresh()->expiry_date?->toDateString())->toBe(now()->addYear()->toDateString());
+    $document = Document::where('practice_id', $practice->id)->firstOrFail();
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $practice->id])
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$document->id.')"')
+        ->call('openEditModal', $document->id)
+        ->assertSet('showModal', true)
+        ->assertSet('modalMode', 'edit')
+        ->assertSet('formData.title', 'Practice W-9')
+        ->assertSet('formData.document_number', 'W9-100')
+        ->assertSet('formData.effective_date', '2026-02-01')
+        ->assertSet('formData.expiry_date', '2027-02-01')
+        ->assertSee('Edit Practice Document')
+        ->assertSee('Name')
+        ->assertSee('Number')
+        ->assertSee('Document Type')
+        ->assertSee('Effective Date')
+        ->assertSee('Expiry Date')
+        ->assertSee('Leave empty to keep the current file')
+        ->assertSeeHtml('position: fixed; inset: 0')
+        ->assertSeeHtml('wire:click.stop="saveDocument"')
+        ->set('formData.title', 'Updated Practice W-9')
+        ->set('formData.document_number', 'W9-250')
+        ->set('formData.effective_date', '2026-04-10')
+        ->set('formData.expiry_date', '2027-04-10')
+        ->call('saveDocument')
+        ->assertHasNoErrors()
+        ->assertSet('showModal', false);
+
+    $document->refresh();
+
+    expect($document->title)->toBe('Updated Practice W-9')
+        ->and($document->document_number)->toBe('W9-250')
+        ->and($document->effective_date?->toDateString())->toBe('2026-04-10')
+        ->and($document->expiry_date?->toDateString())->toBe('2027-04-10')
+        ->and($document->practice_id)->toBe($practice->id);
+});
+
+test('practice document edit keeps an existing provider link', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = documentsTestPractice();
+    $provider = documentsTestProvider();
+    $type = DocumentType::where('name', 'W-9')->firstOrFail();
+    $file = UploadedFile::fake()->create('shared.pdf', 20, 'application/pdf');
+
+    $document = Document::createWithFile([
+        'title' => 'Shared Doc',
+        'document_type_id' => $type->id,
+        'practice_id' => $practice->id,
+        'provider_id' => $provider->id,
+        'document_number' => 'SH-1',
+        'effective_date' => '2026-01-01',
+        'expiry_date' => '2027-01-01',
+    ], $file, $admin->id);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $practice->id])
+        ->call('openEditModal', $document->id)
+        ->set('formData.title', 'Shared Doc Updated')
+        ->set('formData.document_number', 'SH-2')
+        ->call('saveDocument')
+        ->assertHasNoErrors();
+
+    $document->refresh();
+
+    expect($document->title)->toBe('Shared Doc Updated')
+        ->and($document->document_number)->toBe('SH-2')
+        ->and($document->practice_id)->toBe($practice->id)
+        ->and($document->provider_id)->toBe($provider->id);
+});
+
+test('practice and provider edit pages expose document edit actions', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = documentsTestPractice();
+    $provider = documentsTestProvider();
+    $type = DocumentType::where('name', 'W-9')->firstOrFail();
+    $file = UploadedFile::fake()->create('page-doc.pdf', 20, 'application/pdf');
+
+    $practiceDoc = Document::createWithFile([
+        'title' => 'Practice Page Doc',
+        'document_type_id' => $type->id,
+        'practice_id' => $practice->id,
+        'document_number' => 'PP-1',
+        'effective_date' => '2026-01-01',
+        'expiry_date' => '2027-01-01',
+    ], $file, $admin->id);
+
+    $providerDoc = Document::createWithFile([
+        'title' => 'Provider Page Doc',
+        'document_type_id' => $type->id,
+        'provider_id' => $provider->id,
+        'document_number' => 'PR-1',
+        'effective_date' => '2026-01-01',
+        'expiry_date' => '2027-01-01',
+    ], UploadedFile::fake()->create('provider-page.pdf', 20, 'application/pdf'), $admin->id);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(PracticeEditPage::class, ['practice' => $practice->id])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$practiceDoc->id.')"');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(PracticeDetailsPage::class, ['practice' => $practice->id, 'activeTab' => 'documents'])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$practiceDoc->id.')"');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$providerDoc->id.')"');
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderDetailsPage::class, ['provider' => $provider, 'activeTab' => 'documents'])
+        ->assertSeeLivewire(EntityDocumentsSection::class)
+        ->assertSeeHtml('wire:click.stop="openEditModal('.$providerDoc->id.')"');
 });
 
 test('document hub upload with empty practice and provider still saves and stores a number', function () {
@@ -270,6 +428,7 @@ test('document hub can edit fields and replace the file', function () {
         ->assertSet('showModal', true)
         ->assertSee('Edit Document')
         ->assertSee('License / Certification / DEA number')
+        ->assertSeeHtml('position: fixed; inset: 0')
         ->set('formData.title', 'Updated Hub Doc')
         ->set('formData.document_number', 'LIC-2')
         ->set('uploadFile', $replacement)

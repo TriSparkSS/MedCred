@@ -118,4 +118,11 @@ test('practice edit stores license name number and dates', function () {
         ->and($practice->license_number)->toBe('TX-4455')
         ->and($practice->license_effective_date?->toDateString())->toBe('2026-02-01')
         ->and($practice->license_expiry_date?->toDateString())->toBe('2027-02-01');
+
+    $document = $practice->documents()->first();
+    expect($document)->not->toBeNull()
+        ->and($document->title)->toBe('State facility license')
+        ->and($document->document_number)->toBe('TX-4455')
+        ->and($document->effective_date?->toDateString())->toBe('2026-02-01')
+        ->and($document->expiry_date?->toDateString())->toBe('2027-02-01');
 });

@@ -148,6 +148,7 @@ class PracticeEditPage extends Component
             $this->syncPracticeAddress($practice, 'alternative', $this->alternativeAddressData, $this->addressIds['alternative']);
             $this->syncPracticeAddress($practice, 'mailing', $this->mailingAddressData, $this->addressIds['mailing']);
             $this->syncPracticeAddress($practice, 'billing', $this->billingAddressData, $this->addressIds['billing']);
+            $this->syncPracticeLicenseDocument($practice->fresh(), $this->document);
         });
 
         flash()->success('Practice updated successfully!');

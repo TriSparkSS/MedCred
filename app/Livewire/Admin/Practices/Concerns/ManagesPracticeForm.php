@@ -4,9 +4,13 @@ namespace App\Livewire\Admin\Practices\Concerns;
 
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Address;
+use App\Models\Document;
+use App\Models\DocumentType;
 use App\Models\Practice;
+use App\Services\DocumentService;
 use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -149,5 +153,60 @@ trait ManagesPracticeForm
             'document_path' => $document->store('practice-documents', 'public'),
             'document_original_name' => $document->getClientOriginalName(),
         ];
+    }
+
+    protected function syncPracticeLicenseDocument(Practice $practice, ?UploadedFile $file = null): ?Document
+    {
+        $hasLicenseInfo = filled($practice->license_name)
+            || filled($practice->license_number)
+            || filled($practice->license_effective_date)
+            || filled($practice->license_expiry_date)
+            || $file;
+
+        if (! $hasLicenseInfo) {
+            return null;
+        }
+
+        $type = DocumentType::firstOrCreate(
+            ['name' => Practice::LICENSE_DOCUMENT_TYPE],
+            ['is_active' => true, 'is_state_specific' => false]
+        );
+
+        $existing = Document::query()
+            ->where('practice_id', $practice->id)
+            ->where('document_type_id', $type->id)
+            ->latest('id')
+            ->first();
+
+        $payload = [
+            'title' => $practice->license_name ?: ($practice->document_original_name ?: Practice::LICENSE_DOCUMENT_TYPE),
+            'document_number' => $practice->license_number,
+            'effective_date' => $practice->license_effective_date?->format('Y-m-d') ?? $practice->license_effective_date,
+            'expiry_date' => $practice->license_expiry_date?->format('Y-m-d') ?? $practice->license_expiry_date,
+            'practice_id' => $practice->id,
+            'document_type_id' => $type->id,
+        ];
+
+        $adminId = Auth::guard('admin')->id();
+
+        if ($file) {
+            $service = app(DocumentService::class);
+
+            return $existing
+                ? $service->update($existing, $payload, $file, $adminId)
+                : $service->upload($payload, $file, $adminId);
+        }
+
+        if ($existing) {
+            $existing->update($payload);
+
+            return $existing->fresh();
+        }
+
+        return Document::create([
+            ...$payload,
+            'status' => 'active',
+            'uploaded_by_admin_id' => $adminId,
+        ]);
     }
 }

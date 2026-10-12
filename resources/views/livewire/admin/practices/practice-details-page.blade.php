@@ -131,7 +131,7 @@
             </li>
             <li class="nav-item">
                 <button type="button" class="nav-link {{ $activeTab === 'documents' ? 'active' : '' }}"
-                    wire:click="setTab('documents')">Documents</button>
+                    wire:click="setTab('documents')">License &amp; Documents</button>
             </li>
         </ul>
 
@@ -172,22 +172,6 @@
                                     <span class="fw-semibold">{{ $practice->taxonomy_code ?: 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
-                                    <small class="text-muted d-block mb-1">License / document name</small>
-                                    <span class="fw-semibold">{{ $practice->license_name ?: 'N/A' }}</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block mb-1">License Number</small>
-                                    <span class="fw-semibold">{{ $practice->license_number ?: 'N/A' }}</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block mb-1">License effective</small>
-                                    <span class="fw-semibold">{{ $practice->license_effective_date?->format('m/d/Y') ?: 'N/A' }}</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block mb-1">License expiration</small>
-                                    <span class="fw-semibold">{{ $practice->license_expiry_date?->format('m/d/Y') ?: 'N/A' }}</span>
-                                </div>
-                                <div class="col-md-4">
                                     <small class="text-muted d-block mb-1">Assigned Admins</small>
                                     @forelse ($practice->assignedAdmins as $assignedAdmin)
                                         <span class="badge bg-label-info me-1">{{ $assignedAdmin->name }}</span>
@@ -221,16 +205,6 @@
                                         <span class="fw-semibold">N/A</span>
                                     @endif
                                 </div>
-                                @if ($practice->document_path)
-                                    <div class="col-md-4">
-                                        <small class="text-muted d-block mb-1">Uploaded Document</small>
-                                        <a href="{{ asset('storage/' . $practice->document_path) }}" target="_blank"
-                                            class="fw-semibold">
-                                            <i
-                                                class="ti tabler-file me-1"></i>{{ $practice->document_original_name ?: 'View file' }}
-                                        </a>
-                                    </div>
-                                @endif
                             </div>
                         </div>
                     </div>
@@ -295,6 +269,13 @@
             </div>
             <div class="mt-4">
                 <livewire:admin.portal.portal-logins-section owner-type="practice" :owner-id="$practice->id" :key="'practice-logins-'.$practice->id" />
+            </div>
+            <div class="mt-4">
+                @include('livewire.admin.practices.partials.practice-license-documents-section', [
+                    'practice' => $practice,
+                    'showManageButton' => true,
+                    'showDocumentsTable' => true,
+                ])
             </div>
         @endif
 
@@ -502,11 +483,18 @@
             </div>
         @endif
 
-        {{-- Documents Tab --}}
+        {{-- License & Documents Tab --}}
         <div class="{{ $activeTab === 'documents' ? '' : 'd-none' }}">
+            <div class="mb-4">
+                @include('livewire.admin.practices.partials.practice-license-documents-section', [
+                    'practice' => $practice,
+                    'showManageButton' => false,
+                    'showDocumentsTable' => false,
+                ])
+            </div>
             <livewire:admin.documents.entity-documents-section
                 :practice-id="$practice->id"
-                heading="Practice Documents"
+                heading="License & Documents"
                 :show-profile-link="false"
                 :key="'practice-docs-'.$practice->id" />
         </div>

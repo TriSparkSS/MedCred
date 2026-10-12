@@ -85,7 +85,7 @@ class MasterDataSeeder extends Seeder
         $docTypes = [
             'Government Photo ID', 'State License', 'DEA Certificate', 'CDS Certificate', 'Board Certification',
             'Malpractice Insurance', 'W-9', 'Voided Check', 'CV / Resume',
-            'CAQH Attestation', 'Tax Document', 'Payer Form', 'Agreement',
+            'CAQH Attestation', 'Tax Document', 'Payer Form', 'Agreement', 'Practice License',
         ];
         $stateSpecific = ['State License', 'DEA Certificate', 'CDS Certificate'];
         foreach ($docTypes as $docType) {

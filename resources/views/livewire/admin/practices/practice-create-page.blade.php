@@ -232,7 +232,7 @@
                 {{-- License & Documents --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-certificate me-2"></i>License & Documents
+                        <i class="ti tabler-certificate me-2"></i>License &amp; Documents
                     </h6>
                     <p class="text-muted small mb-0">Each document needs a name, number, effective date, and expiration.</p>
                 </div>

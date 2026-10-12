@@ -178,9 +178,9 @@
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
                                     @if ($canUpload)
-                                        <button type="button" wire:click="openEditModal({{ $document->id }})"
+                                        <button type="button" wire:click.stop="openEditModal({{ $document->id }})"
                                             class="btn btn-outline-primary" title="Edit">
-                                            <i class="ti tabler-edit"></i>
+                                            <i class="ti tabler-edit pe-none"></i>
                                         </button>
                                     @endif
                                     @if ($vStatus !== 'verified')
@@ -227,9 +227,8 @@
         <div class="card-footer bg-white">{{ $documents->links('livewire::bootstrap') }}</div>
     </div>
 
-    @teleport('body')
     @if ($showModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -371,7 +370,7 @@
 
     {{-- Version Modal --}}
     @if ($showVersionModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -408,7 +407,7 @@
 
     {{-- Reject Modal --}}
     @if ($rejectDocumentId)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000;">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -433,5 +432,4 @@
             </div>
         </div>
     @endif
-@endteleport
 </div>

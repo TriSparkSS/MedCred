@@ -55,8 +55,8 @@
                 </a>
             @endif
             @if ($canUpload)
-                <button type="button" wire:click.stop.prevent="openUploadModal" class="btn btn-sm btn-primary">
-                    <i class="ti tabler-upload me-1"></i>Upload Document
+                <button type="button" wire:click.stop="openUploadModal" class="btn btn-sm btn-primary">
+                    <i class="ti tabler-upload me-1 pe-none"></i>Upload Document
                 </button>
             @endif
         </div>
@@ -88,7 +88,7 @@
                             ? $document->verification_status->value
                             : $document->verification_status;
                     @endphp
-                    <tr>
+                    <tr wire:key="entity-doc-{{ $document->id }}">
                         <td class="fw-semibold">{{ $document->title }}</td>
                         <td>{{ $document->document_number ?: '—' }}</td>
                         <td>{{ $document->documentType->name ?? '—' }}</td>
@@ -124,29 +124,29 @@
                         <td class="text-end">
                             <div class="btn-group btn-group-sm">
                                 @if ($canVerify && $vStatus !== 'verified')
-                                    <button type="button" wire:click="verifyDocument({{ $document->id }})" class="btn btn-outline-success" title="Verify">
-                                        <i class="ti tabler-check"></i>
+                                    <button type="button" wire:click.stop="verifyDocument({{ $document->id }})" class="btn btn-outline-success" title="Verify">
+                                        <i class="ti tabler-check pe-none"></i>
                                     </button>
                                 @endif
                                 @if ($canVerify && $vStatus !== 'rejected')
-                                    <button type="button" wire:click="openRejectModal({{ $document->id }})" class="btn btn-outline-danger" title="Reject">
-                                        <i class="ti tabler-x"></i>
+                                    <button type="button" wire:click.stop="openRejectModal({{ $document->id }})" class="btn btn-outline-danger" title="Reject">
+                                        <i class="ti tabler-x pe-none"></i>
                                     </button>
                                 @endif
                                 @if ($version)
                                     <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank" class="btn btn-outline-secondary" title="Download">
-                                        <i class="ti tabler-download"></i>
+                                        <i class="ti tabler-download pe-none"></i>
                                     </a>
                                 @endif
                                 @if ($canUpload)
-                                    <button type="button" wire:click.stop.prevent="openEditModal({{ $document->id }})" class="btn btn-outline-secondary" title="Edit">
-                                        <i class="ti tabler-edit"></i>
+                                    <button type="button" wire:click.stop="openEditModal({{ $document->id }})" class="btn btn-outline-secondary" title="Edit">
+                                        <i class="ti tabler-edit pe-none"></i>
                                     </button>
-                                    <button type="button" wire:click.stop.prevent="openVersionModal({{ $document->id }})" class="btn btn-outline-primary" title="New Version">
-                                        <i class="ti tabler-versions"></i>
+                                    <button type="button" wire:click.stop="openVersionModal({{ $document->id }})" class="btn btn-outline-primary" title="New Version">
+                                        <i class="ti tabler-versions pe-none"></i>
                                     </button>
-                                    <button type="button" wire:click="deleteDocument({{ $document->id }})" wire:confirm="Delete this document?" class="btn btn-outline-danger" title="Delete">
-                                        <i class="ti tabler-trash"></i>
+                                    <button type="button" wire:click.stop="deleteDocument({{ $document->id }})" wire:confirm="Delete this document?" class="btn btn-outline-danger" title="Delete">
+                                        <i class="ti tabler-trash pe-none"></i>
                                     </button>
                                 @endif
                             </div>
@@ -156,10 +156,10 @@
                     @if ($legacy)
                         <tr>
                             <td class="fw-semibold">{{ $legacy['name'] }}</td>
+                            <td>{{ $legacy['number'] ?: '—' }}</td>
                             <td>—</td>
-                            <td>—</td>
-                            <td>—</td>
-                            <td>—</td>
+                            <td>{{ $legacy['effective'] ?: '—' }}</td>
+                            <td>{{ $legacy['expiration'] ?: '—' }}</td>
                             <td><span class="badge bg-label-secondary">Profile file</span></td>
                             <td><span class="badge bg-label-success">Active</span></td>
                             <td class="text-end">
@@ -182,14 +182,14 @@
 </div>
 
 @if ($showModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
+    <div class="modal fade show d-block" wire:key="entity-doc-modal-{{ $modalMode }}-{{ $selectedDocumentId }}" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">{{ $modalMode === 'edit' ? 'Edit' : 'Upload' }} {{ $ownerLabel }} Document</h5>
-                    <button type="button" class="btn-close" wire:click="$set('showModal', false)"></button>
+                    <button type="button" class="btn-close" wire:click.stop="$set('showModal', false)"></button>
                 </div>
-                <form wire:submit.prevent="saveDocument">
+                <div>
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -255,27 +255,27 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="$set('showModal', false)">Cancel</button>
-                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled">
+                        <button type="button" class="btn btn-outline-secondary" wire:click.stop="$set('showModal', false)">Cancel</button>
+                        <button type="button" class="btn btn-primary" wire:click.stop="saveDocument" wire:loading.attr="disabled">
                             <span wire:loading.remove wire:target="saveDocument">{{ $modalMode === 'edit' ? 'Save Changes' : 'Save Document' }}</span>
                             <span wire:loading wire:target="saveDocument">Saving...</span>
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
 @endif
 
 @if ($showVersionModal)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Upload New Version</h5>
-                    <button type="button" class="btn-close" wire:click="$set('showVersionModal', false)"></button>
+                    <button type="button" class="btn-close" wire:click.stop="$set('showVersionModal', false)"></button>
                 </div>
-                <form wire:submit.prevent="uploadNewVersion">
+                <div>
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">File <span class="text-danger">*</span></label>
@@ -288,22 +288,22 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="$set('showVersionModal', false)">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Upload Version</button>
+                        <button type="button" class="btn btn-outline-secondary" wire:click.stop="$set('showVersionModal', false)">Cancel</button>
+                        <button type="button" class="btn btn-primary" wire:click.stop="uploadNewVersion">Upload Version</button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>
 @endif
 
 @if ($rejectDocumentId)
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 2000; position: fixed; inset: 0;">
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Reject Document</h5>
-                    <button type="button" class="btn-close" wire:click="$set('rejectDocumentId', null)"></button>
+                    <button type="button" class="btn-close" wire:click.stop="$set('rejectDocumentId', null)"></button>
                 </div>
                 <div class="modal-body">
                     <label class="form-label">Rejection reason <span class="text-danger">*</span></label>
@@ -311,8 +311,8 @@
                     @error('rejectionReason')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" wire:click="$set('rejectDocumentId', null)">Cancel</button>
-                    <button type="button" wire:click="rejectDocument" class="btn btn-danger">Reject</button>
+                    <button type="button" class="btn btn-outline-secondary" wire:click.stop="$set('rejectDocumentId', null)">Cancel</button>
+                    <button type="button" wire:click.stop="rejectDocument" class="btn btn-danger">Reject</button>
                 </div>
             </div>
         </div>

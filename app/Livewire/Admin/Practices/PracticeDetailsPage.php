@@ -22,6 +22,13 @@ class PracticeDetailsPage extends Component
         $allowed = ['overview', 'credentialing', 'locations', 'providers', 'timeline', 'documents'];
 
         $this->activeTab = in_array($tab, $allowed, true) ? $tab : 'overview';
+
+        if (in_array($this->activeTab, ['overview', 'documents'], true) && $this->practice) {
+            $this->practice->load([
+                'documents.documentType',
+                'documents.versions' => fn ($q) => $q->where('is_current', true),
+            ]);
+        }
     }
 
     public function mount($practice, AdminScopeService $scope): void
