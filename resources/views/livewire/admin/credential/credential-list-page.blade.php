@@ -1,4 +1,5 @@
 <div>
+    <style>[x-cloak]{display:none !important}</style>
     <div class="container-fluid flex-grow-1 px-3 px-md-4 py-3 py-md-4">
         {{-- Header --}}
         <div class="card shadow-sm border-0 mb-4">
@@ -56,8 +57,8 @@
         </div>
 
         {{-- Filters --}}
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-body">
+        <div class="card shadow-sm border-0 mb-4 overflow-visible">
+            <div class="card-body overflow-visible">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Search</label>
@@ -97,14 +98,54 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3"
+                        x-data="{ open: false, q: '' }"
+                        @keydown.escape.window="open = false"
+                        @click.outside="open = false">
                         <label class="form-label small text-muted mb-1">Payer</label>
-                        <select wire:model.live="filterPayerId" class="form-select">
-                            <option value="">All Payers</option>
-                            @foreach ($payers as $payer)
-                                <option value="{{ $payer->id }}">{{ $payer->name }}</option>
-                            @endforeach
-                        </select>
+                        <div class="dropdown w-100">
+                            <button type="button"
+                                class="form-select text-start"
+                                :class="{ 'show': open }"
+                                :aria-expanded="open"
+                                @click="open = !open; if (open) { q = ''; $nextTick(() => $refs.payerSearch?.focus()) }">
+                                {{ $filterPayerId ? ($payers->firstWhere('id', (int) $filterPayerId)->name ?? 'All Payers') : 'All Payers' }}
+                            </button>
+                            <div x-show="open"
+                                x-cloak
+                                x-transition
+                                class="dropdown-menu show w-100 mt-1 p-0 shadow"
+                                style="z-index: 1080; max-height: 18rem;"
+                                @click.stop
+                                @mousedown.stop>
+                                <div class="px-2 pt-2 pb-1 border-bottom bg-white sticky-top">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-white"><i class="ti tabler-search"></i></span>
+                                        <input type="search" x-ref="payerSearch" x-model="q"
+                                            class="form-control"
+                                            placeholder="Search payer name..."
+                                            autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="py-1 overflow-auto" style="max-height: 13.5rem;">
+                                    <button type="button"
+                                        class="dropdown-item {{ $filterPayerId === '' ? 'active' : '' }}"
+                                        wire:click="$set('filterPayerId', '')"
+                                        @click="open = false; q = ''">
+                                        All Payers
+                                    </button>
+                                    @foreach ($payers as $payer)
+                                        <button type="button"
+                                            class="dropdown-item {{ (string) $filterPayerId === (string) $payer->id ? 'active' : '' }}"
+                                            x-show="!q || {{ \Illuminate\Support\Js::from(mb_strtolower($payer->name)) }}.includes(q.toLowerCase())"
+                                            wire:click="$set('filterPayerId', '{{ $payer->id }}')"
+                                            @click="open = false; q = ''">
+                                            {{ $payer->name }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="row g-3 align-items-end mt-1">

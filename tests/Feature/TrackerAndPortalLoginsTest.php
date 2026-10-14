@@ -339,3 +339,38 @@ test('selecting a provider fills the associated practice on tracker, tasks, and 
         ->call('openCreateModal')
         ->assertSet('formData.practice_id', (string) $practice->id);
 });
+
+test('tracker payer filter is searchable by name and filters the list', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = trackerPractice('PYS');
+    $provider = trackerProvider($practice);
+    $statusId = Status::where('name', 'At Payer')->firstOrFail()->id;
+    $tricare = Payer::create(['name' => 'Tricare Searchable', 'is_active' => true]);
+    $aetna = Payer::create(['name' => 'Aetna Searchable', 'is_active' => true]);
+
+    $tricareCase = CredentialingCase::create([
+        'practice_id' => $practice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $tricare->id,
+        'status_id' => $statusId,
+        'state' => 'TX',
+    ]);
+    $aetnaCase = CredentialingCase::create([
+        'practice_id' => $practice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $aetna->id,
+        'status_id' => $statusId,
+        'state' => 'TX',
+    ]);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(CredentialListPage::class)
+        ->assertSee('Search payer name...')
+        ->assertSee('Tricare Searchable')
+        ->assertSee('Aetna Searchable')
+        ->assertSee($tricareCase->case_number)
+        ->assertSee($aetnaCase->case_number)
+        ->set('filterPayerId', (string) $tricare->id)
+        ->assertSee($tricareCase->case_number)
+        ->assertDontSee($aetnaCase->case_number);
+});
