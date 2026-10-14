@@ -46,6 +46,7 @@ class PortalLoginsSection extends Component
             'formData.password' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|string|max:500',
             'formData.mfa_email' => 'nullable|email|max:255',
             'formData.mfa_phone' => 'nullable|string|max:30',
+            'formData.portal_url' => 'nullable|string|max:500',
             'formData.security_notes' => 'nullable|string|max:5000',
             'formData.account_details' => 'nullable|string|max:5000',
         ];
@@ -73,6 +74,7 @@ class PortalLoginsSection extends Component
             'password' => (string) ($login->makeVisible('password')->password ?? ''),
             'mfa_email' => $login->mfa_email,
             'mfa_phone' => $login->mfa_phone,
+            'portal_url' => $login->portal_url,
             'security_notes' => $login->security_notes,
             'account_details' => $login->account_details,
         ];
@@ -91,6 +93,7 @@ class PortalLoginsSection extends Component
             'username' => $this->formData['username'] ?: null,
             'mfa_email' => $this->formData['mfa_email'] ?: null,
             'mfa_phone' => $this->formData['mfa_phone'] ?: null,
+            'portal_url' => $this->formData['portal_url'] ?: null,
             'security_notes' => $this->formData['security_notes'] ?: null,
             'account_details' => $this->formData['account_details'] ?: null,
         ];
@@ -139,6 +142,7 @@ class PortalLoginsSection extends Component
             'password' => '',
             'mfa_email' => '',
             'mfa_phone' => '',
+            'portal_url' => '',
             'security_notes' => '',
             'account_details' => '',
         ];

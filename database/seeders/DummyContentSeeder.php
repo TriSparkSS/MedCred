@@ -69,7 +69,13 @@ class DummyContentSeeder extends Seeder
         }
 
         $this->call(SpecialtySeeder::class);
-        $specialties = Specialty::orderBy('name')->limit(self::COUNT)->get()->all();
+        $specialties = Specialty::query()
+            ->whereNotNull('code')
+            ->where('code', '!=', '')
+            ->orderBy('name')
+            ->limit(self::COUNT)
+            ->get()
+            ->all();
         $practices = $this->seedPractices();
         $providers = $this->seedProviders($specialties);
         $payers = $this->seedPayers($documentTypes);

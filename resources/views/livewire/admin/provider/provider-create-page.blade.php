@@ -91,7 +91,7 @@
                             class="form-select @error('formData.specialty_id') is-invalid @enderror">
                             <option value="">Select specialty...</option>
                             @foreach ($specialtyOptions as $specialty)
-                                <option value="{{ $specialty->id }}">{{ $specialty->name }}</option>
+                                <option value="{{ $specialty->id }}">{{ $specialty->name }}{{ $specialty->code ? ' ('.$specialty->code.')' : '' }}</option>
                             @endforeach
                         </select>
                         @error('formData.specialty_id')

@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Admin\Setting\Specialty;
 
-use Livewire\Component;
 use App\Models\Specialty;
 use Livewire\Attributes\Layout;
-use Livewire\WithPagination;
 use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 #[Layout('layouts::admin', ['title' => 'Specialties | Settings'])]
 class SpecialtyListPage extends Component
@@ -14,14 +14,20 @@ class SpecialtyListPage extends Component
     use WithPagination;
 
     public $search = '';
+
     public $showModal = false;
+
     public $modalMode = 'create'; // 'create' or 'edit'
+
     public $formData = [];
+
     public $specialtyId = null;
+
     public $showDeleteConfirm = false;
 
     protected $rules = [
-        'formData.name' => 'required|string|max:255|unique:specialties,name',
+        'formData.code' => 'required|string|max:50|unique:specialties,code',
+        'formData.name' => 'required|string|max:255',
         'formData.description' => 'nullable|string|max:1000',
     ];
 
@@ -45,6 +51,7 @@ class SpecialtyListPage extends Component
         $this->specialtyId = $specialtyId;
         $this->modalMode = 'edit';
         $this->formData = [
+            'code' => $specialty->code,
             'name' => $specialty->name,
             'description' => $specialty->description,
         ];
@@ -54,7 +61,7 @@ class SpecialtyListPage extends Component
     public function save()
     {
         if ($this->modalMode === 'edit') {
-            $this->rules['formData.name'] = 'required|string|max:255|unique:specialties,name,' . $this->specialtyId;
+            $this->rules['formData.code'] = 'required|string|max:50|unique:specialties,code,'.$this->specialtyId;
         }
 
         $this->validate();
@@ -115,11 +122,17 @@ class SpecialtyListPage extends Component
         $query = Specialty::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%')
-                ->orWhere('description', 'like', '%' . $this->search . '%');
+            $term = '%'.$this->search.'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                    ->orWhere('code', 'like', $term)
+                    ->orWhere('description', 'like', $term);
+            });
         }
 
-        $query->orderBy('created_at', 'desc');
+        $query->orderByRaw('case when code is null or code = \'\' then 1 else 0 end')
+            ->orderBy('code')
+            ->orderBy('name');
         $specialties = $query->paginate(10);
 
         $stats = [

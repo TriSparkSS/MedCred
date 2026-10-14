@@ -19,6 +19,7 @@
                     <th>User Name</th>
                     <th>MFA Email</th>
                     <th>MFA Phone</th>
+                    <th>Security and Account Details</th>
                     @if ($canManage)
                         <th class="text-end">Actions</th>
                     @endif
@@ -29,10 +30,46 @@
                     <tr wire:key="portal-login-{{ $login->id }}">
                         <td class="fw-semibold">{{ $login->portal_name }}</td>
                         <td>{{ $login->username ?: '—' }}</td>
-                        <td><small>{{ $login->mfa_email ?: '—' }}</small></td>
-                        <td><small>{{ $login->mfa_phone ?: '—' }}</small></td>
+                        <td>
+                            <small>{{ $login->mfa_email ?: '—' }}</small>
+                        </td>
+                        <td>
+                            <small>{{ $login->mfa_phone ?: '—' }}</small>
+                        </td>
+                        <td>
+                            @if ($login->portal_url || $login->security_notes || $login->account_details)
+                                <div class="small">
+                                    @if ($login->portal_url)
+                                        @php
+                                            $portalHref = $login->portal_url;
+                                            if (! str_starts_with($portalHref, 'http://') && ! str_starts_with($portalHref, 'https://')) {
+                                                $portalHref = 'https://'.$portalHref;
+                                            }
+                                        @endphp
+                                        <div class="mb-1">
+                                            <span class="text-muted">URL:</span>
+                                            <a href="{{ $portalHref }}" target="_blank" rel="noopener" class="text-break">{{ $login->portal_url }}</a>
+                                        </div>
+                                    @endif
+                                    @if ($login->security_notes)
+                                        <div class="mb-1">
+                                            <span class="text-muted">Security questions:</span>
+                                            {{ \Illuminate\Support\Str::limit($login->security_notes, 80) }}
+                                        </div>
+                                    @endif
+                                    @if ($login->account_details)
+                                        <div>
+                                            <span class="text-muted">Account details:</span>
+                                            {{ \Illuminate\Support\Str::limit($login->account_details, 80) }}
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
                         @if ($canManage)
-                            <td class="text-end">
+                            <td class="text-end text-nowrap">
                                 <button type="button" wire:click.stop="openEditModal({{ $login->id }})" class="btn btn-sm btn-outline-primary">
                                     <i class="ti tabler-edit me-1"></i>Edit
                                 </button>
@@ -44,7 +81,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $canManage ? 5 : 4 }}" class="text-center text-muted py-4">No portal logins on file.</td>
+                        <td colspan="{{ $canManage ? 6 : 5 }}" class="text-center text-muted py-4">No portal logins on file.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -58,9 +95,9 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">{{ $modalMode === 'create' ? 'Add Portal Login' : 'Edit Portal Login' }}</h5>
-                    <button type="button" class="btn-close" wire:click="closeModal"></button>
+                    <button type="button" class="btn-close" wire:click.stop="closeModal"></button>
                 </div>
-                <form wire:submit.prevent="save">
+                <div>
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -85,34 +122,43 @@
                                 <div class="form-text">Password is shown so it can be verified. Hide it if needed.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">MFA email</label>
-                                <input type="email" wire:model="formData.mfa_email" class="form-control @error('formData.mfa_email') is-invalid @enderror" placeholder="Email associated with MFA">
+                                <label class="form-label">MFA Email</label>
+                                <input type="email" wire:model="formData.mfa_email" class="form-control @error('formData.mfa_email') is-invalid @enderror" placeholder="Email associated with the account">
                                 @error('formData.mfa_email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">Email associated with the account for MFA.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">MFA phone</label>
-                                <input type="text" wire:model="formData.mfa_phone" class="form-control @error('formData.mfa_phone') is-invalid @enderror" placeholder="Phone associated with MFA">
+                                <label class="form-label">MFA Phone</label>
+                                <input type="text" wire:model="formData.mfa_phone" class="form-control @error('formData.mfa_phone') is-invalid @enderror" placeholder="Phone number associated with the account">
                                 @error('formData.mfa_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">Phone number associated with the account for MFA.</div>
                             </div>
                         </div>
                         <div class="mt-4 pt-3 border-top">
                             <h6 class="fw-semibold mb-1">Security and Account Details</h6>
-                            <p class="text-muted small mb-3">Recovery questions, security contacts, and other account notes.</p>
+                            <p class="text-muted small mb-3">Portal URL, security questions, account numbers, and other notes.</p>
                             <div class="mb-3">
-                                <label class="form-label">Security notes</label>
-                                <textarea wire:model="formData.security_notes" rows="2" class="form-control" placeholder="Security questions, backup codes location, etc."></textarea>
+                                <label class="form-label">Portal URL</label>
+                                <input type="text" wire:model="formData.portal_url" class="form-control @error('formData.portal_url') is-invalid @enderror" placeholder="https://proview.caqh.org">
+                                @error('formData.portal_url')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Security questions</label>
+                                <textarea wire:model="formData.security_notes" rows="2" class="form-control @error('formData.security_notes') is-invalid @enderror" placeholder="Security questions, backup codes location, recovery contacts, etc."></textarea>
+                                @error('formData.security_notes')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div>
-                                <label class="form-label">Account details</label>
-                                <textarea wire:model="formData.account_details" rows="2" class="form-control" placeholder="Account ID, organization, billing contact, etc."></textarea>
+                                <label class="form-label">Account numbers and notes</label>
+                                <textarea wire:model="formData.account_details" rows="2" class="form-control @error('formData.account_details') is-invalid @enderror" placeholder="Account ID, organization number, billing contact, etc."></textarea>
+                                @error('formData.account_details')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" wire:click="closeModal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-outline-secondary" wire:click.stop="closeModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" wire:click.stop="save">Save</button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </div>

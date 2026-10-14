@@ -13,6 +13,7 @@ class PortalLogin extends Model
         'password',
         'mfa_email',
         'mfa_phone',
+        'portal_url',
         'security_notes',
         'account_details',
     ];

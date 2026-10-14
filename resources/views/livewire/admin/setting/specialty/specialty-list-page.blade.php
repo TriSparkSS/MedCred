@@ -24,7 +24,7 @@
                         </span>
 
                         <input type="search" wire:model.live="search" class="form-control border-start-0"
-                            placeholder="Search specialties...">
+                            placeholder="Search specialties by name or code...">
                     </div>
                 </div>
 
@@ -78,6 +78,7 @@
                 <thead class="table-light">
                     <tr>
                         <th width="60">#</th>
+                        <th>Code</th>
                         <th>Specialty Name</th>
                         <th>Description</th>
                         <th>Created Date</th>
@@ -91,6 +92,11 @@
                         <tr>
                             <td>
                                 {{ $loop->iteration }}
+                            </td>
+                            <td>
+                                <span class="fw-semibold">
+                                    {{ $specialty->code ?: 'N/A' }}
+                                </span>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">
@@ -130,7 +136,7 @@
                     @empty
 
                         <tr>
-                            <td colspan="5" class="text-center py-5">
+                            <td colspan="6" class="text-center py-5">
 
                                 <i class="ti tabler-folder-off fs-1 text-muted"></i>
 
@@ -173,6 +179,21 @@
                     <form wire:submit="save">
 
                         <div class="modal-body">
+
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Code
+                                </label>
+
+                                <input type="text" wire:model="formData.code" class="form-control"
+                                    placeholder="Taxonomy code">
+
+                                @error('formData.code')
+                                    <span class="text-danger">
+                                        {{ $message }}
+                                    </span>
+                                @enderror
+                            </div>
 
                             <div class="mb-3">
                                 <label class="form-label">

@@ -53,11 +53,11 @@ test('specialty dropdown is ordered and includes the seeded full list', function
 
     expect($names->count())->toBeGreaterThan(50)
         ->and($names->all())->toBe($ordered->all())
-        ->and($names)->toContain('Family Medicine')
-        ->and($names)->toContain('Internal Medicine')
-        ->and($names->first())->toBe('Addiction Medicine');
+        ->and($names)->toContain('Family Medicine Physician')
+        ->and($names)->toContain('Internal Medicine Physician')
+        ->and($names->first())->toBe('Acupuncturist');
 
-    $component->assertSee('Family Medicine')
+    $component->assertSee('Family Medicine Physician')
         ->assertSee('Search specialties...');
 });
 
@@ -106,7 +106,7 @@ test('create and edit pages show provider status labels and not the old options'
 test('creating a provider on hold without remarks fails and with remarks saves', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $practice = statusTestPractice();
-    $specialty = Specialty::where('name', 'Family Medicine')->firstOrFail();
+    $specialty = Specialty::where('code', '207Q00000X')->firstOrFail();
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderCreatePage::class)

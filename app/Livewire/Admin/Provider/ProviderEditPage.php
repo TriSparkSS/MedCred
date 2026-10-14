@@ -222,6 +222,7 @@ class ProviderEditPage extends Component
 
         return $items->filter(function ($specialty) use ($term, $selected) {
             return str_contains(mb_strtolower($specialty->name), $term)
+                || str_contains(mb_strtolower((string) $specialty->code), $term)
                 || (string) $specialty->id === $selected;
         })->values();
     }

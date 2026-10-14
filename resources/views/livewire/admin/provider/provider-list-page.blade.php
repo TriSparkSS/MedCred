@@ -121,7 +121,7 @@
                         <select wire:model.live="filterSpecialty" class="form-select">
                             <option value="">All Specialties</option>
                             @foreach ($specialties as $spec)
-                                <option value="{{ $spec->id }}">{{ $spec->name }}</option>
+                                <option value="{{ $spec->id }}">{{ $spec->name }}{{ $spec->code ? ' ('.$spec->code.')' : '' }}</option>
                             @endforeach
                         </select>
                     </div>

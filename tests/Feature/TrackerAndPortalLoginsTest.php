@@ -211,14 +211,26 @@ test('portal logins can be created edited and deleted on a provider and a practi
         ->test(PortalLoginsSection::class, ['ownerType' => 'practice', 'ownerId' => $practice->id])
         ->call('openCreateModal')
         ->set('formData.portal_name', 'Availity')
+        ->set('formData.username', 'availity-user')
         ->set('formData.password', 'PracticePass1!')
+        ->set('formData.mfa_email', 'practice-mfa@example.com')
+        ->set('formData.mfa_phone', '555-0200')
+        ->set('formData.portal_url', 'https://essentials.availity.com')
+        ->set('formData.security_notes', 'Street you grew up on.')
+        ->set('formData.account_details', 'TIN 12-3456789')
         ->call('save')
         ->assertHasNoErrors()
         ->assertSee('Availity')
+        ->assertSee('practice-mfa@example.com')
+        ->assertSee('Street you grew up on.')
+        ->assertSee('TIN 12-3456789')
         ->assertDontSee('PracticePass1!');
 
     $practiceLogin = $practice->portalLogins()->firstOrFail();
-    expect($practiceLogin->makeVisible('password')->password)->toBe('PracticePass1!');
+    expect($practiceLogin->makeVisible('password')->password)->toBe('PracticePass1!')
+        ->and($practiceLogin->mfa_email)->toBe('practice-mfa@example.com')
+        ->and($practiceLogin->portal_url)->toBe('https://essentials.availity.com')
+        ->and($practiceLogin->account_details)->toBe('TIN 12-3456789');
 });
 
 test('tracker KPI cards follow practice and provider filters', function () {
