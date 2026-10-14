@@ -156,10 +156,7 @@ class CredentialCreatePage extends Component
             return;
         }
 
-        $provider = ProviderDetails::with('practices')->find($providerId);
-        $practice = $provider?->practices
-            ->sortByDesc(fn ($item) => (int) ($item->pivot->primary_flag ?? 0))
-            ->first();
+        $practice = ProviderDetails::find($providerId)?->primaryPractice();
 
         $isGroup = ($this->formData['enrollment_level'] ?? '') === EnrollmentLevel::Group->value;
         if ($isGroup && ! empty($this->formData['practice_id'])) {
@@ -209,9 +206,20 @@ class CredentialCreatePage extends Component
             $scope->scopePractices($practiceQuery, $admin);
         }
 
+        $practices = $practiceQuery->get(['id', 'legal_name']);
+        if (! empty($this->formData['provider_id'])) {
+            $linked = ProviderDetails::find($this->formData['provider_id'])
+                ?->practices()
+                ->orderBy('legal_name')
+                ->get(['practices.id', 'legal_name']);
+            if ($linked?->isNotEmpty()) {
+                $practices = $linked;
+            }
+        }
+
         return view('livewire.admin.credential.credential-create-page', [
             'providers' => $providerQuery->get(),
-            'practices' => $practiceQuery->get(['id', 'legal_name']),
+            'practices' => $practices,
             'payers' => Payer::where('is_active', true)->orderBy('name')->get(),
             'caseTypes' => CaseType::where('is_active', true)->orderBy('name')->get(),
             'statuses' => Status::where('is_active', true)->orderBy('sort_order')->get(),

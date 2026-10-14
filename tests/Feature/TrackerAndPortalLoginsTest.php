@@ -8,6 +8,8 @@ use App\Livewire\Admin\Practices\PracticeDetailsPage;
 use App\Livewire\Admin\Practices\PracticeEditPage;
 use App\Livewire\Admin\Provider\ProviderDetailsPage;
 use App\Livewire\Admin\Provider\ProviderEditPage;
+use App\Livewire\Admin\Provider\ProviderLocationsSection;
+use App\Livewire\Admin\Task\TaskBoardPage;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\Payer;
@@ -313,4 +315,27 @@ test('tracker KPI cards follow practice and provider filters', function () {
         ->set('filterCategory', 'provider')
         ->assertViewHas('stats', fn (array $stats) => $stats['total_active'] === 3
             && $stats['pending_provider'] === 1);
+});
+
+test('selecting a provider fills the associated practice on tracker, tasks, and add location', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = trackerPractice('AFP');
+    $provider = trackerProvider($practice);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(CredentialListPage::class)
+        ->assertSee('All Providers')
+        ->assertDontSee('Select a practice first')
+        ->set('filterProviderId', (string) $provider->id)
+        ->assertSet('filterPracticeId', (string) $practice->id);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(TaskBoardPage::class)
+        ->set('filterProviderId', (string) $provider->id)
+        ->assertSet('filterPracticeId', (string) $practice->id);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->assertSet('formData.practice_id', (string) $practice->id);
 });

@@ -57,6 +57,11 @@ class ProviderLocationsSection extends Component
     {
         abort_unless($this->canEdit, 403);
         $this->resetForm();
+        $practice = $this->provider()->primaryPractice();
+        if ($practice) {
+            $this->formData['practice_id'] = (string) $practice->id;
+            $this->loadLocationsForPractice($practice->id);
+        }
         $this->modalMode = 'create';
         $this->showModal = true;
     }

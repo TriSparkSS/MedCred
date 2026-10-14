@@ -95,10 +95,7 @@ class DocumentListPage extends Component
             return;
         }
 
-        $provider = ProviderDetails::with('practices')->find($value);
-        $practice = $provider?->practices
-            ->sortByDesc(fn ($item) => (int) ($item->pivot->primary_flag ?? 0))
-            ->first();
+        $practice = ProviderDetails::find($value)?->primaryPractice();
 
         if (! $practice) {
             return;

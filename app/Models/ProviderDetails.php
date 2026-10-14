@@ -43,6 +43,15 @@ class ProviderDetails extends Model
             ->withTimestamps();
     }
 
+    public function primaryPractice(): ?Practice
+    {
+        $this->loadMissing('practices');
+
+        return $this->practices
+            ->sortByDesc(fn (Practice $practice) => (int) ($practice->pivot->primary_flag ?? 0))
+            ->first();
+    }
+
     public function portalLogins()
     {
         return $this->morphMany(PortalLogin::class, 'loginable');

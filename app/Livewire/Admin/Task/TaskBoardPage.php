@@ -466,6 +466,20 @@ class TaskBoardPage extends Component
         $this->resetPage();
     }
 
+    public function updatedFilterProviderId($value): void
+    {
+        if (! $value) {
+            $this->filterPracticeId = '';
+
+            return;
+        }
+
+        $practice = ProviderDetails::find($value)?->primaryPractice();
+        if ($practice) {
+            $this->filterPracticeId = (string) $practice->id;
+        }
+    }
+
     public function updatingFilterPayerId(): void
     {
         $this->resetPage();

@@ -68,11 +68,31 @@ class CredentialListPage extends Component
             'filterStatusId', 'filterOwnerId', 'filterState', 'filterRevalidation', 'filterRecentlySubmitted',
             'filterEnrollment',
         ])) {
-            if ($propertyName === 'filterPracticeId') {
-                $this->filterProviderId = '';
+            if ($propertyName === 'filterPracticeId' && $this->filterProviderId) {
+                $linked = ProviderDetails::query()
+                    ->whereKey((int) $this->filterProviderId)
+                    ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId))
+                    ->exists();
+                if (! $linked) {
+                    $this->filterProviderId = '';
+                }
             }
             $this->selectedCaseIds = [];
             $this->resetPage();
+        }
+    }
+
+    public function updatedFilterProviderId($value): void
+    {
+        if (! $value) {
+            $this->filterPracticeId = '';
+
+            return;
+        }
+
+        $practice = ProviderDetails::find($value)?->primaryPractice();
+        if ($practice) {
+            $this->filterPracticeId = (string) $practice->id;
         }
     }
 
@@ -311,12 +331,14 @@ class CredentialListPage extends Component
             $scope->scopePractices($practiceQuery, $admin);
         }
         $practices = $practiceQuery->get(['id', 'legal_name', 'client_code']);
-        $providers = $this->filterPracticeId
-            ? ProviderDetails::query()
-                ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId))
-                ->with('user:id,name')
-                ->get()
-            : collect();
+        $providerQuery = ProviderDetails::query()->with('user:id,name');
+        if ($admin) {
+            $scope->scopeProviders($providerQuery, $admin);
+        }
+        if ($this->filterPracticeId) {
+            $providerQuery->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->filterPracticeId));
+        }
+        $providers = $providerQuery->get();
 
         $delayOwners = DelayOwner::where('is_active', true)->orderBy('name')->get();
         $admins = Admin::assignable()->get(['id', 'name', 'username']);

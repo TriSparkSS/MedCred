@@ -95,6 +95,19 @@ function locationsTestProvider(): ProviderDetails
     ]);
 }
 
+test('add location modal fills the provider primary practice', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = locationsTestPractice();
+    $provider = locationsTestProvider();
+    $provider->practices()->syncWithoutDetaching([$practice->id => ['primary_flag' => true]]);
+
+    Livewire::actingAs($admin, 'admin')
+        ->test(ProviderLocationsSection::class, ['providerId' => $provider->id])
+        ->call('openCreateModal')
+        ->assertSet('formData.practice_id', (string) $practice->id)
+        ->assertSet('showModal', true);
+});
+
 test('provider can be linked to all practice locations and only one is primary', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $practice = locationsTestPractice();

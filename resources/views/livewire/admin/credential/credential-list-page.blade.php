@@ -81,8 +81,8 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Provider</label>
-                        <select wire:model.live="filterProviderId" class="form-select" @disabled(! $filterPracticeId)>
-                            <option value="">{{ $filterPracticeId ? 'All Providers' : 'Select a practice first' }}</option>
+                        <select wire:model.live="filterProviderId" class="form-select">
+                            <option value="">All Providers</option>
                             @foreach ($providers as $provider)
                                 <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #'.$provider->id }}</option>
                             @endforeach
