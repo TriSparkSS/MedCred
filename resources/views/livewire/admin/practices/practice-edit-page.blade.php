@@ -118,7 +118,7 @@
                 </div>
 
                 @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
-                <div class="alert alert-light border mb-4">
+                {{-- <div class="alert alert-light border mb-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div>
                             <strong class="d-block">Portal login</strong>
@@ -128,7 +128,7 @@
                             Manage Portal Accounts
                         </a>
                     </div>
-                </div>
+                </div> --}}
                 @endif
 
                 {{-- Primary Location --}}
