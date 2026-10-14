@@ -22,8 +22,8 @@
         {{-- KPI Stats --}}
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-lg-3">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
+                <div class="card shadow-sm border-0 h-100" wire:click="setFilterCategory('active')" role="button" style="cursor:pointer">
+                    <div class="card-body {{ $filterCategory === 'active' ? 'border border-primary' : '' }}">
                         <p class="text-uppercase text-muted small mb-1">Active Applications</p>
                         <h3 class="fw-bold mb-0">{{ $stats['total_active'] }}</h3>
                     </div>
@@ -221,7 +221,7 @@
                                     </td>
                                 @endif
                                 <td>
-                                    <a href="{{ route('admin.credentials.show', $case) }}" class="fw-semibold">{{ $case->case_number }}</a>
+                                    <a href="{{ route('admin.credentials.show', $case->id) }}" class="fw-semibold text-primary text-decoration-underline">{{ $case->case_number }}</a>
                                     @if($case->is_escalated)<span class="badge bg-danger ms-1">Escalated</span>@endif
                                 </td>
                                 <td>

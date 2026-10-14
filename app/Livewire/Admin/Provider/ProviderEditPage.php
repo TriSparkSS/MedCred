@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Admin\Provider;
 
+use App\Enums\ProviderCredentialType;
 use App\Enums\ProviderStatus;
+use App\Livewire\Admin\Provider\Concerns\ManagesProviderCredentialRows;
 use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Practice;
@@ -13,13 +15,14 @@ use App\Services\AdminScopeService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 #[Layout('layouts::admin', ['title' => 'Edit Provider'])]
 class ProviderEditPage extends Component
 {
-    use LooksUpUsZip, SelectsPracticeAddress;
+    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress;
 
     public $providerId;
 
@@ -71,6 +74,10 @@ class ProviderEditPage extends Component
                 'string',
                 'max:2000',
             ],
+            'credentialRows.*.credential_type' => 'nullable|string',
+            'credentialRows.*.state' => 'nullable|string|max:2',
+            'credentialRows.*.number' => 'nullable|string|max:50',
+            'credentialRows.*.expiry_date' => 'nullable|date',
         ];
     }
 
@@ -125,6 +132,7 @@ class ProviderEditPage extends Component
         $this->practiceId = (string) ($linked->first()?->id ?? '');
         $this->loadAddressOptions($this->practiceId);
         $this->matchAddressKeyFromCurrentFields();
+        $this->loadCredentialRows($providerModel);
     }
 
     public function save()
@@ -161,6 +169,15 @@ class ProviderEditPage extends Component
             ]);
         }
 
+        try {
+            $this->persistCredentialRows($provider->fresh(), true);
+        } catch (ValidationException $e) {
+            $this->setErrorBag($e->validator->getMessageBag());
+            flash()->error('Provider saved, but a credential row could not be stored. Check license/DEA/CDS rows.');
+
+            return;
+        }
+
         flash()->success('Provider updated successfully!');
 
         return redirect()->route('admin.providers.show', $provider->id);
@@ -188,6 +205,8 @@ class ProviderEditPage extends Component
         return view('livewire.admin.provider.provider-edit-page', [
             'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'specialtyOptions' => $this->filteredSpecialtyOptions(),
+            'states' => UsStates::all(),
+            'credentialTypes' => ProviderCredentialType::cases(),
         ]);
     }
 

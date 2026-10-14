@@ -279,7 +279,7 @@
                         @if ($existingDocumentPath)
                             <div class="mt-2">
                                 <small class="text-muted d-block">Current document:</small>
-                                <a href="{{ asset('storage/' . $existingDocumentPath) }}" target="_blank" class="fw-semibold">
+                                <a href="{{ route('admin.practices.legacy-document', $practiceId) }}" class="fw-semibold">
                                     <i class="ti tabler-file-text me-1"></i>{{ $existingDocumentName ?: 'View document' }}
                                 </a>
                             </div>

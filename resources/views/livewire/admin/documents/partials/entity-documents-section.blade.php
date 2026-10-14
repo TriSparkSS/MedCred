@@ -134,7 +134,7 @@
                                     </button>
                                 @endif
                                 @if ($version)
-                                    <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank" class="btn btn-outline-secondary" title="Download">
+                                    <a href="{{ route('admin.documents.download', $document) }}" class="btn btn-outline-secondary" title="Download">
                                         <i class="ti tabler-download pe-none"></i>
                                     </a>
                                 @endif
@@ -163,7 +163,7 @@
                             <td><span class="badge bg-label-secondary">Profile file</span></td>
                             <td><span class="badge bg-label-success">Active</span></td>
                             <td class="text-end">
-                                <a href="{{ asset('storage/' . $legacy['path']) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                <a href="{{ route('admin.practices.legacy-document', $practiceId) }}" class="btn btn-sm btn-outline-secondary">
                                     <i class="ti tabler-download"></i>
                                 </a>
                             </td>

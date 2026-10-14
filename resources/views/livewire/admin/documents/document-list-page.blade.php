@@ -66,8 +66,8 @@
                 <div class="col-md-5">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
-                        <input type="search" wire:model.live="search" class="form-control border-start-0"
-                            placeholder="Search by provider, practice, client code, or payer...">
+                        <input type="search" wire:model.live.debounce.300ms="search" class="form-control border-start-0"
+                            placeholder="Search by practice name, client code, payer, or provider...">
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -91,6 +91,24 @@
                         <option value="">All Expiry Status</option>
                         <option value="expiring">Expiring Soon (30 days)</option>
                         <option value="expired">Expired</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select wire:model.live="filterPractice" class="form-select">
+                        <option value="">All Practices / client codes</option>
+                        @foreach ($practices as $practice)
+                            <option value="{{ $practice->id }}">
+                                {{ $practice->legal_name }}@if($practice->client_code) ({{ $practice->client_code }})@endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select wire:model.live="filterPayer" class="form-select">
+                        <option value="">All Payers</option>
+                        @foreach ($payers as $payer)
+                            <option value="{{ $payer->id }}">{{ $payer->name }}</option>
+                        @endforeach
                     </select>
                 </div>
             </div>
@@ -196,7 +214,7 @@
                                         </button>
                                     @endif
                                     @if ($version)
-                                        <a href="{{ asset('storage/' . $version->file_path) }}" target="_blank"
+                                        <a href="{{ route('admin.documents.download', $document) }}"
                                             class="btn btn-outline-secondary" title="Download">
                                             <i class="ti tabler-download"></i>
                                         </a>

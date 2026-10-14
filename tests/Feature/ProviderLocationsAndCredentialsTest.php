@@ -281,31 +281,35 @@ test('provider credential and location rows can be edited after create', functio
     expect($link->fresh()->role)->toBe('Covering');
 });
 
-test('provider details page shows upload credential and location actions', function () {
+test('provider details page shows upload and location actions without a separate state license section', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $provider = locationsTestProvider();
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderDetailsPage::class, ['provider' => $provider])
-        ->assertSeeLivewire(ProviderCredentialsSection::class)
+        ->assertDontSeeLivewire(ProviderCredentialsSection::class)
+        ->assertDontSee('State Licenses & Registrations')
         ->assertSeeLivewire(ProviderLocationsSection::class)
         ->assertSeeLivewire(EntityDocumentsSection::class)
-        ->assertSee('Add Credential')
+        ->assertSee('Licenses & Credentials')
+        ->assertSee('Edit credentials')
         ->assertSee('Add Location')
         ->assertSee('Upload Document');
 });
 
-test('provider edit page opens document credential and location modals', function () {
+test('provider edit page has editable credential rows and opens document and location modals', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $provider = locationsTestProvider();
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderEditPage::class, ['provider' => $provider->id])
         ->assertSeeLivewire(EntityDocumentsSection::class)
-        ->assertSeeLivewire(ProviderCredentialsSection::class)
+        ->assertDontSeeLivewire(ProviderCredentialsSection::class)
+        ->assertDontSee('State Licenses & Registrations')
         ->assertSeeLivewire(ProviderLocationsSection::class)
         ->assertSee('Upload Document')
-        ->assertSee('Add Credential')
+        ->assertSee('Licenses & other credentials')
+        ->assertSee('Add row')
         ->assertSee('Add Location');
 
     Livewire::actingAs($admin, 'admin')
@@ -313,13 +317,6 @@ test('provider edit page opens document credential and location modals', functio
         ->call('openUploadModal')
         ->assertSet('showModal', true)
         ->assertSee('Upload Provider Document')
-        ->assertSeeHtml('position: fixed; inset: 0');
-
-    Livewire::actingAs($admin, 'admin')
-        ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
-        ->call('openCreateModal')
-        ->assertSet('showModal', true)
-        ->assertSee('Add Credential')
         ->assertSeeHtml('position: fixed; inset: 0');
 
     Livewire::actingAs($admin, 'admin')

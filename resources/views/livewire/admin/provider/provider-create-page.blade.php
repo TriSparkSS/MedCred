@@ -143,7 +143,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>Licenses & Credentials
                     </h6>
-                    <p class="text-muted small mb-0">CAQH profile. Add state licenses, DEA, and CDS below.</p>
+                    <p class="text-muted small mb-0">CAQH profile plus editable license, DEA, and CDS rows for regular maintenance.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -159,49 +159,7 @@
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h6 class="fw-semibold mb-0">State credentials</h6>
-                        <small class="text-muted">Optional at create — add one row per state for License, DEA, or CDS.</small>
-                    </div>
-                    <button type="button" wire:click="addCredentialRow" class="btn btn-sm btn-outline-primary">
-                        <i class="ti tabler-plus me-1"></i>Add row
-                    </button>
-                </div>
-                @foreach ($credentialRows as $index => $row)
-                    <div class="row g-3 mb-3 align-items-end" wire:key="cred-row-{{ $index }}">
-                        <div class="col-md-3">
-                            <label class="form-label">Type</label>
-                            <select wire:model="credentialRows.{{ $index }}.credential_type" class="form-select">
-                                @foreach ($credentialTypes as $type)
-                                    <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">State</label>
-                            <select wire:model="credentialRows.{{ $index }}.state" class="form-select">
-                                <option value="">Select...</option>
-                                @foreach ($states as $code => $name)
-                                    <option value="{{ $code }}">{{ $code }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Number</label>
-                            <input type="text" wire:model="credentialRows.{{ $index }}.number" class="form-control" placeholder="Number">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Expiry</label>
-                            <input type="date" wire:model="credentialRows.{{ $index }}.expiry_date" class="form-control">
-                        </div>
-                        <div class="col-md-1">
-                            <button type="button" wire:click="removeCredentialRow({{ $index }})" class="btn btn-outline-danger w-100" title="Remove">
-                                <i class="ti tabler-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                @endforeach
+                @include('livewire.admin.provider.partials.provider-credential-rows')
 
                 @include('livewire.admin.provider.partials.provider-extended-fields')
 
@@ -210,7 +168,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Mailing Address
                     </h6>
-                    <p class="text-muted small mb-0">Select a practice, then pick Primary, Secondary, or a service location. Fields below stay editable.</p>
+                    <p class="text-muted small mb-0">Select a practice, then pick any practice address or facility location. Fields below stay editable.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     @include('livewire.admin.provider.partials.practice-address-fields')

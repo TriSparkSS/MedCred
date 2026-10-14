@@ -139,7 +139,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-certificate me-2"></i>Licenses & Credentials
                     </h6>
-                    <p class="text-muted small mb-0">CAQH profile. Manage state licenses, DEA, and CDS in the section below.</p>
+                    <p class="text-muted small mb-0">CAQH profile plus editable license, DEA, and CDS rows for regular maintenance.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -155,6 +155,8 @@
                     </div>
                 </div>
 
+                @include('livewire.admin.provider.partials.provider-credential-rows')
+
                 @include('livewire.admin.provider.partials.provider-extended-fields')
 
                 {{-- Practice & Location --}}
@@ -162,7 +164,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-map-pin me-2"></i>Practice & Location
                     </h6>
-                    <p class="text-muted small mb-0">Select a practice, then pick Primary, Secondary, or a service location. Fields below stay editable.</p>
+                    <p class="text-muted small mb-0">Select a practice, then pick any practice address or facility location. Fields below stay editable.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     @include('livewire.admin.provider.partials.practice-address-fields')
@@ -238,9 +240,6 @@
             :provider-id="$providerId"
             heading="Provider Documents"
             :key="'edit-provider-docs-'.$providerId" />
-    </div>
-    <div class="mt-4">
-        <livewire:admin.provider.provider-credentials-section :provider-id="$providerId" :key="'edit-creds-'.$providerId" />
     </div>
     <div class="mt-4">
         <livewire:admin.provider.provider-locations-section :provider-id="$providerId" :key="'edit-locs-'.$providerId" />

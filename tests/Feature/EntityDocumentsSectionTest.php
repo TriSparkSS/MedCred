@@ -267,6 +267,7 @@ test('practice documents section can edit name number and dates', function () {
     Livewire::actingAs($admin, 'admin')
         ->test(EntityDocumentsSection::class, ['practiceId' => $practice->id])
         ->assertSeeHtml('wire:click.stop="openEditModal('.$document->id.')"')
+        ->assertSeeHtml(route('admin.documents.download', $document, false))
         ->call('openEditModal', $document->id)
         ->assertSet('showModal', true)
         ->assertSet('modalMode', 'edit')

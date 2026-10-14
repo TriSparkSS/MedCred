@@ -134,7 +134,9 @@ test('tracker and details case numbers link to the credential show page', functi
 
     Livewire::actingAs($admin, 'admin')
         ->test(CredentialListPage::class)
-        ->assertSeeHtml($showUrl);
+        ->assertSeeHtml($showUrl)
+        ->assertSeeHtml('wire:click="setFilterCategory(\'active\')"')
+        ->assertSeeHtml('text-decoration-underline');
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderDetailsPage::class, ['provider' => $provider])
@@ -191,12 +193,14 @@ test('portal logins can be created edited and deleted on a provider and a practi
 
     $component
         ->call('openEditModal', $login->id)
+        ->assertSet('formData.password', 'VaultSecret99!')
+        ->assertSet('showPassword', true)
+        ->assertSeeHtml('value="VaultSecret99!"')
         ->set('formData.username', 'caqh-user-2')
         ->set('formData.password', 'NewVaultSecret!')
         ->call('save')
         ->assertHasNoErrors()
-        ->assertSee('caqh-user-2')
-        ->assertDontSee('NewVaultSecret!');
+        ->assertSee('caqh-user-2');
 
     expect($login->fresh()->makeVisible('password')->password)->toBe('NewVaultSecret!');
 

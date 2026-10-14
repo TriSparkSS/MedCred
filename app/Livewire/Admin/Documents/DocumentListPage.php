@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Documents;
 use App\Models\CredentialingCase;
 use App\Models\Document;
 use App\Models\DocumentType;
+use App\Models\Payer;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Task;
@@ -34,6 +35,8 @@ class DocumentListPage extends Component
     public $filterProvider = '';
 
     public $filterPractice = '';
+
+    public $filterPayer = '';
 
     public $showModal = false;
 
@@ -81,7 +84,7 @@ class DocumentListPage extends Component
 
     public function updated($propertyName): void
     {
-        if (in_array($propertyName, ['search', 'filterType', 'filterExpiry', 'filterState', 'filterProvider', 'filterPractice'], true)) {
+        if (in_array($propertyName, ['search', 'filterType', 'filterExpiry', 'filterState', 'filterProvider', 'filterPractice', 'filterPayer'], true)) {
             $this->resetPage();
         }
     }
@@ -364,6 +367,13 @@ class DocumentListPage extends Component
             $query->where('practice_id', $this->filterPractice);
         }
 
+        if ($this->filterPayer) {
+            $query->where(function ($q) {
+                $q->where('payer_id', $this->filterPayer)
+                    ->orWhereHas('credentialingCase', fn ($cq) => $cq->where('payer_id', $this->filterPayer));
+            });
+        }
+
         $documents = $query->orderBy('state')->latest()->paginate(15);
 
         $statsBase = Document::query();
@@ -388,7 +398,8 @@ class DocumentListPage extends Component
             'stats' => $stats,
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
             'providers' => $providerQuery->get(),
-            'practices' => $practiceQuery->get(['id', 'legal_name']),
+            'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
+            'payers' => Payer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'cases' => $caseQuery->limit(50)->get(),
             'states' => UsStates::all(),
             'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? null),

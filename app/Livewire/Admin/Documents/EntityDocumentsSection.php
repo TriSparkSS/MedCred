@@ -122,6 +122,7 @@ class EntityDocumentsSection extends Component
             $this->uploadFile = null;
         }
 
+        $this->normalizeEmptyFormValues();
         $this->validate();
 
         $payload = $this->formData;
@@ -251,6 +252,21 @@ class EntityDocumentsSection extends Component
         }
 
         return $query->findOrFail($id);
+    }
+
+    private function normalizeEmptyFormValues(): void
+    {
+        foreach (['practice_id', 'provider_id', 'document_type_id'] as $key) {
+            if (($this->formData[$key] ?? '') === '') {
+                $this->formData[$key] = null;
+            }
+        }
+
+        foreach (['effective_date', 'expiry_date'] as $key) {
+            if (($this->formData[$key] ?? '') === '') {
+                $this->formData[$key] = null;
+            }
+        }
     }
 
     private function lockedType(): ?DocumentType

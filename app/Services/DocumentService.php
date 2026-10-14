@@ -16,6 +16,7 @@ class DocumentService
     {
         $syncCredential = (bool) ($data['sync_credential'] ?? false);
         unset($data['sync_credential']);
+        $data = $this->normalizePayload($data);
 
         $data['state'] = UsStates::normalize($data['state'] ?? null);
 
@@ -81,20 +82,9 @@ class DocumentService
     {
         $syncCredential = (bool) ($data['sync_credential'] ?? false);
         unset($data['sync_credential']);
+        $data = $this->normalizePayload($data);
 
         $data['state'] = UsStates::normalize($data['state'] ?? null);
-
-        foreach (['effective_date', 'expiry_date'] as $field) {
-            if (($data[$field] ?? null) === '') {
-                $data[$field] = null;
-            }
-        }
-
-        foreach (['provider_id', 'practice_id', 'credentialing_case_id', 'document_type_id'] as $idField) {
-            if (array_key_exists($idField, $data) && $data[$idField] === '') {
-                $data[$idField] = null;
-            }
-        }
 
         $document->update([
             'title' => $data['title'] ?? $document->title,
@@ -189,5 +179,26 @@ class DocumentService
         $document->update(['verification_status' => DocumentVerificationStatus::Expired->value]);
 
         return $document->fresh();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function normalizePayload(array $data): array
+    {
+        foreach (['effective_date', 'expiry_date'] as $field) {
+            if (($data[$field] ?? null) === '') {
+                $data[$field] = null;
+            }
+        }
+
+        foreach (['provider_id', 'practice_id', 'credentialing_case_id', 'document_type_id', 'payer_id'] as $idField) {
+            if (array_key_exists($idField, $data) && $data[$idField] === '') {
+                $data[$idField] = null;
+            }
+        }
+
+        return $data;
     }
 }

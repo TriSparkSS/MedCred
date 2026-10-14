@@ -381,7 +381,55 @@
     <div class="{{ $activeTab === 'licenses' ? '' : 'd-none' }}">
         <div class="row g-4">
             <div class="col-12">
-                <livewire:admin.provider.provider-credentials-section :provider-id="$provider->id" :key="'creds-'.$provider->id" />
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                        <div>
+                            <h5 class="mb-0">Licenses &amp; Credentials</h5>
+                            <small class="text-muted">License, DEA, and CDS records. Supporting files live in Provider Documents.</small>
+                        </div>
+                        @if (auth('admin')->user()?->can('admin.providers.edit'))
+                            <a href="{{ route('admin.providers.edit', $provider->id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="ti tabler-edit me-1"></i>Edit credentials
+                            </a>
+                        @endif
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Type</th>
+                                    <th>State</th>
+                                    <th>Number</th>
+                                    <th>Expires</th>
+                                    <th>Primary</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($provider->credentials as $credential)
+                                    <tr>
+                                        <td class="fw-semibold">{{ $credential->credential_type->label() }}</td>
+                                        <td><span class="badge bg-label-primary">{{ $credential->state }}</span></td>
+                                        <td>{{ $credential->number }}</td>
+                                        <td><small>{{ $credential->expiry_date?->format('m/d/Y') ?: '—' }}</small></td>
+                                        <td>
+                                            @if ($credential->is_primary)
+                                                <span class="badge bg-label-success">Primary</span>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">
+                                            No license or credential numbers on file. Edit the provider to add them, or upload files in Provider Documents.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             <div class="col-lg-6">
                 <div class="card shadow-sm border-0 h-100">
@@ -472,7 +520,7 @@
                         @forelse($cases as $case)
                             <tr>
                                 <td>
-                                    <a href="{{ route('admin.credentials.show', $case) }}" class="fw-semibold">{{ $case->case_number }}</a>
+                                    <a href="{{ route('admin.credentials.show', $case->id) }}" class="fw-semibold text-primary text-decoration-underline">{{ $case->case_number }}</a>
                                 </td>
                                 <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                 <td><small>{{ $case->practice->legal_name ?? 'N/A' }}</small></td>
@@ -713,7 +761,7 @@
                             <tbody>
                                 @forelse($cases as $case)
                                     <tr>
-                                        <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case) }}">{{ $case->case_number }}</a></td>
+                                        <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case->id) }}" class="text-primary text-decoration-underline">{{ $case->case_number }}</a></td>
                                         <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                         <td><span class="badge bg-label-info">{{ $case->status->name ?? 'N/A' }}</span></td>
                                         <td>
@@ -825,7 +873,7 @@
                                 $ready = count($missing) === 0;
                             @endphp
                             <tr>
-                                <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case) }}">{{ $case->case_number }}</a></td>
+                                <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $case->id) }}" class="text-primary text-decoration-underline">{{ $case->case_number }}</a></td>
                                 <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                 <td><small>{{ $case->practice->legal_name ?? 'N/A' }}</small></td>
                                 <td><small>{{ $case->approval_date?->format('m/d/Y') ?: '—' }}</small></td>

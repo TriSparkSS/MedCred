@@ -75,11 +75,14 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Password @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>
-                                <input type="password" wire:model="formData.password" class="form-control @error('formData.password') is-invalid @enderror" autocomplete="new-password">
-                                @error('formData.password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                @if ($modalMode === 'edit')
-                                    <div class="form-text">Leave blank to keep the current password.</div>
-                                @endif
+                                <div class="input-group">
+                                    <input type="{{ $showPassword ? 'text' : 'password' }}" wire:model="formData.password" value="{{ $formData['password'] ?? '' }}" class="form-control @error('formData.password') is-invalid @enderror" autocomplete="new-password">
+                                    <button type="button" class="btn btn-outline-secondary" wire:click.stop="togglePasswordVisibility" title="{{ $showPassword ? 'Hide password' : 'Show password' }}">
+                                        <i class="ti tabler-{{ $showPassword ? 'eye-off' : 'eye' }}"></i>
+                                    </button>
+                                </div>
+                                @error('formData.password')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                <div class="form-text">Password is shown so it can be verified. Hide it if needed.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">MFA email</label>

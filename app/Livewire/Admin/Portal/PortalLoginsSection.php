@@ -25,6 +25,8 @@ class PortalLoginsSection extends Component
 
     public array $formData = [];
 
+    public bool $showPassword = true;
+
     public function mount(string $ownerType, int $ownerId): void
     {
         abort_unless(in_array($ownerType, ['practice', 'provider'], true), 404);
@@ -64,10 +66,11 @@ class PortalLoginsSection extends Component
         $login = $this->owner()->portalLogins()->findOrFail($id);
         $this->loginId = $login->id;
         $this->modalMode = 'edit';
+        $this->showPassword = true;
         $this->formData = [
             'portal_name' => $login->portal_name,
             'username' => $login->username,
-            'password' => '',
+            'password' => (string) ($login->makeVisible('password')->password ?? ''),
             'mfa_email' => $login->mfa_email,
             'mfa_phone' => $login->mfa_phone,
             'security_notes' => $login->security_notes,
@@ -121,9 +124,15 @@ class PortalLoginsSection extends Component
         $this->resetForm();
     }
 
+    public function togglePasswordVisibility(): void
+    {
+        $this->showPassword = ! $this->showPassword;
+    }
+
     protected function resetForm(): void
     {
         $this->loginId = null;
+        $this->showPassword = true;
         $this->formData = [
             'portal_name' => '',
             'username' => '',

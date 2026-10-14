@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\CredentialingCase;
+use App\Models\Document;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use Illuminate\Database\Eloquent\Builder;
@@ -72,6 +73,32 @@ class AdminScopeService
     public function canAccessCase(Admin $admin, CredentialingCase $case): bool
     {
         return $this->canAccessPractice($admin, (int) $case->practice_id);
+    }
+
+    public function canAccessDocument(Admin $admin, Document $document): bool
+    {
+        $ids = $this->assignedPracticeIds($admin);
+
+        if ($ids === null) {
+            return true;
+        }
+
+        if ($document->practice_id && in_array((int) $document->practice_id, $ids, true)) {
+            return true;
+        }
+
+        if ($document->credentialing_case_id) {
+            $practiceId = $document->credentialingCase?->practice_id;
+            if ($practiceId && in_array((int) $practiceId, $ids, true)) {
+                return true;
+            }
+        }
+
+        if ($document->provider_id && $document->provider) {
+            return $this->canAccessProvider($admin, $document->provider);
+        }
+
+        return false;
     }
 
     public function scopePractices(Builder $query, Admin $admin): Builder

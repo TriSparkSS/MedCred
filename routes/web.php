@@ -1,5 +1,6 @@
 ﻿<?php
 
+use App\Http\Controllers\Admin\DocumentDownloadController;
 use App\Http\Controllers\Admin\EmailAttachmentDownloadController;
 use App\Http\Controllers\CredentialPacketController;
 use App\Http\Controllers\ReportExportController;
@@ -120,6 +121,8 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
         ->middleware('admin.permission:admin.emails.view')
         ->name('email.attachment');
     Route::get('documents', DocumentListPage::class)->middleware('admin.permission:admin.documents.view')->name('documents');
+    Route::get('documents/{document}/download', [DocumentDownloadController::class, 'download'])->middleware('admin.permission:admin.documents.view')->name('documents.download');
+    Route::get('practices/{practice}/legacy-document', [DocumentDownloadController::class, 'legacyPractice'])->middleware('admin.permission:admin.practices.view')->name('practices.legacy-document');
     Route::get('tasks/kanban', TaskBoardPage::class)->middleware('admin.permission:admin.tasks.view')->name('tasks.kanban');
 
     Route::get('settings', SettingPage::class)->middleware('admin.permission:admin.settings.manage')->name('settings');

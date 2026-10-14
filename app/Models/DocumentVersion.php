@@ -15,6 +15,7 @@ class DocumentVersion extends Model
         'file_size',
         'mime_type',
         'uploaded_by_admin_id',
+        'uploaded_by_user_id',
         'notes',
         'is_current',
     ];

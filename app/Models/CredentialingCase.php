@@ -325,6 +325,10 @@ class CredentialingCase extends Model
             return $query->where('is_escalated', true);
         }
 
+        if ($category === 'active') {
+            return $query->active();
+        }
+
         return $query->whereHas('status', fn ($q) => $q->where('dashboard_category', $category));
     }
 

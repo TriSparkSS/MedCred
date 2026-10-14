@@ -39,7 +39,7 @@
             @if ($practice->document_path)
                 <div class="col-md-4">
                     <small class="text-muted d-block mb-1">Uploaded Document</small>
-                    <a href="{{ asset('storage/' . $practice->document_path) }}" target="_blank" class="fw-semibold">
+                    <a href="{{ route('admin.practices.legacy-document', $practice) }}" class="fw-semibold">
                         <i class="ti tabler-file me-1"></i>{{ $practice->document_original_name ?: 'View file' }}
                     </a>
                 </div>

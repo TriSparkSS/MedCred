@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Provider;
 
 use App\Enums\ProviderCredentialType;
 use App\Enums\ProviderStatus;
+use App\Livewire\Admin\Provider\Concerns\ManagesProviderCredentialRows;
 use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Practice;
@@ -11,7 +12,6 @@ use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
 use App\Services\AdminScopeService;
-use App\Services\ProviderCredentialService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -22,7 +22,7 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Add Provider'])]
 class ProviderCreatePage extends Component
 {
-    use LooksUpUsZip, SelectsPracticeAddress;
+    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress;
 
     public $formData = [];
 
@@ -38,8 +38,6 @@ class ProviderCreatePage extends Component
     public string $specialtySearch = '';
 
     public $npiDuplicateWarning = '';
-
-    public array $credentialRows = [];
 
     protected function rules(): array
     {
@@ -94,20 +92,6 @@ class ProviderCreatePage extends Component
         $this->credentialRows = [$this->emptyCredentialRow(true)];
     }
 
-    public function addCredentialRow(): void
-    {
-        $this->credentialRows[] = $this->emptyCredentialRow(false);
-    }
-
-    public function removeCredentialRow(int $index): void
-    {
-        unset($this->credentialRows[$index]);
-        $this->credentialRows = array_values($this->credentialRows);
-        if ($this->credentialRows === []) {
-            $this->credentialRows = [$this->emptyCredentialRow(true)];
-        }
-    }
-
     public function updatedFormDataNpi($value): void
     {
         if ($value && ProviderDetails::where('npi', $value)->exists()) {
@@ -156,7 +140,7 @@ class ProviderCreatePage extends Component
             (int) $this->practiceId => ['primary_flag' => true],
         ]);
 
-        $this->persistCredentialRows($provider);
+        $this->persistCredentialRows($provider, false);
 
         flash()->success('Provider and user created successfully!');
 
@@ -172,45 +156,6 @@ class ProviderCreatePage extends Component
         }
 
         return $data;
-    }
-
-    protected function persistCredentialRows(ProviderDetails $provider): void
-    {
-        $service = app(ProviderCredentialService::class);
-        $savedPrimary = false;
-
-        foreach ($this->credentialRows as $row) {
-            $number = trim((string) ($row['number'] ?? ''));
-            $state = UsStates::normalize($row['state'] ?? null);
-            $type = $row['credential_type'] ?? ProviderCredentialType::License->value;
-
-            if ($number === '' || $state === null) {
-                continue;
-            }
-
-            $service->save($provider, [
-                'credential_type' => $type,
-                'state' => $state,
-                'number' => $number,
-                'expiry_date' => $row['expiry_date'] ?? null,
-                'is_primary' => ! $savedPrimary && $type === ProviderCredentialType::License->value,
-            ]);
-
-            if ($type === ProviderCredentialType::License->value) {
-                $savedPrimary = true;
-            }
-        }
-    }
-
-    protected function emptyCredentialRow(bool $primary): array
-    {
-        return [
-            'credential_type' => ProviderCredentialType::License->value,
-            'state' => '',
-            'number' => '',
-            'expiry_date' => '',
-            'is_primary' => $primary,
-        ];
     }
 
     protected function filteredSpecialtyOptions()

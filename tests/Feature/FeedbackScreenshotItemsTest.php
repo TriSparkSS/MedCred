@@ -142,27 +142,26 @@ test('add provider fills mailing address from selected practice and links the pr
         ->and($provider->practices()->where('practices.id', $practice->id)->exists())->toBeTrue();
 });
 
-test('provider details keeps add credential and add location available on nested tabs', function () {
+test('provider details keeps location actions and points credentials to edit', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $provider = screenshotProvider();
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderDetailsPage::class, ['provider' => $provider])
-        ->assertSeeLivewire(ProviderCredentialsSection::class)
+        ->assertDontSeeLivewire(ProviderCredentialsSection::class)
         ->assertSeeLivewire(ProviderLocationsSection::class)
-        ->assertSee('Add Credential')
+        ->assertSee('Edit credentials')
         ->assertSee('Add Location');
 
     Livewire::actingAs($admin, 'admin')
-        ->test(ProviderCredentialsSection::class, ['providerId' => $provider->id])
-        ->call('openCreateModal')
-        ->assertSet('showModal', true)
-        ->set('formData.credential_type', 'license')
-        ->set('formData.state', 'TX')
-        ->set('formData.number', 'TX-900')
+        ->test(ProviderEditPage::class, ['provider' => $provider->id])
+        ->set('credentialRows.0.credential_type', 'license')
+        ->set('credentialRows.0.state', 'TX')
+        ->set('credentialRows.0.number', 'TX-900')
         ->call('save')
-        ->assertHasNoErrors()
-        ->assertSee('Edit');
+        ->assertHasNoErrors();
+
+    expect($provider->credentials()->where('number', 'TX-900')->exists())->toBeTrue();
 });
 
 test('malpractice documents section uploads only malpractice insurance files', function () {

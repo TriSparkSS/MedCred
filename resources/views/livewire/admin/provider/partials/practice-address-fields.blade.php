@@ -27,7 +27,7 @@
             <option value="{{ $key }}">{{ $option['label'] }}</option>
         @endforeach
     </select>
-    <div class="form-text">Primary, secondary, mailing, billing, and service locations for the selected practice.</div>
+    <div class="form-text">Includes Primary Location Address, Alternative Address, Mailing Address, Billing Address, and all facility locations.</div>
     @error('addressKey')
         <div class="invalid-feedback">{{ $message }}</div>
     @enderror

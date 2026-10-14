@@ -156,10 +156,10 @@ class Practice extends Model
         $options = [];
         $typeOrder = ['mailing', 'primary', 'alternative', 'billing'];
         $typeLabels = [
-            'primary' => 'Primary',
-            'alternative' => 'Secondary',
-            'mailing' => 'Mailing',
-            'billing' => 'Billing',
+            'primary' => 'Primary Location Address',
+            'alternative' => 'Alternative Address (Location)',
+            'mailing' => 'Mailing Address',
+            'billing' => 'Billing Address',
         ];
 
         $addresses = $this->addresses
@@ -173,12 +173,12 @@ class Practice extends Model
                 continue;
             }
 
-            $typeLabel = $typeLabels[$address->type] ?? ucfirst((string) $address->type);
+            $typeLabel = $typeLabels[$address->type] ?? ucfirst((string) $address->type).' Address';
             $name = filled($address->location_name) ? ' — '.$address->location_name : '';
             $cityState = trim(($address->city ?? '').', '.($address->state ?? ''), ' ,');
 
             $options['address:'.$address->id] = [
-                'label' => $typeLabel.' Address'.$name.($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : ''),
+                'label' => $typeLabel.$name.($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : ''),
                 'practice' => $this->legal_name,
                 'address' => $street,
                 'city' => (string) ($address->city ?? ''),
@@ -190,7 +190,7 @@ class Practice extends Model
         $locations = $this->locations->sortByDesc('is_primary')->values();
         foreach ($locations as $location) {
             $street = trim(($location->address1 ?? '').($location->address2 ? ', '.$location->address2 : ''));
-            $kind = $location->is_primary ? 'Primary Service Location' : 'Service Location';
+            $kind = $location->is_primary ? 'Facility Location (Primary)' : 'Facility Location';
             $cityState = trim(($location->city ?? '').', '.($location->state ?? ''), ' ,');
 
             $options['location:'.$location->id] = [

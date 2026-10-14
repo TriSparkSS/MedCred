@@ -151,6 +151,10 @@
                                     <span class="fw-semibold">{{ $practice->legal_name ?: 'N/A' }}</span>
                                 </div>
                                 <div class="col-md-4">
+                                    <small class="text-muted d-block mb-1">Client Code</small>
+                                    <span class="fw-semibold">{{ $practice->client_code ?: 'N/A' }}</span>
+                                </div>
+                                <div class="col-md-4">
                                     <small class="text-muted d-block mb-1">DBA Name</small>
                                     <span class="fw-semibold">{{ $practice->dba_name ?: 'N/A' }}</span>
                                 </div>
@@ -311,8 +315,8 @@
                         <tbody>
                             @forelse($practice->credentialingCases as $case)
                                 <tr>
-                                    <td><a href="{{ route('admin.credentials.show', $case) }}"
-                                            class="fw-semibold">{{ $case->case_number }}</a></td>
+                                    <td><a href="{{ route('admin.credentials.show', $case->id) }}"
+                                            class="fw-semibold text-primary text-decoration-underline">{{ $case->case_number }}</a></td>
                                     <td>{{ $case->provider->user->name ?? 'N/A' }}</td>
                                     <td>{{ $case->payer->name ?? 'N/A' }}</td>
                                     <td><span class="badge bg-label-info">{{ $case->status->name ?? 'N/A' }}</span>
