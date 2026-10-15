@@ -151,28 +151,21 @@ test('provider practice address dropdown includes every practice address type an
         ->assertSet('formData.city', 'Plano');
 });
 
-test('edit provider can maintain license and other credential rows', function () {
+test('edit provider omits removed license and credential rows and keeps CAQH ID in Professional Details', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $practice = updateDocPractice('CRD');
     $provider = updateDocProvider($practice);
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderEditPage::class, ['provider' => $provider->id])
-        ->assertSee('Licenses & other credentials')
+        ->assertDontSee('Licenses & other credentials')
         ->assertDontSee('State Licenses & Registrations')
-        ->set('credentialRows.0.credential_type', ProviderCredentialType::License->value)
-        ->set('credentialRows.0.state', 'TX')
-        ->set('credentialRows.0.number', 'TX-EDIT-10')
-        ->call('addCredentialRow')
-        ->set('credentialRows.1.credential_type', ProviderCredentialType::Dea->value)
-        ->set('credentialRows.1.state', 'TX')
-        ->set('credentialRows.1.number', 'DEA-10')
+        ->assertSee('CAQH ID')
+        ->set('formData.caqh_id', '12345610')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(ProviderCredential::where('provider_id', $provider->id)->count())->toBe(2)
-        ->and($provider->fresh()->license_number)->toBe('TX-EDIT-10')
-        ->and($provider->fresh()->dea)->toBe('DEA-10');
+    expect($provider->fresh()->caqh_id)->toBe('12345610');
 });
 
 test('practice and provider documents download through an authenticated route', function () {

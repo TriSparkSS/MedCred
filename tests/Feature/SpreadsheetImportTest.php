@@ -40,10 +40,20 @@ test('practice excel import creates two practices and isolates duplicate-row fai
     $service = app(SpreadsheetImportService::class);
 
     $headers = SpreadsheetImportService::PRACTICE_COLUMNS;
-    $row = fn (string $name, string $code, string $email) => [
-        $name, $code, $email, '', '', '', '', '', '', '', '', 'pending',
-        '100 Main St', '', 'Austin', 'TX', '78701', '', 'United States', '',
-    ];
+    $row = fn (string $name, string $code, string $email) => array_map(
+        fn (string $col) => ([
+            'legal_name' => $name,
+            'client_code' => $code,
+            'email' => $email,
+            'status' => 'pending',
+            'address1' => '100 Main St',
+            'city' => 'Austin',
+            'state' => 'TX',
+            'zip_code' => '78701',
+            'country' => 'United States',
+        ])[$col] ?? '',
+        $headers
+    );
 
     $file = spreadsheetImportFile('practices.xlsx', $headers, [
         $row('Alpha Medical Group', 'AMG', 'alpha-practice@example.com'),
@@ -63,16 +73,50 @@ test('practice excel import creates two practices and isolates duplicate-row fai
         ->and(Practice::where('client_code', 'AMG')->first()->primaryAddress?->city)->toBe('Austin');
 });
 
-test('provider excel import creates a provider and rejects duplicate npi and email', function () {
+test('provider excel import creates a provider, links matching practice in provider_practice, and rejects duplicate npi and email', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $service = app(SpreadsheetImportService::class);
+    $scope = app(\App\Services\AdminScopeService::class);
+
+    $practiceUser = User::create([
+        'name' => 'Alpha Medical Group',
+        'email' => 'alpha-group@example.com',
+        'password' => 'password123',
+    ]);
+    $practice = Practice::create([
+        'user_id' => $practiceUser->id,
+        'legal_name' => 'Alpha Medical Group',
+        'client_code' => 'AMG',
+        'email' => 'alpha-group@example.com',
+        'status' => 'active',
+    ]);
+
+    $scopedAdmin = Admin::create([
+        'name' => 'Scoped Specialist',
+        'username' => 'scopedspecialist',
+        'email' => 'scoped-specialist@example.com',
+        'password' => 'password123',
+        'status' => 1,
+    ]);
+    $scopedAdmin->assignRole(\App\Enums\AdminRole::CredentialingExecutive->value);
+    $scopedAdmin->practices()->sync([$practice->id]);
 
     $headers = SpreadsheetImportService::PROVIDER_COLUMNS;
-    $row = fn (string $name, string $email, string $npi) => [
-        $name, $email, '', $npi, 'Family Medicine', 'Alpha Medical Group',
-        '200 Oak Ave', 'Dallas', 'TX', '75201',
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'inactive', '', '',
-    ];
+    $row = fn (string $name, string $email, string $npi) => array_map(
+        fn (string $col) => ([
+            'name' => $name,
+            'email' => $email,
+            'npi' => $npi,
+            'specialty' => 'Family Medicine',
+            'practice' => 'Alpha Medical Group',
+            'address' => '200 Oak Ave',
+            'city' => 'Dallas',
+            'state' => 'TX',
+            'zip' => '75201',
+            'status' => 'inactive',
+        ])[$col] ?? '',
+        $headers
+    );
 
     $first = spreadsheetImportFile('providers.xlsx', $headers, [
         $row('Dr. First Import', 'first-provider@example.com', '1111111111'),
@@ -80,6 +124,12 @@ test('provider excel import creates a provider and rejects duplicate npi and ema
 
     $ok = $service->importProviders($first, $admin->id);
     expect($ok->success_rows)->toBe(1)->and($ok->failed_rows)->toBe(0);
+
+    $firstProvider = ProviderDetails::where('npi', '1111111111')->firstOrFail();
+    expect($firstProvider->practices->pluck('id')->all())->toContain($practice->id)
+        ->and((bool) $firstProvider->practices->first()->pivot->primary_flag)->toBeTrue()
+        ->and($scope->canAccessProvider($scopedAdmin, $firstProvider))->toBeTrue()
+        ->and($scope->scopeProviders(ProviderDetails::query(), $scopedAdmin)->pluck('id')->all())->toContain($firstProvider->id);
 
     $dupes = spreadsheetImportFile('providers-dupes.xlsx', $headers, [
         $row('Dr. Email Clash', 'first-provider@example.com', '2222222222'),
@@ -92,7 +142,7 @@ test('provider excel import creates a provider and rejects duplicate npi and ema
     expect($batch->success_rows)->toBe(1)
         ->and($batch->failed_rows)->toBe(2)
         ->and(ProviderDetails::count())->toBe(2)
-        ->and(ProviderDetails::where('npi', '1111111111')->first()->user->name)->toBe('Dr. First Import')
+        ->and($firstProvider->user->name)->toBe('Dr. First Import')
         ->and(ProviderDetails::where('npi', '2222222222')->first()->practice)->toBe('Alpha Medical Group');
 });
 

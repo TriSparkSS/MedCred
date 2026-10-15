@@ -8,6 +8,7 @@ use App\Services\TaskSyncService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CredentialingCase extends Model
@@ -108,6 +109,7 @@ class CredentialingCase extends Model
 
         $latest = self::withTrashed()
             ->where('case_number', 'like', "{$prefix}%")
+            ->lockForUpdate()
             ->orderByDesc('id')
             ->value('case_number');
 
@@ -194,6 +196,11 @@ class CredentialingCase extends Model
         return $this->hasMany(CaseActivity::class)->latest();
     }
 
+    public function latestActivity(): HasOne
+    {
+        return $this->hasOne(CaseActivity::class)->latestOfMany('id');
+    }
+
     public function documentItems(): HasMany
     {
         return $this->hasMany(CaseDocumentItem::class);
@@ -222,6 +229,11 @@ class CredentialingCase extends Model
     public function slaTimers(): HasMany
     {
         return $this->hasMany(CaseSlaTimer::class);
+    }
+
+    public function slaEvents(): HasMany
+    {
+        return $this->hasMany(CaseSlaEvent::class);
     }
 
     public function delayOverrides(): HasMany

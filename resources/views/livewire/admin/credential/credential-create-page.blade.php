@@ -78,10 +78,6 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">State</label>
-                        <x-admin.state-select wire:model="formData.state" placeholder="Application state" />
-                    </div>
                 </div>
 
                 <div class="mb-3 pb-3 border-bottom">
@@ -156,7 +152,48 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-medium">Notes</label>
-                        <textarea wire:model="formData.notes" rows="3" class="form-control" placeholder="Initial case notes..."></textarea>
+                        <textarea wire:model="formData.notes" rows="4" class="form-control" placeholder="Initial case notes..."></textarea>
+                    </div>
+                </div>
+
+                {{-- Additional Documents --}}
+                <div class="mb-3 pb-3 border-bottom">
+                    <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-files me-2"></i>Additional Documents</h6>
+                    <p class="text-muted small mb-0">Upload supporting files, payer correspondence, or request letters. Selected files are also linked to the Practice and/or Provider profiles.</p>
+                </div>
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">Attach Files</label>
+                        <input type="file" wire:model="additionalDocuments" multiple
+                            class="form-control @error('additionalDocuments.*') is-invalid @enderror"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        @error('additionalDocuments.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        <div class="form-text">Accepted: PDF, DOC, DOCX, JPG, PNG (up to 10MB each).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-medium">Document Type</label>
+                        <select wire:model="additionalDocumentTypeId" class="form-select">
+                            <option value="">Default (Payer Correspondence)</option>
+                            @foreach ($documentTypes as $docType)
+                                <option value="{{ $docType->id }}">{{ $docType->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex flex-wrap gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" wire:model="linkAdditionalDocsToPractice" id="createLinkPractice">
+                                <label class="form-check-label" for="createLinkPractice">
+                                    Also save to Practice Profile (License &amp; Documents)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" wire:model="linkAdditionalDocsToProvider" id="createLinkProvider">
+                                <label class="form-check-label" for="createLinkProvider">
+                                    Also save to Provider Profile (Provider Documents)
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

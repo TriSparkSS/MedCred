@@ -118,7 +118,7 @@
                 </div>
 
                 @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
-                {{-- <div class="alert alert-light border mb-4">
+                <div class="alert alert-light border mb-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div>
                             <strong class="d-block">Portal login</strong>
@@ -128,7 +128,7 @@
                             Manage Portal Accounts
                         </a>
                     </div>
-                </div> --}}
+                </div>
                 @endif
 
                 {{-- Primary Location --}}
@@ -231,59 +231,6 @@
                             class="form-control @error('formData.bank_address') is-invalid @enderror"
                             placeholder="Full bank branch address"></textarea>
                         @error('formData.bank_address')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </div>
-
-                {{-- License & Documents --}}
-                <div class="mb-3 pb-3 border-bottom">
-                    <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-certificate me-2"></i>License &amp; Documents
-                    </h6>
-                    <p class="text-muted small mb-0">Each document needs a name, number, effective date, and expiration. Additional files are listed in License &amp; Documents below.</p>
-                </div>
-                <div class="row g-4 mb-4">
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License / document name</label>
-                        <input type="text" wire:model="formData.license_name"
-                            class="form-control @error('formData.license_name') is-invalid @enderror"
-                            placeholder="e.g. State facility license">
-                        @error('formData.license_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">License Number</label>
-                        <input type="text" wire:model="formData.license_number"
-                            class="form-control @error('formData.license_number') is-invalid @enderror"
-                            placeholder="Practice license number">
-                        @error('formData.license_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label fw-medium">Effective date</label>
-                        <input type="date" wire:model="formData.license_effective_date"
-                            class="form-control @error('formData.license_effective_date') is-invalid @enderror">
-                        @error('formData.license_effective_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label fw-medium">Expiration</label>
-                        <input type="date" wire:model="formData.license_expiry_date"
-                            class="form-control @error('formData.license_expiry_date') is-invalid @enderror">
-                        @error('formData.license_expiry_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label fw-medium">Upload Document</label>
-                        <input type="file" wire:model="document"
-                            class="form-control @error('document') is-invalid @enderror"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                        <div class="form-text">Accepted: PDF, DOC, DOCX, JPG, PNG (max 10MB). Leave empty to keep the current file.</div>
-                        @error('document')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div wire:loading wire:target="document" class="text-muted small mt-1">Uploading...</div>
-                        @if ($existingDocumentPath)
-                            <div class="mt-2">
-                                <small class="text-muted d-block">Current document:</small>
-                                <a href="{{ route('admin.practices.legacy-document', $practiceId) }}" class="fw-semibold">
-                                    <i class="ti tabler-file-text me-1"></i>{{ $existingDocumentName ?: 'View document' }}
-                                </a>
-                            </div>
-                        @endif
                     </div>
                 </div>
 

@@ -59,13 +59,13 @@ class EmailMatchingService
 
     protected function matchByCaseNumber(string $text): ?CredentialingCase
     {
-        if (preg_match('/\b([A-Z]{3}-\d{4}-\d{4})\b/', strtoupper($text), $matches)) {
-            return CredentialingCase::where('case_number', $matches[1])->first();
-        }
-
-        // Legacy APP-YYYY-NNNN numbers
-        if (preg_match('/\b(APP-\d{4}-\d{4})\b/', strtoupper($text), $matches)) {
-            return CredentialingCase::where('case_number', $matches[1])->first();
+        if (preg_match_all('/\b([A-Z0-9]{2,12}-\d{4}-\d{4})\b/i', $text, $matches)) {
+            foreach ($matches[1] as $candidate) {
+                $case = CredentialingCase::where('case_number', strtoupper($candidate))->first();
+                if ($case) {
+                    return $case;
+                }
+            }
         }
 
         return null;

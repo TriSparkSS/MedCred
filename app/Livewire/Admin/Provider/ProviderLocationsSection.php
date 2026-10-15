@@ -10,18 +10,22 @@ use App\Services\AdminScopeService;
 use App\Services\ProviderLocationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class ProviderLocationsSection extends Component
 {
+    #[Locked]
     public int $providerId;
 
+    #[Locked]
     public bool $canEdit = false;
 
     public bool $showModal = false;
 
     public string $modalMode = 'create';
 
+    #[Locked]
     public ?int $linkId = null;
 
     public array $formData = [];
@@ -32,6 +36,7 @@ class ProviderLocationsSection extends Component
     {
         $this->providerId = $providerId;
         $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
+        $this->authorizeProvider();
         $this->resetForm();
     }
 
@@ -39,7 +44,29 @@ class ProviderLocationsSection extends Component
     {
         return [
             'formData.practice_id' => 'required|exists:practices,id',
-            'formData.location_id' => 'required|exists:locations,id',
+            'formData.location_id' => [
+                'required',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    $raw = (string) $value;
+                    if (str_starts_with($raw, 'address:')) {
+                        $addrId = (int) substr($raw, strlen('address:'));
+                        $exists = \App\Models\Address::query()
+                            ->whereKey($addrId)
+                            ->where('addressable_type', Practice::class)
+                            ->where('addressable_id', (int) ($this->formData['practice_id'] ?? 0))
+                            ->exists();
+                        if (! $exists) {
+                            $fail('The selected location is invalid.');
+                        }
+
+                        return;
+                    }
+
+                    if (! is_numeric($raw) || ! Location::whereKey((int) $raw)->exists()) {
+                        $fail('The selected location is invalid.');
+                    }
+                },
+            ],
             'formData.role' => 'nullable|string|max:100',
             'formData.start_date' => 'nullable|date',
             'formData.end_date' => 'nullable|date|after_or_equal:formData.start_date',
@@ -55,7 +82,9 @@ class ProviderLocationsSection extends Component
 
     public function openCreateModal(): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
+        $this->authorizeProvider();
         $this->resetForm();
         $practice = $this->provider()->primaryPractice();
         if ($practice) {
@@ -68,7 +97,9 @@ class ProviderLocationsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
+        $this->authorizeProvider();
 
         $link = ProviderPracticeLocation::query()
             ->where('provider_id', $this->providerId)
@@ -90,9 +121,15 @@ class ProviderLocationsSection extends Component
 
     public function save(ProviderLocationService $locations): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
-        $this->validate();
         $this->authorizeProvider();
+        $this->validate();
+
+        $admin = Auth::guard('admin')->user();
+        if ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $this->formData['practice_id'])) {
+            abort(403);
+        }
 
         try {
             $locations->saveLink($this->provider(), $this->formData, $this->linkId);
@@ -108,6 +145,7 @@ class ProviderLocationsSection extends Component
 
     public function delete(int $id, ProviderLocationService $locations): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
         $this->authorizeProvider();
 
@@ -133,16 +171,56 @@ class ProviderLocationsSection extends Component
             return;
         }
 
-        $this->availableLocations = Location::query()
-            ->where('practice_id', $practiceId)
-            ->orderByDesc('is_primary')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Location $location) => [
+        $practice = Practice::with(['addresses', 'locations'])->find($practiceId);
+        if (! $practice) {
+            $this->availableLocations = [];
+
+            return;
+        }
+
+        $options = [];
+        $typeOrder = ['primary', 'alternative', 'mailing', 'billing'];
+        $typeLabels = [
+            'primary' => 'Primary Location Address',
+            'alternative' => 'Alternative Address (Location)',
+            'mailing' => 'Mailing Address',
+            'billing' => 'Billing Address',
+        ];
+
+        $sortedAddresses = $practice->addresses
+            ->sortBy(fn ($addr) => array_search($addr->type, $typeOrder, true) === false ? 99 : array_search($addr->type, $typeOrder, true));
+
+        foreach ($sortedAddresses as $address) {
+            $street = trim(($address->address1 ?? '').($address->address2 ? ', '.$address->address2 : ''));
+            if ($street === '' && ! filled($address->city) && ! filled($address->zip_code)) {
+                continue;
+            }
+
+            $typeLabel = $typeLabels[$address->type] ?? ucfirst((string) $address->type).' Address';
+            $namePart = filled($address->location_name) ? ' ('.$address->location_name.')' : '';
+            $cityState = trim(($address->city ?? '').', '.($address->state ?? ''), ' ,');
+
+            $options[] = [
+                'id' => 'address:'.$address->id,
+                'label' => trim($typeLabel.$namePart.($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : '')),
+            ];
+        }
+
+        $facilityLocations = $practice->locations
+            ->sortByDesc('is_primary')
+            ->sortBy('name')
+            ->values();
+
+        foreach ($facilityLocations as $location) {
+            $street = trim(($location->address1 ?? '').($location->address2 ? ', '.$location->address2 : ''));
+            $cityState = trim(($location->city ?? '').', '.($location->state ?? ''), ' ,');
+            $options[] = [
                 'id' => $location->id,
-                'label' => trim($location->name.($location->is_primary ? ' (Primary)' : '').' — '.$location->city.', '.$location->state),
-            ])
-            ->all();
+                'label' => trim($location->name.($location->is_primary ? ' (Primary)' : '').($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : '')),
+            ];
+        }
+
+        $this->availableLocations = $options;
     }
 
     protected function resetForm(): void
@@ -175,6 +253,8 @@ class ProviderLocationsSection extends Component
 
     public function render(AdminScopeService $scope)
     {
+        $this->authorizeProvider();
+
         $admin = Auth::guard('admin')->user();
         $provider = $this->provider()->load([
             'providerPracticeLocations.practice',

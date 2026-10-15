@@ -23,6 +23,9 @@ class Location extends Model
         'npi',
         'status',
         'is_primary',
+        'address_type',
+        'pay_to_address',
+        'mailing_address',
     ];
 
     protected $casts = [

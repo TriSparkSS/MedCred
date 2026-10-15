@@ -165,7 +165,7 @@ class FollowUpEngine
             ->active()
             ->whereHas('status', fn ($q) => $q->where('dashboard_category', 'payer'))
             ->whereDoesntHave('activities', fn ($q) => $q
-                ->where('type', 'email')
+                ->whereIn('activity_type', ['email', 'email_sent', 'email_received'])
                 ->where('created_at', '>=', now()->subDays(14)))
             ->where('last_action_at', '<=', now()->subDays(14))
             ->each(function (CredentialingCase $case) use (&$count) {

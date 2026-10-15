@@ -3,9 +3,10 @@
 namespace App\Livewire\Admin\Master;
 
 use App\Models\Priority;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('layouts::admin', ['title' => 'Priorities | Settings'])]
 class PriorityManager extends Component
@@ -13,26 +14,39 @@ class PriorityManager extends Component
     use WithPagination;
 
     public $search = '';
+
     public $showModal = false;
+
     public $modalMode = 'create';
+
     public $formData = [];
+
     public $priorityId = null;
+
     public $sortField = 'name';
+
     public $sortDirection = 'asc';
+
+    protected array $allowedSortFields = ['id', 'name', 'sort_order', 'is_active', 'created_at'];
 
     public function render()
     {
         $query = Priority::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $query->where('name', 'like', '%'.$this->search.'%');
         }
 
-        $query->orderBy($this->sortField, $this->sortDirection);
+        $sortField = in_array($this->sortField, $this->allowedSortFields, true) ? $this->sortField : 'name';
+        $sortDirection = in_array(strtolower((string) $this->sortDirection), ['asc', 'desc'], true)
+            ? strtolower((string) $this->sortDirection)
+            : 'asc';
+
+        $query->orderBy($sortField, $sortDirection);
         $records = $query->paginate(10);
 
         return view('livewire.admin.master.priority-manager', [
-            'records' => $records
+            'records' => $records,
         ]);
     }
 
@@ -45,11 +59,15 @@ class PriorityManager extends Component
 
     public function sortBy($field)
     {
+        if (! in_array($field, $this->allowedSortFields, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
-            $this->sortDirection = $this->sortDirection === "asc" ? "desc" : "asc";
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortField = $field;
-            $this->sortDirection = "asc";
+            $this->sortDirection = 'asc';
         }
     }
 
@@ -82,7 +100,7 @@ class PriorityManager extends Component
     public function save()
     {
         if ($this->modalMode === 'edit') {
-            $this->rules['formData.name'] = 'required|string|max:255|unique:priorities,name,' . $this->priorityId;
+            $this->rules['formData.name'] = 'required|string|max:255|unique:priorities,name,'.$this->priorityId;
         }
 
         $this->validate();
@@ -108,7 +126,7 @@ class PriorityManager extends Component
             ->info('Are you sure you want to delete the priority?');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:confirmed')]
+    #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
         $record = Priority::findOrFail($this->priorityId);
@@ -117,7 +135,7 @@ class PriorityManager extends Component
         flash()->info('Priority successfully deleted.');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:denied')]
+    #[On('sweetalert:denied')]
     public function onDeny(array $payload): void
     {
         $this->priorityId = null;

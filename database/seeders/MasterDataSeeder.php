@@ -83,11 +83,12 @@ class MasterDataSeeder extends Seeder
         }
 
         $docTypes = [
-            'Government Photo ID', 'State License', 'DEA Certificate', 'CDS Certificate', 'Board Certification',
-            'Malpractice Insurance', 'W-9', 'Voided Check', 'CV / Resume',
+            'Government Photo ID', 'State License', 'DEA Certificate', 'CDS', 'CDS Certificate', 'Board Certification',
+            'Malpractice Insurance', 'W-9', 'CP-575 / IRS', 'Education Certificate / Degree', 'Voided Check', 'CV / Resume',
             'CAQH Attestation', 'Tax Document', 'Payer Form', 'Agreement', 'Practice License',
+            'Payer Correspondence', 'Additional Info Request Letter', 'Submission Proof',
         ];
-        $stateSpecific = ['State License', 'DEA Certificate', 'CDS Certificate'];
+        $stateSpecific = ['State License', 'DEA Certificate', 'CDS', 'CDS Certificate'];
         foreach ($docTypes as $docType) {
             DocumentType::firstOrCreate(
                 ['name' => $docType],

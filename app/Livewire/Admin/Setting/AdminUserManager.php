@@ -5,8 +5,10 @@ namespace App\Livewire\Admin\Setting;
 use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\Practice;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -23,10 +25,13 @@ class AdminUserManager extends Component
 
     public $showPracticeModal = false;
 
+    #[Locked]
     public $editingUserId = null;
 
+    #[Locked]
     public $adminId = null;
 
+    #[Locked]
     public $practiceAdminId = null;
 
     public $selectedRoles = [];
@@ -76,6 +81,7 @@ class AdminUserManager extends Component
 
     public function openCreateModal(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $this->resetUserForm();
         $this->editingUserId = null;
         $this->showUserModal = true;
@@ -83,6 +89,7 @@ class AdminUserManager extends Component
 
     public function openEditModal(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $admin = Admin::findOrFail($id);
         $this->editingUserId = $id;
         $this->userName = $admin->name;
@@ -96,6 +103,7 @@ class AdminUserManager extends Component
 
     public function openRoleModal(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $admin = Admin::with('roles')->findOrFail($id);
         $this->adminId = $id;
         $this->selectedRoles = $admin->roles->pluck('name')->toArray();
@@ -104,6 +112,7 @@ class AdminUserManager extends Component
 
     public function openPracticeModal(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $admin = Admin::with('practices')->findOrFail($id);
         $this->practiceAdminId = $id;
         $this->selectedPracticeIds = $admin->practices->pluck('id')->map(fn ($id) => (string) $id)->all();
@@ -112,6 +121,7 @@ class AdminUserManager extends Component
 
     public function savePractices(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $this->validate([
             'selectedPracticeIds' => 'array',
             'selectedPracticeIds.*' => 'integer|exists:practices,id',
@@ -161,13 +171,14 @@ class AdminUserManager extends Component
     protected function roleRules(): array
     {
         return [
-            'selectedRoles' => 'array',
+            'selectedRoles' => 'required|array|min:1',
             'selectedRoles.*' => 'string|in:' . implode(',', array_map(fn (AdminRole $r) => $r->value, AdminRole::cases())),
         ];
     }
 
     public function saveUser(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $this->validate($this->userFormRules());
 
         if ($this->editingUserId) {
@@ -202,6 +213,7 @@ class AdminUserManager extends Component
 
     public function saveRoles(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.users.manage'), 403);
         $this->validate($this->roleRules());
 
         $admin = Admin::findOrFail($this->adminId);

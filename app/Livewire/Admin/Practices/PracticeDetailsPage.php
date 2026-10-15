@@ -24,7 +24,7 @@ class PracticeDetailsPage extends Component
         $this->activeTab = in_array($tab, $allowed, true) ? $tab : 'overview';
 
         if (in_array($this->activeTab, ['overview', 'documents'], true) && $this->practice) {
-            $this->practice->load([
+            $this->practice->loadMissing([
                 'documents.documentType',
                 'documents.versions' => fn ($q) => $q->where('is_current', true),
             ]);
@@ -41,13 +41,16 @@ class PracticeDetailsPage extends Component
             'assignedAdmins',
             'providers.user',
             'providers.specialty',
+            'credentialingCases.practice',
+            'credentialingCases.provider.user',
             'credentialingCases.payer',
             'credentialingCases.status',
-            'credentialingCases.provider.user',
+            'credentialingCases.caseType',
+            'credentialingCases.priority',
             'credentialingCases.delayOwner',
             'credentialingCases.assignedAdmin',
-            'credentialingCases.activities.admin',
             'credentialingCases.activities.user',
+            'credentialingCases.activities.admin',
             'credentialingCases.activities.credentialingCase',
             'documents.documentType',
             'documents.versions' => fn ($q) => $q->where('is_current', true),
@@ -63,6 +66,27 @@ class PracticeDetailsPage extends Component
 
     public function render()
     {
+        $this->practice->loadMissing([
+            'user',
+            'addresses',
+            'contacts',
+            'locations',
+            'assignedAdmins',
+            'providers.user',
+            'providers.specialty',
+            'credentialingCases.practice',
+            'credentialingCases.provider.user',
+            'credentialingCases.payer',
+            'credentialingCases.status',
+            'credentialingCases.caseType',
+            'credentialingCases.priority',
+            'credentialingCases.delayOwner',
+            'credentialingCases.assignedAdmin',
+            'credentialingCases.activities.user',
+            'credentialingCases.activities.admin',
+            'credentialingCases.activities.credentialingCase',
+        ]);
+
         $cases = $this->practice->credentialingCases;
         $closedCategories = ['approved', 'closed'];
 

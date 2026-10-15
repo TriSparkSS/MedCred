@@ -202,3 +202,19 @@ test('provider portal login persists password mfa and security details', functio
         ->and($login->security_notes)->toBe('Mother maiden name on file.')
         ->and($login->account_details)->toBe('CAQH ID 998877');
 });
+
+test('portal logins section blocks client-side tampering of canManage and unauthorized mutations', function () {
+    $executive = Admin::where('username', 'executive')->firstOrFail();
+    $practice = vaultPractice('TMP');
+    $executive->practices()->sync([$practice->id]);
+
+    $component = Livewire::actingAs($executive, 'admin')
+        ->test(PortalLoginsSection::class, ['ownerType' => 'practice', 'ownerId' => $practice->id])
+        ->assertSet('canManage', false);
+
+    expect(fn () => $component->set('canManage', true))
+        ->toThrow(\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class);
+
+    $component->call('openCreateModal')
+        ->assertForbidden();
+});

@@ -16,6 +16,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Portal Name</th>
+                    <th>ID / Assigned Number</th>
                     <th>User Name</th>
                     <th>MFA Email</th>
                     <th>MFA Phone</th>
@@ -29,6 +30,13 @@
                 @forelse($logins as $login)
                     <tr wire:key="portal-login-{{ $login->id }}">
                         <td class="fw-semibold">{{ $login->portal_name }}</td>
+                        <td>
+                            @if ($login->assigned_id)
+                                <span class="badge bg-label-primary font-monospace">{{ $login->assigned_id }}</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
                         <td>{{ $login->username ?: '—' }}</td>
                         <td>
                             <small>{{ $login->mfa_email ?: '—' }}</small>
@@ -81,7 +89,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $canManage ? 6 : 5 }}" class="text-center text-muted py-4">No portal logins on file.</td>
+                        <td colspan="{{ $canManage ? 7 : 6 }}" class="text-center text-muted py-4">No portal logins on file.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -104,6 +112,12 @@
                                 <label class="form-label">Portal Name <span class="text-danger">*</span></label>
                                 <input type="text" wire:model="formData.portal_name" class="form-control @error('formData.portal_name') is-invalid @enderror" placeholder="e.g. CAQH, Availity, PECOS">
                                 @error('formData.portal_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">ID / Assigned Number</label>
+                                <input type="text" wire:model="formData.assigned_id" class="form-control @error('formData.assigned_id') is-invalid @enderror" placeholder="8–15 digits alphanumeric (e.g. CAQH ID)">
+                                @error('formData.assigned_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="form-text">Assigned portal ID (e.g., CAQH ID, PECOS ID, or payer portal ID).</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">User Name</label>

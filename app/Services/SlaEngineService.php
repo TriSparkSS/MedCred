@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\AdminRole;
+use App\Enums\TaskType;
 use App\Mail\CredentialingTemplateMail;
+use App\Models\Admin;
 use App\Models\CaseSlaEvent;
 use App\Models\CaseSlaTimer;
 use App\Models\CredentialingCase;
@@ -51,7 +54,9 @@ class SlaEngineService
         }
 
         $startedAt = now();
-        $dueAt = $this->businessDays->addDays($startedAt, $rule->days, $rule->business_days_only);
+        $days = (int) ($rule->business_days ?? $rule->days ?? 3);
+        $businessDaysOnly = (bool) ($rule->business_days_only ?? true);
+        $dueAt = $this->businessDays->addDays($startedAt, $days, $businessDaysOnly);
 
         return CaseSlaTimer::create([
             'credentialing_case_id' => $case->id,
@@ -66,7 +71,12 @@ class SlaEngineService
     {
         $processed = ['reminders' => 0, 'escalations' => 0, 'tasks' => 0];
 
-        $timers = CaseSlaTimer::with(['credentialingCase.provider.user', 'credentialingCase.payer'])
+        $timers = CaseSlaTimer::with([
+            'credentialingCase.status',
+            'credentialingCase.assignedAdmin',
+            'credentialingCase.provider.user',
+            'credentialingCase.payer',
+        ])
             ->where('status', 'active')
             ->where('due_at', '<=', now())
             ->get();
@@ -151,38 +161,56 @@ class SlaEngineService
         $case->update(['is_escalated' => true]);
         $case->addActivity('system', 'Case escalated — ' . $rule->name);
 
-        Task::firstOrCreate(
+        app(TaskService::class)->ensureTask(
+            'sla_escalation:' . $case->id . ':' . $rule->rule_key,
+            $case,
             [
-                'credentialing_case_id' => $case->id,
-                'task_type' => 'escalation',
+                'task_type' => TaskType::Escalation->value,
                 'title' => 'Manager review: ' . $case->case_number,
-            ],
-            [
                 'description' => $rule->name,
-                'provider_id' => $case->provider_id,
                 'assigned_admin_id' => $case->assigned_admin_id,
-                'due_date' => now()->addDay(),
+                'due_date' => now()->addDay()->toDateString(),
             ]
         );
 
-        if ($rule->notification_template_id) {
-            $managerEmail = config('credentialing.mailbox.from_address');
-            $this->emailService->sendFromTemplate($case, $rule->notificationTemplate, $managerEmail);
+        if ($rule->notification_template_id && $rule->notificationTemplate) {
+            $recipientEmails = collect();
+            try {
+                $recipientEmails = Admin::role([
+                    AdminRole::CredentialingManager->value,
+                    AdminRole::SystemAdmin->value,
+                ])->where('status', 1)->pluck('email')->filter()->unique()->values();
+            } catch (\Throwable) {
+                $recipientEmails = collect();
+            }
+
+            if ($recipientEmails->isEmpty()) {
+                $fallback = $case->assignedAdmin?->email ?: config('credentialing.mailbox.from_address');
+                if ($fallback) {
+                    $recipientEmails = collect([$fallback]);
+                }
+            }
+
+            foreach ($recipientEmails as $recipientEmail) {
+                try {
+                    $this->emailService->sendFromTemplate($case, $rule->notificationTemplate, $recipientEmail);
+                } catch (\Throwable) {
+                    // Prevent mail transport failures from halting SLA processing
+                }
+            }
         }
     }
 
     protected function createFollowUpTask(CredentialingCase $case, SlaRule $rule): void
     {
-        Task::firstOrCreate(
+        app(TaskService::class)->ensureTask(
+            'sla_task:' . $case->id . ':' . $rule->rule_key,
+            $case,
             [
-                'credentialing_case_id' => $case->id,
-                'task_type' => 'sla',
+                'task_type' => TaskType::Sla->value,
                 'title' => $rule->name . ': ' . ($case->payer->name ?? $case->case_number),
-            ],
-            [
-                'provider_id' => $case->provider_id,
                 'assigned_admin_id' => $case->assigned_admin_id,
-                'due_date' => now()->addDays(2),
+                'due_date' => now()->addDays(2)->toDateString(),
                 'description' => 'Auto-generated payer follow-up task',
             ]
         );
@@ -198,7 +226,8 @@ class SlaEngineService
 
     protected function shiftDelayOwner(CredentialingCase $case, SlaRule $rule): void
     {
-        $ownerName = match ($rule->applies_to) {
+        $category = $rule->dashboard_category ?? $rule->applies_to;
+        $ownerName = match ($category) {
             'provider' => 'Provider/Practice',
             'payer' => 'Payer',
             default => 'Revantage Team',

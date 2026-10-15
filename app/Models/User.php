@@ -50,17 +50,21 @@ class User extends Authenticatable
      */
     public function scopeProviders($query)
     {
-        return $query->whereHas('providerDetails')
-            ->orWhereHas('roles', function ($q) {
-                $q->where('name', 'provider');
-            });
+        return $query->where(function ($q) {
+            $q->whereHas('providerDetails')
+                ->orWhereHas('roles', function ($roleQuery) {
+                    $roleQuery->where('name', 'provider');
+                });
+        });
     }
 
     public function scopePractices($query)
     {
-        return $query->whereHas('practice')
-            ->orWhereHas('roles', function ($q) {
-                $q->where('name', 'practice');
-            });
+        return $query->where(function ($q) {
+            $q->whereHas('practice')
+                ->orWhereHas('roles', function ($roleQuery) {
+                    $roleQuery->where('name', 'practice');
+                });
+        });
     }
 }

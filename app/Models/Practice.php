@@ -85,6 +85,7 @@ class Practice extends Model
 
         static::deleting(function (Practice $practice) {
             $practice->addresses()->delete();
+            $practice->portalLogins()->delete();
             $practice->contacts()->delete();
             $practice->locations()->delete();
         });
@@ -219,5 +220,10 @@ class Practice extends Model
     public function assignedAdmins(): BelongsToMany
     {
         return $this->belongsToMany(Admin::class, 'admin_practice')->withTimestamps();
+    }
+
+    public function providerPracticeLocations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProviderPracticeLocation::class);
     }
 }

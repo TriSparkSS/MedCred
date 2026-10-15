@@ -61,13 +61,4 @@ class RecordTimelineActivity
 
         AuditLog::record('document.verified', $event->document, $event->adminId);
     }
-
-    public function subscribe($events): array
-    {
-        return [
-            CaseStatusChanged::class => 'handleCaseStatusChanged',
-            DelayOwnerChanged::class => 'handleDelayOwnerChanged',
-            DocumentVerified::class => 'handleDocumentVerified',
-        ];
-    }
 }

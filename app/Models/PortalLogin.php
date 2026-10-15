@@ -9,6 +9,7 @@ class PortalLogin extends Model
 {
     protected $fillable = [
         'portal_name',
+        'assigned_id',
         'username',
         'password',
         'mfa_email',

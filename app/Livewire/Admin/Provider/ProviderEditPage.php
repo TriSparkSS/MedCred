@@ -7,26 +7,34 @@ use App\Enums\ProviderStatus;
 use App\Livewire\Admin\Provider\Concerns\ManagesProviderCredentialRows;
 use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
+use App\Models\Document;
+use App\Models\DocumentType;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
 use App\Services\AdminScopeService;
+use App\Services\DocumentService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('layouts::admin', ['title' => 'Edit Provider'])]
 class ProviderEditPage extends Component
 {
-    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress;
+    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress, WithFileUploads;
 
+    #[Locked]
     public $providerId;
 
     public $formData = [];
+
+    public $malpracticeDocument = null;
 
     public $userData = [];
 
@@ -36,12 +44,23 @@ class ProviderEditPage extends Component
 
     protected function rules(): array
     {
+        $provider = $this->providerId ? ProviderDetails::find($this->providerId) : null;
+
         return [
             'userData.name' => 'required|string|max:255',
-            'userData.email' => 'required|email',
+            'userData.email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($provider?->user_id),
+            ],
             'userData.phone' => 'nullable|string|max:30',
             'userData.password' => 'nullable|string|min:6',
+            'formData.dob' => 'nullable|date',
+            'formData.ssn' => 'nullable|string|max:20',
             'formData.specialty_id' => 'nullable|exists:specialties,id',
+            'formData.degree' => 'nullable|string|max:100',
+            'formData.provider_type' => 'nullable|string|max:100',
             'formData.npi' => 'required|string|max:50',
             'formData.caqh_id' => 'nullable|numeric|digits_between:1,15',
             'formData.taxonomy_code' => 'nullable|string|max:50',
@@ -57,6 +76,7 @@ class ProviderEditPage extends Component
                 filled($this->formData['malpractice_expiry'] ?? null) ? 'before_or_equal:formData.malpractice_expiry' : null,
             ])),
             'formData.malpractice_expiry' => 'nullable|date',
+            'malpracticeDocument' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'formData.board_certification' => 'nullable|string|max:255',
             'formData.board_cert_expiry' => 'nullable|date',
             'formData.work_history' => 'nullable|string|max:5000',
@@ -67,6 +87,10 @@ class ProviderEditPage extends Component
             'formData.city' => 'required|string|max:100',
             'formData.state' => ['required', 'string', 'size:2', Rule::in(UsStates::codes())],
             'formData.zip' => 'required|string|max:20',
+            'formData.home_address' => 'nullable|string|max:500',
+            'formData.home_city' => 'nullable|string|max:100',
+            'formData.home_state' => 'nullable|string|max:50',
+            'formData.home_zip' => 'nullable|string|max:20',
             'formData.status' => ['required', Rule::enum(ProviderStatus::class)],
             'formData.status_remarks' => [
                 Rule::requiredIf(fn () => ($this->formData['status'] ?? null) === ProviderStatus::ON_HOLD->value),
@@ -83,17 +107,23 @@ class ProviderEditPage extends Component
 
     public function mount($provider)
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.providers.edit'), 403);
+
         $this->providerId = $provider;
         $this->specialties = Specialty::orderBy('name')->get();
 
         $providerModel = ProviderDetails::with(['user', 'practices'])->findOrFail($this->providerId);
-        $admin = Auth::guard('admin')->user();
-        if ($admin && ! app(AdminScopeService::class)->canAccessProvider($admin, $providerModel)) {
+        if (! app(AdminScopeService::class)->canAccessProvider($admin, $providerModel)) {
             abort(403, 'You do not have access to this provider.');
         }
 
         $this->formData = [
+            'dob' => $providerModel->dob?->format('Y-m-d'),
+            'ssn' => $providerModel->ssn,
             'specialty_id' => $providerModel->specialty_id,
+            'degree' => $providerModel->degree,
+            'provider_type' => $providerModel->provider_type,
             'npi' => $providerModel->npi,
             'caqh_id' => $providerModel->caqh_id,
             'taxonomy_code' => $providerModel->taxonomy_code,
@@ -113,6 +143,10 @@ class ProviderEditPage extends Component
             'city' => $providerModel->city,
             'state' => UsStates::normalize($providerModel->state) ?? $providerModel->state,
             'zip' => $providerModel->zip,
+            'home_address' => $providerModel->home_address,
+            'home_city' => $providerModel->home_city,
+            'home_state' => UsStates::normalize($providerModel->home_state) ?? $providerModel->home_state,
+            'home_zip' => $providerModel->home_zip,
             'status' => $providerModel->status instanceof ProviderStatus
                 ? $providerModel->status->value
                 : $providerModel->status,
@@ -137,11 +171,15 @@ class ProviderEditPage extends Component
 
     public function save()
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.providers.edit'), 403);
+
+        $provider = ProviderDetails::with('practices')->findOrFail($this->providerId);
+        abort_unless(app(AdminScopeService::class)->canAccessProvider($admin, $provider), 403);
+
         $rules = $this->rules();
         $rules['formData.npi'] = 'required|string|max:50|unique:provider_details,npi,'.$this->providerId;
         $this->validate($rules);
-
-        $provider = ProviderDetails::findOrFail($this->providerId);
 
         // update user
         $user = User::findOrFail($provider->user_id);
@@ -169,6 +207,24 @@ class ProviderEditPage extends Component
             ]);
         }
 
+        if ($this->malpracticeDocument) {
+            $malpracticeType = DocumentType::firstOrCreate(
+                ['name' => 'Malpractice Insurance'],
+                ['is_active' => true, 'is_state_specific' => false]
+            );
+            $carrier = trim((string) ($this->formData['malpractice_carrier'] ?? ''));
+            app(DocumentService::class)->upload([
+                'title' => 'Malpractice Insurance'.($carrier !== '' ? ' - '.$carrier : ''),
+                'document_number' => $this->formData['malpractice_policy_number'] ?? null,
+                'effective_date' => ! empty($this->formData['malpractice_effective_date']) ? $this->formData['malpractice_effective_date'] : null,
+                'expiry_date' => ! empty($this->formData['malpractice_expiry']) ? $this->formData['malpractice_expiry'] : null,
+                'provider_id' => $provider->id,
+                'practice_id' => $this->practiceId ? (int) $this->practiceId : null,
+                'document_type_id' => $malpracticeType->id,
+            ], $this->malpracticeDocument, Auth::guard('admin')->id());
+            $this->malpracticeDocument = null;
+        }
+
         try {
             $this->persistCredentialRows($provider->fresh(), true);
         } catch (ValidationException $e) {
@@ -185,7 +241,7 @@ class ProviderEditPage extends Component
 
     private function normalizeMalpracticeFields(array $data): array
     {
-        foreach (['malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date'] as $field) {
+        foreach (['dob', 'malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date'] as $field) {
             if (array_key_exists($field, $data) && $data[$field] === '') {
                 $data[$field] = null;
             }
@@ -202,11 +258,18 @@ class ProviderEditPage extends Component
             $scope->scopePractices($practiceQuery, $admin);
         }
 
+        $latestMalpracticeDoc = Document::query()
+            ->where('provider_id', $this->providerId)
+            ->whereHas('documentType', fn ($q) => $q->where('name', 'Malpractice Insurance'))
+            ->latest('id')
+            ->first();
+
         return view('livewire.admin.provider.provider-edit-page', [
             'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'specialtyOptions' => $this->filteredSpecialtyOptions(),
             'states' => UsStates::all(),
             'credentialTypes' => ProviderCredentialType::cases(),
+            'latestMalpracticeDoc' => $latestMalpracticeDoc,
         ]);
     }
 

@@ -11,6 +11,7 @@ use App\Services\AdminScopeService;
 use App\Services\ProviderLocationService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -22,6 +23,7 @@ class ProviderPracticeAssignmentPage extends Component
 
     public $search = '';
 
+    #[Locked]
     public $assignmentId = null;
 
     public $formData = [
@@ -64,6 +66,9 @@ class ProviderPracticeAssignmentPage extends Component
 
         $this->validate();
         $this->authorizeAssignmentScope();
+        if ($this->assignmentId) {
+            $this->authorizeExistingAssignmentScope(ProviderPractice::with('provider')->findOrFail($this->assignmentId));
+        }
 
         $existingAssignment = ProviderPractice::query()
             ->where('provider_id', $this->formData['provider_id'])
@@ -243,7 +248,7 @@ class ProviderPracticeAssignmentPage extends Component
         ]);
 
         if ($admin) {
-            $scope->scopePractices($query->whereHas('practice'), $admin);
+            $query->whereHas('practice', fn ($pq) => $scope->scopePractices($pq, $admin));
         }
 
         if ($this->search) {

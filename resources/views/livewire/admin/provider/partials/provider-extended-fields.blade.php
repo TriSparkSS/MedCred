@@ -22,8 +22,8 @@
 </div>
 
 <div class="mb-3 pb-3 border-bottom">
-    <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-shield-check me-2"></i>Malpractice & Board Certification</h6>
-    <p class="text-muted small mb-0">Insurance coverage and board certification details.</p>
+    <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-shield-check me-2"></i>Malpractice Insurance</h6>
+    <p class="text-muted small mb-0">Professional liability coverage details and policy document attachment.</p>
 </div>
 <div class="row g-4 mb-4">
     <div class="col-md-4">
@@ -64,13 +64,24 @@
         <label class="form-label fw-medium">Malpractice Expiry</label>
         <input type="date" wire:model="formData.malpractice_expiry" class="form-control">
     </div>
-    <div class="col-md-4">
-        <label class="form-label fw-medium">Board Certification</label>
-        <input type="text" wire:model="formData.board_certification" class="form-control" placeholder="Board name / certification">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label fw-medium">Board Cert Expiry</label>
-        <input type="date" wire:model="formData.board_cert_expiry" class="form-control">
+    <div class="col-md-6">
+        <label class="form-label fw-medium">Attach Malpractice Document</label>
+        <input type="file" wire:model="malpracticeDocument"
+            class="form-control @error('malpracticeDocument') is-invalid @enderror"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+        @error('malpracticeDocument')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        <div class="form-text">Upload COI / policy certificate (PDF, DOC, JPG, PNG up to 10MB). Automatically saved to Provider Documents.</div>
+        @if (! empty($latestMalpracticeDoc))
+            <div class="mt-2 small d-flex align-items-center gap-2">
+                <i class="ti tabler-file-check text-success"></i>
+                <span>Attached: <strong>{{ $latestMalpracticeDoc->original_filename ?: $latestMalpracticeDoc->title }}</strong></span>
+                @if ($latestMalpracticeDoc->file_path)
+                    <a href="{{ route('documents.download', $latestMalpracticeDoc->id) }}" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-2">
+                        <i class="ti tabler-download me-1"></i>Download
+                    </a>
+                @endif
+            </div>
+        @endif
     </div>
     <div class="col-12">
         <label class="form-label fw-medium">Work History</label>

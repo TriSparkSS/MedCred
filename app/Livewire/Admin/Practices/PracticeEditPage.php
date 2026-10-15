@@ -9,6 +9,7 @@ use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -17,8 +18,10 @@ class PracticeEditPage extends Component
 {
     use ManagesPracticeForm, WithFileUploads;
 
+    #[Locked]
     public $practiceId;
 
+    #[Locked]
     public $addressIds = [];
 
     public $formData = [];
@@ -33,8 +36,10 @@ class PracticeEditPage extends Component
 
     public $document;
 
+    #[Locked]
     public $existingDocumentPath;
 
+    #[Locked]
     public $existingDocumentName;
 
     public $userData = [
@@ -113,16 +118,20 @@ class PracticeEditPage extends Component
 
     public function save()
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.practices.manage'), 403);
+        abort_unless(app(AdminScopeService::class)->canAccessPractice($admin, (int) $this->practiceId), 403);
+
         $this->validate();
 
         $practice = Practice::findOrFail($this->practiceId);
-        $canManagePortalCredentials = Auth::guard('admin')->user()?->can('admin.portal-credentials.manage') ?? false;
+        $canManagePortalCredentials = $admin->can('admin.portal-credentials.manage');
 
         DB::transaction(function () use ($practice, $canManagePortalCredentials) {
             $documentData = $this->storePracticeDocument(
                 $this->document,
-                $this->existingDocumentPath,
-                $this->existingDocumentName,
+                $practice->document_path,
+                $practice->document_original_name,
             );
 
             $practice->update([

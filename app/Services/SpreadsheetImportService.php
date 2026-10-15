@@ -41,6 +41,9 @@ class SpreadsheetImportService
         'fax',
         'website',
         'license_number',
+        'license_name',
+        'license_effective_date',
+        'license_expiry_date',
         'status',
         'address1',
         'address2',
@@ -49,6 +52,96 @@ class SpreadsheetImportService
         'zip_code',
         'county',
         'country',
+        'alt_location_name',
+        'alt_address1',
+        'alt_address2',
+        'alt_city',
+        'alt_state',
+        'alt_zip_code',
+        'alt_county',
+        'alt_country',
+        'alt_phone',
+        'alt_fax',
+        'mailing_location_name',
+        'mailing_address1',
+        'mailing_address2',
+        'mailing_city',
+        'mailing_state',
+        'mailing_zip_code',
+        'mailing_county',
+        'mailing_country',
+        'mailing_phone',
+        'mailing_fax',
+        'billing_location_name',
+        'billing_address1',
+        'billing_address2',
+        'billing_city',
+        'billing_state',
+        'billing_zip_code',
+        'billing_county',
+        'billing_country',
+        'billing_phone',
+        'billing_fax',
+        'bank_name',
+        'bank_account',
+        'bank_routing_number',
+        'bank_phone',
+        'bank_address',
+        'facility_1_name',
+        'facility_1_address1',
+        'facility_1_address2',
+        'facility_1_city',
+        'facility_1_state',
+        'facility_1_zip_code',
+        'facility_1_phone',
+        'facility_1_fax',
+        'facility_1_npi',
+        'facility_1_taxonomy_code',
+        'facility_1_is_primary',
+        'facility_2_name',
+        'facility_2_address1',
+        'facility_2_address2',
+        'facility_2_city',
+        'facility_2_state',
+        'facility_2_zip_code',
+        'facility_2_phone',
+        'facility_2_fax',
+        'facility_2_npi',
+        'facility_2_taxonomy_code',
+        'facility_2_is_primary',
+        'facility_3_name',
+        'facility_3_address1',
+        'facility_3_address2',
+        'facility_3_city',
+        'facility_3_state',
+        'facility_3_zip_code',
+        'facility_3_phone',
+        'facility_3_fax',
+        'facility_3_npi',
+        'facility_3_taxonomy_code',
+        'facility_3_is_primary',
+        'facility_4_name',
+        'facility_4_address1',
+        'facility_4_address2',
+        'facility_4_city',
+        'facility_4_state',
+        'facility_4_zip_code',
+        'facility_4_phone',
+        'facility_4_fax',
+        'facility_4_npi',
+        'facility_4_taxonomy_code',
+        'facility_4_is_primary',
+        'facility_5_name',
+        'facility_5_address1',
+        'facility_5_address2',
+        'facility_5_city',
+        'facility_5_state',
+        'facility_5_zip_code',
+        'facility_5_phone',
+        'facility_5_fax',
+        'facility_5_npi',
+        'facility_5_taxonomy_code',
+        'facility_5_is_primary',
         'password',
     ];
 
@@ -56,28 +149,29 @@ class SpreadsheetImportService
         'name',
         'email',
         'phone',
+        'dob',
+        'ssn',
         'npi',
         'specialty',
+        'degree',
+        'provider_type',
         'practice',
         'address',
         'city',
         'state',
         'zip',
+        'home_address',
+        'home_city',
+        'home_state',
+        'home_zip',
         'caqh_id',
         'taxonomy_code',
-        'pecos_id',
-        'pecos_enrolled',
         'malpractice_carrier',
         'malpractice_policy_number',
         'malpractice_coverage_each_occurrence',
         'malpractice_coverage_aggregate',
         'malpractice_effective_date',
         'malpractice_expiry',
-        'board_certification',
-        'board_cert_expiry',
-        'license_number',
-        'license_state',
-        'license_expiry',
         'status',
         'status_remarks',
         'password',
@@ -95,69 +189,52 @@ class SpreadsheetImportService
 
     public function downloadPracticeTemplate(): StreamedResponse
     {
+        $sampleMap = [
+            'legal_name' => 'Sample Medical Group',
+            'client_code' => 'SMG',
+            'email' => 'sample-practice@example.com',
+            'phone' => '5125550100',
+            'status' => 'pending',
+            'address1' => '100 Main St',
+            'city' => 'Austin',
+            'state' => 'TX',
+            'zip_code' => '78701',
+            'country' => 'United States',
+        ];
+        $sampleRow = array_map(fn (string $col) => $sampleMap[$col] ?? '', self::PRACTICE_COLUMNS);
+
         return $this->downloadTemplate(
             'practice-import-template.xlsx',
             self::PRACTICE_COLUMNS,
-            [
-                'Sample Medical Group',
-                'SMG',
-                'sample-practice@example.com',
-                '',
-                '',
-                '',
-                '',
-                '5125550100',
-                '',
-                '',
-                '',
-                'pending',
-                '100 Main St',
-                '',
-                'Austin',
-                'TX',
-                '78701',
-                '',
-                'United States',
-                '',
-            ],
+            $sampleRow,
         );
     }
 
     public function downloadProviderTemplate(): StreamedResponse
     {
+        $sampleMap = [
+            'name' => 'Dr. Jane Sample',
+            'email' => 'jane.sample@example.com',
+            'phone' => '5125550101',
+            'dob' => '1980-05-15',
+            'ssn' => '123-45-6789',
+            'npi' => '1234567890',
+            'specialty' => 'Internal Medicine',
+            'degree' => 'MD',
+            'provider_type' => 'Physician',
+            'practice' => 'Sample Medical Group',
+            'address' => '100 Main St',
+            'city' => 'Austin',
+            'state' => 'TX',
+            'zip' => '78701',
+            'status' => 'active',
+        ];
+        $sampleRow = array_map(fn (string $col) => $sampleMap[$col] ?? '', self::PROVIDER_COLUMNS);
+
         return $this->downloadTemplate(
             'provider-import-template.xlsx',
             self::PROVIDER_COLUMNS,
-            [
-                'Dr. Jane Sample',
-                'jane.sample@example.com',
-                '5125550101',
-                '1234567890',
-                'Internal Medicine',
-                'Sample Medical Group',
-                '100 Main St',
-                'Austin',
-                'TX',
-                '78701',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                'active',
-                '',
-                '',
-            ],
+            $sampleRow,
         );
     }
 
@@ -386,6 +463,14 @@ class SpreadsheetImportService
             'website' => $this->optional($data, 'website'),
             'status' => $status,
             'license_number' => $this->optional($data, 'license_number'),
+            'license_name' => $this->optional($data, 'license_name'),
+            'license_effective_date' => $this->optional($data, 'license_effective_date'),
+            'license_expiry_date' => $this->optional($data, 'license_expiry_date'),
+            'bank_name' => $this->optional($data, 'bank_name'),
+            'bank_account' => $this->optional($data, 'bank_account'),
+            'bank_routing_number' => $this->optional($data, 'bank_routing_number'),
+            'bank_phone' => $this->optional($data, 'bank_phone'),
+            'bank_address' => $this->optional($data, 'bank_address'),
         ]);
 
         $practice->addresses()->create([
@@ -401,6 +486,62 @@ class SpreadsheetImportService
             'fax' => $this->optional($data, 'fax'),
             'status' => 'active',
         ]);
+
+        $addressPrefixes = [
+            'alternative' => 'alt',
+            'mailing' => 'mailing',
+            'billing' => 'billing',
+        ];
+
+        foreach ($addressPrefixes as $type => $prefix) {
+            $addr1 = $this->optional($data, "{$prefix}_address1");
+            if ($addr1) {
+                $addrStateRaw = $this->optional($data, "{$prefix}_state");
+                $addrState = $addrStateRaw ? (UsStates::normalize($addrStateRaw) ?? $addrStateRaw) : $state;
+
+                $practice->addresses()->create([
+                    'type' => $type,
+                    'location_name' => $this->optional($data, "{$prefix}_location_name"),
+                    'address1' => $addr1,
+                    'address2' => $this->optional($data, "{$prefix}_address2"),
+                    'city' => $this->optional($data, "{$prefix}_city") ?? $this->cell($data, 'city'),
+                    'state' => $addrState,
+                    'zip_code' => $this->optional($data, "{$prefix}_zip_code") ?? $this->cell($data, 'zip_code'),
+                    'county' => $this->optional($data, "{$prefix}_county"),
+                    'country' => $this->optional($data, "{$prefix}_country") ?: 'United States',
+                    'phone' => $this->optional($data, "{$prefix}_phone"),
+                    'fax' => $this->optional($data, "{$prefix}_fax"),
+                    'status' => 'active',
+                ]);
+            }
+        }
+
+        for ($i = 1; $i <= 5; $i++) {
+            $facName = $this->optional($data, "facility_{$i}_name");
+            $facAddr1 = $this->optional($data, "facility_{$i}_address1");
+            if ($facName && $facAddr1) {
+                $facStateRaw = $this->optional($data, "facility_{$i}_state");
+                $facState = $facStateRaw ? (UsStates::normalize($facStateRaw) ?? $facStateRaw) : $state;
+
+                $practice->locations()->create([
+                    'name' => $facName,
+                    'address1' => $facAddr1,
+                    'address2' => $this->optional($data, "facility_{$i}_address2"),
+                    'city' => $this->optional($data, "facility_{$i}_city") ?? $this->cell($data, 'city'),
+                    'state' => $facState,
+                    'zip_code' => $this->optional($data, "facility_{$i}_zip_code") ?? $this->cell($data, 'zip_code'),
+                    'country' => 'United States',
+                    'phone' => $this->optional($data, "facility_{$i}_phone"),
+                    'fax' => $this->optional($data, "facility_{$i}_fax"),
+                    'npi' => $this->optional($data, "facility_{$i}_npi"),
+                    'taxonomy_code' => $this->optional($data, "facility_{$i}_taxonomy_code"),
+                    'status' => 'active',
+                    'is_primary' => $this->optional($data, "facility_{$i}_is_primary") !== null
+                        ? $this->toBoolean($this->optional($data, "facility_{$i}_is_primary"))
+                        : ($i === 1),
+                ]);
+            }
+        }
 
         if ($adminId) {
             $admin = Admin::find($adminId);
@@ -437,6 +578,8 @@ class SpreadsheetImportService
         }
 
         $state = $this->requireState($data);
+        $homeStateRaw = $this->optional($data, 'home_state');
+        $homeState = $homeStateRaw ? (UsStates::normalize($homeStateRaw) ?? $homeStateRaw) : null;
 
         $user = User::create([
             'name' => $this->cell($data, 'name'),
@@ -456,40 +599,45 @@ class SpreadsheetImportService
 
         $provider = ProviderDetails::create([
             'user_id' => $user->id,
+            'dob' => $this->optional($data, 'dob'),
+            'ssn' => $this->optional($data, 'ssn'),
             'npi' => $npi,
             'specialty_id' => $specialtyId,
+            'degree' => $this->optional($data, 'degree'),
+            'provider_type' => $this->optional($data, 'provider_type'),
             'status' => $status,
             'status_remarks' => $statusRemarks,
             'caqh_id' => $this->optional($data, 'caqh_id'),
             'taxonomy_code' => $this->optional($data, 'taxonomy_code'),
-            'pecos_id' => $this->optional($data, 'pecos_id'),
-            'pecos_enrolled' => $this->toBoolean($this->optional($data, 'pecos_enrolled')),
             'malpractice_carrier' => $this->optional($data, 'malpractice_carrier'),
             'malpractice_policy_number' => $this->optional($data, 'malpractice_policy_number'),
             'malpractice_coverage_each_occurrence' => $this->optional($data, 'malpractice_coverage_each_occurrence'),
             'malpractice_coverage_aggregate' => $this->optional($data, 'malpractice_coverage_aggregate'),
             'malpractice_effective_date' => $this->optional($data, 'malpractice_effective_date'),
             'malpractice_expiry' => $this->optional($data, 'malpractice_expiry'),
-            'board_certification' => $this->optional($data, 'board_certification'),
-            'board_cert_expiry' => $this->optional($data, 'board_cert_expiry'),
             'practice' => $this->cell($data, 'practice'),
             'address' => $this->cell($data, 'address'),
             'city' => $this->cell($data, 'city'),
             'state' => $state,
             'zip' => $this->cell($data, 'zip'),
+            'home_address' => $this->optional($data, 'home_address'),
+            'home_city' => $this->optional($data, 'home_city'),
+            'home_state' => $homeState,
+            'home_zip' => $this->optional($data, 'home_zip'),
         ]);
 
-        $licenseNumber = $this->optional($data, 'license_number');
-        $licenseState = $this->optional($data, 'license_state');
+        $practiceName = $this->cell($data, 'practice');
+        if ($practiceName !== '') {
+            $practice = Practice::where('legal_name', $practiceName)
+                ->orWhere('dba_name', $practiceName)
+                ->orWhere('client_code', strtoupper($practiceName))
+                ->first();
 
-        if ($licenseNumber && $licenseState) {
-            $this->credentials->save($provider, [
-                'credential_type' => ProviderCredentialType::License->value,
-                'state' => $licenseState,
-                'number' => $licenseNumber,
-                'expiry_date' => $this->optional($data, 'license_expiry'),
-                'is_primary' => true,
-            ]);
+            if ($practice) {
+                $provider->practices()->syncWithoutDetaching([
+                    $practice->id => ['primary_flag' => true],
+                ]);
+            }
         }
     }
 

@@ -87,6 +87,8 @@ class ReportExportService
             'productivity_by_executive' => $this->exportProductivityByExecutive(),
             'turnaround_by_payer' => $this->exportTurnaroundByPayer(),
             'recredentialing_upcoming' => $this->exportRecredentialingUpcoming(),
+            'email_operations' => $this->exportEmailOperations(),
+            'delay_ownership' => $this->exportDelayOwnership(),
             default => abort(404, 'Report not found.'),
         };
     }
@@ -109,10 +111,17 @@ class ReportExportService
     public function csvContents(string $type, array $filters = []): string
     {
         $data = $this->rowsFor($type, $filters);
+
+        return $this->toCsv($data['headers'], $data['rows']);
+    }
+
+    public function toCsv(array $headers, iterable $rows): string
+    {
         $handle = fopen('php://temp', 'r+');
-        fputcsv($handle, $data['headers']);
-        foreach ($data['rows'] as $row) {
-            fputcsv($handle, $row);
+        fputcsv($handle, $this->sanitizeCsvRow($headers));
+        foreach ($rows as $row) {
+            $rowArray = is_array($row) ? $row : $row->toArray();
+            fputcsv($handle, $this->sanitizeCsvRow($rowArray));
         }
         rewind($handle);
         $csv = stream_get_contents($handle) ?: '';
@@ -321,6 +330,17 @@ class ReportExportService
 
     /**
      * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     * @return list<array<string, mixed>>
+     */
+    public function practiceCredentialingDataset(array $filters = []): array
+    {
+        return $this->loadPracticeCredentialingCases($filters)
+            ->map(fn (CredentialingCase $case) => $this->mapCaseRow($case))
+            ->all();
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
      * @return Collection<int, CredentialingCase>
      */
     protected function loadPracticeCredentialingCases(array $filters = [])
@@ -331,7 +351,7 @@ class ReportExportService
                 'provider.user',
                 'payer',
                 'status',
-                'activities' => fn ($q) => $q->latest('id')->limit(1),
+                'latestActivity',
             ]);
 
         $this->applyAdminScope($query);
@@ -378,7 +398,9 @@ class ReportExportService
      */
     protected function mapCaseRow(CredentialingCase $case): array
     {
-        $latest = $case->activities->first();
+        $latest = $case->relationLoaded('latestActivity')
+            ? $case->latestActivity
+            : ($case->latestActivity ?? $case->activities->first());
         $statusName = (string) ($case->status->name ?? '');
         $bucket = $this->resolveStatusBucket($case->status?->dashboard_category, $statusName);
 
@@ -397,6 +419,7 @@ class ReportExportService
             'effective_date' => $case->effective_date?->format('m/d/Y') ?? '',
             'revalidation_due' => $case->revalidation_due_date?->format('m/d/Y') ?? '',
             'latest_comment' => (string) ($latest?->summary ?? ''),
+            'last_activity' => (string) ($latest?->summary ?? ''),
             'last_updated' => $case->last_action_at?->timezone('America/New_York')->format('m/d/Y h:i A')
                 ?? $latest?->created_at?->timezone('America/New_York')->format('m/d/Y h:i A')
                 ?? '',
@@ -822,20 +845,106 @@ class ReportExportService
         ]));
     }
 
+    protected function exportEmailOperations(): StreamedResponse
+    {
+        $query = \App\Models\EmailMessage::query()
+            ->with(['credentialingCase.practice', 'provider.user'])
+            ->latest();
+
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            $scope = app(AdminScopeService::class);
+            $ids = $scope->assignedPracticeIds($admin);
+            if ($ids !== null) {
+                if ($ids === []) {
+                    $query->whereRaw('0 = 1');
+                } else {
+                    $query->where(function ($q) use ($ids) {
+                        $q->whereHas('credentialingCase', fn ($cq) => $cq->whereIn('practice_id', $ids))
+                            ->orWhereHas('provider.practices', fn ($pq) => $pq->whereIn('practices.id', $ids));
+                    });
+                }
+            }
+        }
+
+        $messages = $query->get();
+
+        return $this->streamCsv('email_operations_'.now()->format('Ymd').'.csv', [
+            'Subject', 'Direction', 'From', 'To', 'Status', 'Case Number', 'Provider', 'Unlinked', 'Pending Attachments', 'Date',
+        ], $messages->map(fn ($msg) => [
+            $msg->subject ?? '',
+            $msg->direction ?? '',
+            $msg->from_address ?? '',
+            $msg->to_address ?? '',
+            $msg->status ?? '',
+            $msg->credentialingCase->case_number ?? '',
+            $msg->provider->user->name ?? '',
+            $msg->is_unlinked ? 'Yes' : 'No',
+            $msg->has_pending_attachments ? 'Yes' : 'No',
+            ($msg->received_at ?? $msg->sent_at ?? $msg->created_at)?->format('Y-m-d H:i') ?? '',
+        ]));
+    }
+
+    protected function exportDelayOwnership(): StreamedResponse
+    {
+        $cases = CredentialingCase::active()
+            ->with(['provider.user', 'payer', 'status', 'delayOwner', 'assignedAdmin', 'practice'])
+            ->orderBy('case_number');
+        $this->applyAdminScope($cases);
+        $cases = $cases->get();
+
+        return $this->streamCsv('delay_ownership_'.now()->format('Ymd').'.csv', [
+            'Case Number', 'Practice', 'Provider', 'Payer', 'Status', 'Delay Owner', 'Assigned Executive', 'Aging Days',
+        ], $cases->map(fn ($case) => [
+            $case->case_number,
+            $case->practice->legal_name ?? '',
+            $case->provider->user->name ?? '',
+            $case->payer->name ?? '',
+            $case->status->name ?? '',
+            $case->delayOwner->name ?? 'Unassigned',
+            $case->assignedAdmin->name ?? '',
+            $case->aging_days,
+        ]));
+    }
+
     protected function streamCsv(string $filename, array $headers, iterable $rows): StreamedResponse
     {
         return response()->streamDownload(function () use ($headers, $rows) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, $headers);
+            fputcsv($handle, $this->sanitizeCsvRow($headers));
 
             foreach ($rows as $row) {
-                fputcsv($handle, is_array($row) ? $row : $row->toArray());
+                $rowArray = is_array($row) ? $row : $row->toArray();
+                fputcsv($handle, $this->sanitizeCsvRow($rowArray));
             }
 
             fclose($handle);
         }, $filename, [
             'Content-Type' => 'text/csv',
         ]);
+    }
+
+    protected function sanitizeCsvRow(array $row): array
+    {
+        return array_map(fn ($value) => $this->sanitizeCsvValue($value), $row);
+    }
+
+    protected function sanitizeCsvValue(mixed $value): mixed
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+
+        $firstChar = $value[0];
+        if (in_array($firstChar, ['=', '+', '-', '@', "\t", "\r"], true)) {
+            if (in_array($firstChar, ['+', '-'], true) && is_numeric($value)) {
+                return $value;
+            }
+
+            return "'".$value;
+        }
+
+        return $value;
     }
 
     protected function applyAdminScope($query): void

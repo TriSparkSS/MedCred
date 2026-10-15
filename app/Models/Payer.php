@@ -39,4 +39,19 @@ class Payer extends Model
     {
         return $this->hasMany(CredentialingCase::class, 'payer_id');
     }
+
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(PayerContact::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class);
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
 }

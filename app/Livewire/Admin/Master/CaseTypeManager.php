@@ -3,35 +3,50 @@
 namespace App\Livewire\Admin\Master;
 
 use App\Models\CaseType;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('layouts::admin', ['title' => 'Case Types | Settings'])]
 class CaseTypeManager extends Component
 {
     use WithPagination;
+
     public $search = '';
+
     public $showModal = false;
+
     public $modalMode = 'create';
+
     public $formData = [];
+
     public $caseTypeId = null;
+
     public $sortField = 'name';
+
     public $sortDirection = 'asc';
+
+    protected array $allowedSortFields = ['id', 'name', 'is_active', 'created_at'];
 
     public function render()
     {
         $query = CaseType::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $query->where('name', 'like', '%'.$this->search.'%');
         }
 
-        $query->orderBy($this->sortField, $this->sortDirection);
+        $sortField = in_array($this->sortField, $this->allowedSortFields, true) ? $this->sortField : 'name';
+        $sortDirection = in_array(strtolower((string) $this->sortDirection), ['asc', 'desc'], true)
+            ? strtolower((string) $this->sortDirection)
+            : 'asc';
+
+        $query->orderBy($sortField, $sortDirection);
         $records = $query->paginate(10);
 
         return view('livewire.admin.master.case-type-manager', [
-            'records' => $records
+            'records' => $records,
         ]);
     }
 
@@ -44,11 +59,15 @@ class CaseTypeManager extends Component
 
     public function sortBy($field)
     {
+        if (! in_array($field, $this->allowedSortFields, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
-            $this->sortDirection = $this->sortDirection === "asc" ? "desc" : "asc";
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortField = $field;
-            $this->sortDirection = "asc";
+            $this->sortDirection = 'asc';
         }
     }
 
@@ -79,7 +98,7 @@ class CaseTypeManager extends Component
     public function save()
     {
         if ($this->modalMode === 'edit') {
-            $this->rules['formData.name'] = 'required|string|max:255|unique:case_types,name,' . $this->caseTypeId;
+            $this->rules['formData.name'] = 'required|string|max:255|unique:case_types,name,'.$this->caseTypeId;
         }
 
         $this->validate();
@@ -105,7 +124,7 @@ class CaseTypeManager extends Component
             ->info('Are you sure you want to delete the case type?');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:confirmed')]
+    #[On('sweetalert:confirmed')]
     public function onConfirmed(array $payload): void
     {
         $record = CaseType::findOrFail($this->caseTypeId);
@@ -114,7 +133,7 @@ class CaseTypeManager extends Component
         flash()->info('Case Type successfully deleted.');
     }
 
-    #[\Livewire\Attributes\On('sweetalert:denied')]
+    #[On('sweetalert:denied')]
     public function onDeny(array $payload): void
     {
         $this->caseTypeId = null;

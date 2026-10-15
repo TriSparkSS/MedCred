@@ -81,6 +81,11 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                @if ($canEditCredentials)
+                    <a href="{{ route('admin.credentials.edit', $case) }}" class="btn btn-outline-primary">
+                        <i class="ti tabler-edit me-1"></i>Edit Application
+                    </a>
+                @endif
                 @if ($canEscalateTasks)
                     <button type="button"
                         wire:click="toggleEscalation"
@@ -265,23 +270,23 @@
                             <small class="text-muted">Logged notes also appear on the Timeline tab</small>
                         </div>
                         <div class="card-body">
-                            <textarea wire:model="newNote" rows="3" class="form-control mb-2" placeholder="Log a call, follow-up, or note..."></textarea>
+                            <textarea wire:model="newNote" rows="5" class="form-control mb-2" placeholder="Log a call, follow-up, or detailed note..."></textarea>
                             @error('newNote')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
                             <button type="button" wire:click="addNote" class="btn btn-outline-primary mb-3">Add Note</button>
 
-                            <div class="border rounded-3 p-3" style="max-height: 260px; overflow-y: auto;">
+                            <div class="border rounded-3 p-3" style="max-height: 520px; overflow-y: auto; overflow-x: hidden;">
                                 @forelse ($detailNotes as $activity)
                                     <div class="d-flex gap-2 mb-3 {{ ! $loop->last ? 'pb-3 border-bottom' : '' }}">
                                         <span class="avatar avatar-sm rounded-circle bg-label-primary text-primary fw-semibold d-flex align-items-center justify-content-center flex-shrink-0"
                                             style="width: 32px; height: 32px;">
                                             {{ strtoupper(substr($activity->admin?->name ?? $activity->user?->name ?? 'S', 0, 1)) }}
                                         </span>
-                                        <div class="small">
+                                        <div class="small flex-grow-1" style="min-width: 0;">
                                             <div class="text-muted mb-1">
                                                 {{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}
                                                 · {{ $activity->created_at?->format('m/d/Y g:i A') }}
                                             </div>
-                                            <div>{{ $activity->summary }}</div>
+                                            <div style="white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;">{{ $activity->summary }}</div>
                                         </div>
                                     </div>
                                 @empty
@@ -296,14 +301,14 @@
                             <h6 class="mb-0 fw-semibold">Notes</h6>
                         </div>
                         <div class="card-body">
-                            <div class="border rounded-3 p-3" style="max-height: 260px; overflow-y: auto;">
+                            <div class="border rounded-3 p-3" style="max-height: 520px; overflow-y: auto; overflow-x: hidden;">
                                 @forelse ($detailNotes as $activity)
                                     <div class="mb-2 pb-2 {{ ! $loop->last ? 'border-bottom' : '' }} small">
                                         <div class="text-muted">
                                             {{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}
                                             · {{ $activity->created_at?->format('m/d/Y g:i A') }}
                                         </div>
-                                        <div>{{ $activity->summary }}</div>
+                                        <div style="white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;">{{ $activity->summary }}</div>
                                     </div>
                                 @empty
                                     <p class="text-muted small mb-0">No notes yet. Notes added here also appear on the Timeline tab.</p>
@@ -346,6 +351,17 @@
         </div>
 
     @elseif ($activeTab === 'documents')
+        <div class="mb-4">
+            <livewire:admin.documents.entity-documents-section
+                :case-id="$case->id"
+                :practice-id="$case->practice_id"
+                :provider-id="$case->provider_id"
+                heading="Additional Application Documents"
+                :show-profile-link="false"
+                :key="'case-docs-'.$case->id"
+            />
+        </div>
+
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <div>

@@ -140,6 +140,7 @@ class DummyContentSeeder extends Seeder
                 [
                     'user_id' => $user->id,
                     'legal_name' => $legalName,
+                    'client_code' => 'DMG'.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
                     'dba_name' => "DMG {$i} Clinic",
                     'ein_tin' => '99-'.str_pad((string) $i, 7, '0', STR_PAD_LEFT),
                     'group_npi' => '200000000'.$i,

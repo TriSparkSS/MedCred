@@ -4,30 +4,44 @@ namespace App\Livewire\Admin\Practices;
 
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Location;
+use App\Services\AdminScopeService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class PracticeLocationsSection extends Component
 {
     use LooksUpUsZip;
 
+    #[Locked]
     public $practiceId;
 
+    #[Locked]
     public bool $canManage = false;
 
     public $showModal = false;
 
     public $modalMode = 'create';
 
+    #[Locked]
     public $locationId = null;
 
     public $formData = [];
 
     public function mount(): void
     {
+        $this->authorizePractice();
         $this->canManage = Auth::guard('admin')->user()?->can('admin.practices.manage') ?? false;
+    }
+
+    protected function authorizePractice(): void
+    {
+        $admin = Auth::guard('admin')->user();
+        if ($admin && $this->practiceId && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $this->practiceId)) {
+            abort(403);
+        }
     }
 
     protected function rules(): array
@@ -52,7 +66,9 @@ class PracticeLocationsSection extends Component
 
     public function openCreateModal(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $this->resetForm();
         $this->modalMode = 'create';
@@ -70,7 +86,9 @@ class PracticeLocationsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $location = Location::where('practice_id', $this->practiceId)->findOrFail($id);
         $this->locationId = $id;
@@ -85,7 +103,9 @@ class PracticeLocationsSection extends Component
 
     public function save(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $this->validate();
 
@@ -109,7 +129,9 @@ class PracticeLocationsSection extends Component
 
     public function delete(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         Location::where('practice_id', $this->practiceId)->findOrFail($id)->delete();
         flash()->info('Location deleted.');
@@ -131,6 +153,8 @@ class PracticeLocationsSection extends Component
 
     public function render()
     {
+        $this->authorizePractice();
+
         $locations = Location::where('practice_id', $this->practiceId)->orderByDesc('is_primary')->orderBy('name')->get();
 
         return view('livewire.admin.practices.partials.practice-locations-section', compact('locations'));

@@ -133,3 +133,146 @@ test('billing cannot mutate credential tracker', function () {
         ->assertSet('canAssignCredentials', false)
         ->assertSet('canEscalateTasks', false);
 });
+
+test('roleless admin is denied route access and is not unrestricted', function () {
+    $roleless = Admin::create([
+        'name' => 'Roleless Admin',
+        'username' => 'roleless',
+        'email' => 'roleless@example.com',
+        'password' => 'password',
+        'status' => 'active',
+    ]);
+
+    $scope = app(AdminScopeService::class);
+    expect($scope->isUnrestricted($roleless))->toBeFalse()
+        ->and($scope->isPracticeScoped($roleless))->toBeTrue()
+        ->and($scope->assignedPracticeIds($roleless))->toBe([]);
+
+    $this->actingAs($roleless, 'admin')
+        ->get(route('admin.dashboard'))
+        ->assertForbidden();
+});
+
+test('practice-scoped admin gets 403 on credential packet download for unassigned practice case', function () {
+    $this->seed(\Database\Seeders\MasterDataSeeder::class);
+
+    $assignedPractice = Practice::create([
+        'legal_name' => 'Assigned Packet Practice',
+        'client_code' => 'APP',
+        'email' => 'assigned-packet@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Assigned Packet User',
+            'email' => 'assigned-packet-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
+
+    $unassignedPractice = Practice::create([
+        'legal_name' => 'Unassigned Packet Practice',
+        'client_code' => 'UPP',
+        'email' => 'unassigned-packet@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Unassigned Packet User',
+            'email' => 'unassigned-packet-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
+
+    $provider = \App\Models\ProviderDetails::create([
+        'user_id' => User::create([
+            'name' => 'Dr. Packet',
+            'email' => 'dr-packet@example.com',
+            'password' => 'password',
+        ])->id,
+        'npi' => '1888888888',
+        'status' => 'active',
+        'practice' => $unassignedPractice->legal_name,
+    ]);
+
+    $payer = \App\Models\Payer::create(['name' => 'Packet Payer', 'is_active' => true]);
+    $status = \App\Models\Status::firstOrFail();
+
+    $unassignedCase = \App\Models\CredentialingCase::create([
+        'practice_id' => $unassignedPractice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $payer->id,
+        'status_id' => $status->id,
+        'state' => 'TX',
+    ]);
+
+    $executive = adminByUsername('executive');
+    $executive->practices()->sync([$assignedPractice->id]);
+
+    $this->actingAs($executive, 'admin')
+        ->get(route('admin.credentials.packet', $unassignedCase))
+        ->assertForbidden();
+});
+
+test('practice-scoped admin cannot view another practice task in TaskDetailDrawer', function () {
+    $this->seed(\Database\Seeders\MasterDataSeeder::class);
+
+    $assignedPractice = Practice::create([
+        'legal_name' => 'Assigned Task Practice',
+        'client_code' => 'ATP',
+        'email' => 'assigned-task@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Assigned Task User',
+            'email' => 'assigned-task-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
+
+    $unassignedPractice = Practice::create([
+        'legal_name' => 'Unassigned Task Practice',
+        'client_code' => 'UTP',
+        'email' => 'unassigned-task@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Unassigned Task User',
+            'email' => 'unassigned-task-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
+
+    $provider = \App\Models\ProviderDetails::create([
+        'user_id' => User::create([
+            'name' => 'Dr. Unassigned Task',
+            'email' => 'dr-unassigned-task@example.com',
+            'password' => 'password',
+        ])->id,
+        'npi' => '1999999999',
+        'status' => 'active',
+        'practice' => $unassignedPractice->legal_name,
+    ]);
+    $provider->practices()->sync([$unassignedPractice->id => ['primary_flag' => true]]);
+
+    $payer = \App\Models\Payer::create(['name' => 'Task Payer', 'is_active' => true]);
+    $status = \App\Models\Status::firstOrFail();
+
+    $unassignedCase = \App\Models\CredentialingCase::create([
+        'practice_id' => $unassignedPractice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $payer->id,
+        'status_id' => $status->id,
+        'state' => 'TX',
+    ]);
+
+    $otherTask = \App\Models\Task::create([
+        'title' => 'Secret Unassigned Task',
+        'credentialing_case_id' => $unassignedCase->id,
+        'provider_id' => $provider->id,
+        'status' => \App\Enums\TaskStatus::Open,
+    ]);
+
+    $executive = adminByUsername('executive');
+    $executive->practices()->sync([$assignedPractice->id]);
+
+    Livewire::actingAs($executive, 'admin')
+        ->test(\App\Livewire\Admin\Task\TaskDetailDrawer::class)
+        ->call('open', $otherTask->id)
+        ->assertForbidden()
+        ->assertDontSee('Secret Unassigned Task');
+});

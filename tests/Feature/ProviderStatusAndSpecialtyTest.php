@@ -188,3 +188,71 @@ test('editing a provider to on hold requires remarks', function () {
     expect($provider->status)->toBe(ProviderStatus::ON_HOLD)
         ->and($provider->status_remarks)->toBe('License verification in progress');
 });
+
+test('deleting a specialty sets provider specialty_id to null without cascade deleting provider', function () {
+    $practice = statusTestPractice();
+    $specialty = Specialty::create([
+        'name' => 'Temporary Specialty',
+        'code' => '999999999X',
+    ]);
+
+    $provider = ProviderDetails::create([
+        'user_id' => User::create([
+            'name' => 'Dr. Keep Provider',
+            'email' => 'keep-provider@example.com',
+            'password' => 'password',
+        ])->id,
+        'specialty_id' => $specialty->id,
+        'npi' => '1888888888',
+        'status' => ProviderStatus::ACTIVE,
+        'practice' => $practice->legal_name,
+        'address' => '3 Main St',
+        'city' => 'Houston',
+        'state' => 'TX',
+        'zip' => '77001',
+    ]);
+
+    $specialty->delete();
+
+    $provider->refresh();
+
+    expect($provider->exists)->toBeTrue()
+        ->and($provider->specialty_id)->toBeNull();
+});
+
+test('user providers and practices scopes properly parenthesize orWhereHas when chained with where', function () {
+    $providerRoleUser = User::create([
+        'name' => 'Role Provider Alpha',
+        'email' => 'role-provider-alpha@example.com',
+        'password' => 'password',
+    ]);
+    $providerRoleUser->assignRole('provider');
+
+    $matchedProviderUser = User::create([
+        'name' => 'Matched Provider Beta',
+        'email' => 'matched-provider-beta@example.com',
+        'password' => 'password',
+    ]);
+    $matchedProviderUser->assignRole('provider');
+
+    $practiceRoleUser = User::create([
+        'name' => 'Role Practice Alpha',
+        'email' => 'role-practice-alpha@example.com',
+        'password' => 'password',
+    ]);
+    $practiceRoleUser->assignRole('practice');
+
+    $providersResult = User::where('email', 'matched-provider-beta@example.com')
+        ->providers()
+        ->pluck('email')
+        ->all();
+
+    expect($providersResult)->toBe(['matched-provider-beta@example.com']);
+
+    $practicesResult = User::where('email', 'nonexistent@example.com')
+        ->practices()
+        ->count();
+
+    expect($practicesResult)->toBe(0);
+});
+

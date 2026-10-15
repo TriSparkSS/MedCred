@@ -237,6 +237,20 @@
                                 <small class="text-muted d-block">CAQH ID</small>
                                 <span class="fw-semibold">{{ $provider->caqh_id ?: 'N/A' }}</span>
                             </div>
+                            <div class="col-md-6">
+                                <small class="text-muted d-block">Degree / Provider Type</small>
+                                <span class="fw-semibold">
+                                    {{ collect([$provider->degree, $provider->provider_type])->filter()->join(' / ') ?: 'N/A' }}
+                                </span>
+                            </div>
+                            <div class="col-md-6">
+                                <small class="text-muted d-block">Date of Birth</small>
+                                <span class="fw-semibold">{{ $provider->dob ? $provider->dob->format('m/d/Y') : 'N/A' }}</span>
+                            </div>
+                            <div class="col-md-6">
+                                <small class="text-muted d-block">SSN</small>
+                                <span class="fw-semibold">{{ $provider->ssn ?: 'N/A' }}</span>
+                            </div>
                             <div class="col-12">
                                 <small class="text-muted d-block">Address</small>
                                 <span class="fw-semibold">
@@ -244,6 +258,15 @@
                                     {{ $provider->zip }}
                                 </span>
                             </div>
+                            @if ($provider->home_address || $provider->home_city || $provider->home_state || $provider->home_zip)
+                            <div class="col-12">
+                                <small class="text-muted d-block">Home Address</small>
+                                <span class="fw-semibold">
+                                    {{ $provider->home_address ?: 'N/A' }}{{ $provider->home_city ? ', ' . $provider->home_city : '' }}{{ $provider->home_state ? ', ' . $provider->home_state : '' }}
+                                    {{ $provider->home_zip }}
+                                </span>
+                            </div>
+                            @endif
                         </div>
                     </div>
                 </div>

@@ -14,24 +14,12 @@ class AdminScopeService
 {
     public function isUnrestricted(Admin $admin): bool
     {
-        if ($admin->roles()->count() === 0) {
-            return true;
-        }
-
         return $admin->hasRole(AdminRole::SystemAdmin->value);
     }
 
     public function isPracticeScoped(Admin $admin): bool
     {
-        if ($this->isUnrestricted($admin)) {
-            return false;
-        }
-
-        return $admin->hasAnyRole([
-            AdminRole::BillingReadonly->value,
-            AdminRole::CredentialingExecutive->value,
-            AdminRole::CredentialingManager->value,
-        ]);
+        return ! $this->isUnrestricted($admin);
     }
 
     /** @return list<int>|null null = unrestricted (all practices) */

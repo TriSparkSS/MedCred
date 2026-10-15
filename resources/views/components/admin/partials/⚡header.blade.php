@@ -41,7 +41,12 @@ new class extends Component {
     #[Computed]
     public function notificationTotal(): int
     {
-        return app(DashboardService::class)->notificationTotal();
+        $counts = $this->notifications;
+
+        return ($counts['expiring_documents'] ?? 0)
+            + ($counts['overdue_tasks'] ?? 0)
+            + ($counts['overdue_cases'] ?? 0)
+            + ($counts['task_assignments'] ?? 0);
     }
 
     #[Computed]
@@ -186,11 +191,16 @@ new class extends Component {
                 </ul>
             </li>
 
+            @php
+                $avatarSrc = filled($admin?->avatar)
+                    ? $admin->avatar
+                    : getUserImageInitial($admin?->id ?? 1, $admin?->name ?? 'Admin');
+            @endphp
             <li class="nav-item navbar-dropdown dropdown-user dropdown">
                 <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown"
                     aria-expanded="false">
                     <div class="avatar avatar-online">
-                        <img src="{{ $admin->avatar ?? '' }}" alt="Admin avatar" class="rounded-circle" />
+                        <img src="{{ $avatarSrc }}" alt="Admin avatar" class="rounded-circle" />
                     </div>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -200,7 +210,7 @@ new class extends Component {
                             <div class="d-flex">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="avatar avatar-online">
-                                        <img src="{{ $admin->avatar ?? getUserImageInitial($admin->id, $admin->name) }}" alt="Admin avatar"
+                                        <img src="{{ $avatarSrc }}" alt="Admin avatar"
                                             class="w-px-40 h-auto rounded-circle" />
                                     </div>
                                 </div>

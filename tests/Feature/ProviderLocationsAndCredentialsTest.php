@@ -310,7 +310,7 @@ test('provider details page shows upload and location actions without a separate
         ->assertSee('Upload Document');
 });
 
-test('provider edit page has editable credential rows and opens document and location modals', function () {
+test('provider edit page omits removed credential rows and opens document and location modals', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $provider = locationsTestProvider();
 
@@ -319,10 +319,9 @@ test('provider edit page has editable credential rows and opens document and loc
         ->assertSeeLivewire(EntityDocumentsSection::class)
         ->assertDontSeeLivewire(ProviderCredentialsSection::class)
         ->assertDontSee('State Licenses & Registrations')
+        ->assertDontSee('Licenses & other credentials')
         ->assertSeeLivewire(ProviderLocationsSection::class)
         ->assertSee('Upload Document')
-        ->assertSee('Licenses & other credentials')
-        ->assertSee('Add row')
         ->assertSee('Add Location');
 
     Livewire::actingAs($admin, 'admin')

@@ -107,6 +107,26 @@ return new class extends Migration
         Schema::dropIfExists('task_notes');
 
         Schema::table('tasks', function (Blueprint $table) {
+            $table->dropIndex(['assigned_admin_id']);
+            $table->dropIndex(['credentialing_case_id']);
+            $table->dropIndex(['provider_id']);
+            $table->dropIndex(['due_date']);
+            $table->dropIndex(['status']);
+            $table->dropIndex(['completed_at']);
+            $table->dropIndex(['automation_key', 'credentialing_case_id']);
+
+            if (Schema::hasColumn('tasks', 'assigned_by_admin_id')) {
+                $table->dropForeign(['assigned_by_admin_id']);
+            }
+            if (Schema::hasColumn('tasks', 'escalated_by_admin_id')) {
+                $table->dropForeign(['escalated_by_admin_id']);
+            }
+            if (Schema::hasColumn('tasks', 'payer_id')) {
+                $table->dropForeign(['payer_id']);
+            }
+        });
+
+        Schema::table('tasks', function (Blueprint $table) {
             $columns = [
                 'status', 'follow_up_date', 'is_escalated', 'assigned_by_admin_id',
                 'escalated_at', 'escalated_by_admin_id', 'payer_id', 'automation_key',

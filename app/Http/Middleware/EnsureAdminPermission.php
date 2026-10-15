@@ -16,11 +16,6 @@ class EnsureAdminPermission
             return redirect()->route('login');
         }
 
-        // Legacy admins without roles retain full access until AdminPermissionSeeder runs
-        if ($admin->roles()->count() === 0) {
-            return $next($request);
-        }
-
         if (! $admin->can($permission)) {
             abort(403, 'You do not have permission to access this resource.');
         }

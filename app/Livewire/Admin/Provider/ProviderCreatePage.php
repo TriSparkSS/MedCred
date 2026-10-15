@@ -7,24 +7,29 @@ use App\Enums\ProviderStatus;
 use App\Livewire\Admin\Provider\Concerns\ManagesProviderCredentialRows;
 use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
+use App\Models\DocumentType;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
 use App\Services\AdminScopeService;
+use App\Services\DocumentService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('layouts::admin', ['title' => 'Add Provider'])]
 class ProviderCreatePage extends Component
 {
-    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress;
+    use LooksUpUsZip, ManagesProviderCredentialRows, SelectsPracticeAddress, WithFileUploads;
 
     public $formData = [];
+
+    public $malpracticeDocument = null;
 
     public $userData = [
         'name' => '',
@@ -46,7 +51,11 @@ class ProviderCreatePage extends Component
             'userData.email' => 'required|email|unique:users,email',
             'userData.phone' => 'nullable|string|max:30',
             'userData.password' => 'required|string|min:6',
+            'formData.dob' => 'nullable|date',
+            'formData.ssn' => 'nullable|string|max:20',
             'formData.specialty_id' => 'nullable|exists:specialties,id',
+            'formData.degree' => 'nullable|string|max:100',
+            'formData.provider_type' => 'nullable|string|max:100',
             'formData.npi' => 'required|string|max:50',
             'formData.caqh_id' => 'nullable|numeric|digits_between:1,15',
             'formData.taxonomy_code' => 'nullable|string|max:50',
@@ -62,6 +71,7 @@ class ProviderCreatePage extends Component
                 filled($this->formData['malpractice_expiry'] ?? null) ? 'before_or_equal:formData.malpractice_expiry' : null,
             ])),
             'formData.malpractice_expiry' => 'nullable|date',
+            'malpracticeDocument' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'formData.board_certification' => 'nullable|string|max:255',
             'formData.board_cert_expiry' => 'nullable|date',
             'formData.work_history' => 'nullable|string|max:5000',
@@ -76,6 +86,10 @@ class ProviderCreatePage extends Component
             'formData.city' => 'required|string|max:100',
             'formData.state' => ['required', 'string', 'size:2', Rule::in(UsStates::codes())],
             'formData.zip' => 'required|string|max:20',
+            'formData.home_address' => 'nullable|string|max:500',
+            'formData.home_city' => 'nullable|string|max:100',
+            'formData.home_state' => 'nullable|string|max:50',
+            'formData.home_zip' => 'nullable|string|max:20',
             'formData.status' => ['required', Rule::enum(ProviderStatus::class)],
             'formData.status_remarks' => [
                 Rule::requiredIf(fn () => ($this->formData['status'] ?? null) === ProviderStatus::ON_HOLD->value),
@@ -142,6 +156,24 @@ class ProviderCreatePage extends Component
 
         $this->persistCredentialRows($provider, false);
 
+        if ($this->malpracticeDocument) {
+            $malpracticeType = DocumentType::firstOrCreate(
+                ['name' => 'Malpractice Insurance'],
+                ['is_active' => true, 'is_state_specific' => false]
+            );
+            $carrier = trim((string) ($this->formData['malpractice_carrier'] ?? ''));
+            app(DocumentService::class)->upload([
+                'title' => 'Malpractice Insurance'.($carrier !== '' ? ' - '.$carrier : ''),
+                'document_number' => $this->formData['malpractice_policy_number'] ?? null,
+                'effective_date' => ! empty($this->formData['malpractice_effective_date']) ? $this->formData['malpractice_effective_date'] : null,
+                'expiry_date' => ! empty($this->formData['malpractice_expiry']) ? $this->formData['malpractice_expiry'] : null,
+                'provider_id' => $provider->id,
+                'practice_id' => $this->practiceId ? (int) $this->practiceId : null,
+                'document_type_id' => $malpracticeType->id,
+            ], $this->malpracticeDocument, Auth::guard('admin')->id());
+            $this->malpracticeDocument = null;
+        }
+
         flash()->success('Provider and user created successfully!');
 
         return redirect()->route('admin.providers.show', $provider->id);
@@ -149,7 +181,7 @@ class ProviderCreatePage extends Component
 
     private function normalizeMalpracticeFields(array $data): array
     {
-        foreach (['malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date'] as $field) {
+        foreach (['dob', 'malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date'] as $field) {
             if (array_key_exists($field, $data) && $data[$field] === '') {
                 $data[$field] = null;
             }
@@ -189,6 +221,7 @@ class ProviderCreatePage extends Component
             'states' => UsStates::all(),
             'credentialTypes' => ProviderCredentialType::cases(),
             'specialtyOptions' => $this->filteredSpecialtyOptions(),
+            'latestMalpracticeDoc' => null,
         ]);
     }
 }

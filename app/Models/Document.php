@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Document extends Model
 {
@@ -63,9 +64,19 @@ class Document extends Model
         return $this->belongsTo(Payer::class);
     }
 
+    public function verifiedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'verified_by_admin_id');
+    }
+
     public function uploadedByAdmin(): BelongsTo
     {
         return $this->belongsTo(Admin::class, 'uploaded_by_admin_id');
+    }
+
+    public function uploadedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by_user_id');
     }
 
     public function versions(): HasMany
@@ -112,22 +123,27 @@ class Document extends Model
 
     public function addVersion($file, ?int $adminId = null, ?string $notes = null, ?int $userId = null): DocumentVersion
     {
-        $this->versions()->where('is_current', true)->update(['is_current' => false]);
-
-        $nextVersion = ($this->versions()->max('version_number') ?? 0) + 1;
         $path = $file->store("documents/{$this->id}", 'public');
 
-        return $this->versions()->create([
-            'version_number' => $nextVersion,
-            'file_path' => $path,
-            'original_name' => $file->getClientOriginalName(),
-            'file_size' => $file->getSize(),
-            'mime_type' => $file->getMimeType(),
-            'uploaded_by_admin_id' => $adminId,
-            'uploaded_by_user_id' => $userId,
-            'notes' => $notes,
-            'is_current' => true,
-        ]);
+        return DB::transaction(function () use ($file, $path, $adminId, $notes, $userId) {
+            self::whereKey($this->id)->lockForUpdate()->first();
+
+            $this->versions()->where('is_current', true)->update(['is_current' => false]);
+
+            $nextVersion = ($this->versions()->lockForUpdate()->max('version_number') ?? 0) + 1;
+
+            return $this->versions()->create([
+                'version_number' => $nextVersion,
+                'file_path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'file_size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+                'uploaded_by_admin_id' => $adminId,
+                'uploaded_by_user_id' => $userId,
+                'notes' => $notes,
+                'is_current' => true,
+            ]);
+        });
     }
 
     public static function createWithFile(array $data, $file, ?int $adminId = null, ?int $userId = null): self

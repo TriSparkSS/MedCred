@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CredentialingCase;
+use App\Services\AdminScopeService;
 use App\Services\CredentialingPacketService;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -11,6 +12,9 @@ class CredentialPacketController extends Controller
 {
     public function download(CredentialingCase $case, CredentialingPacketService $service): BinaryFileResponse
     {
+        $admin = auth('admin')->user();
+        abort_unless($admin && app(AdminScopeService::class)->canAccessCase($admin, $case), 403);
+
         $zipPath = $service->build($case);
 
         if (! $zipPath || ! file_exists($zipPath)) {

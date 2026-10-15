@@ -162,7 +162,7 @@
                     <small class="text-muted">Active cases by delay owner</small>
                 </div>
                 <div class="card-body">
-                    <div id="delayOwnershipChart" style="min-height: 280px;"></div>
+                    <div id="delayOwnershipChart" wire:ignore style="min-height: 280px;"></div>
                     <div class="mt-3">
                         @foreach ($delayBreakdown['items'] as $item)
                             <div class="d-flex justify-content-between align-items-center mb-2 small">

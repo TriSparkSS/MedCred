@@ -71,7 +71,20 @@ class CredentialingEmailService
         $messageId = $this->generateMessageId();
 
         try {
-            Mail::to($toAddress)->send(new CredentialingTemplateMail(
+            $pendingMail = Mail::to($toAddress);
+
+            if (filled($ccAddress)) {
+                $ccAddresses = array_values(array_filter(
+                    array_map('trim', preg_split('/[,;]+/', $ccAddress) ?: []),
+                    fn (string $email) => $email !== ''
+                ));
+
+                if ($ccAddresses !== []) {
+                    $pendingMail->cc($ccAddresses);
+                }
+            }
+
+            $pendingMail->send(new CredentialingTemplateMail(
                 $subject,
                 $body,
                 $messageId,
@@ -98,6 +111,7 @@ class CredentialingEmailService
                 'case_id' => $case?->id,
                 'message_id' => $messageId,
                 'to' => $toAddress,
+                'cc' => $ccAddress,
                 'subject' => $subject,
                 'template_id' => $template?->id,
             ]);

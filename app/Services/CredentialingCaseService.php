@@ -44,14 +44,24 @@ class CredentialingCaseService
                 );
             }
 
+            $status = Status::findOrFail($data['status_id']);
+
             $case = CredentialingCase::create([
                 ...$data,
+                'delay_owner_id' => $status->delay_owner_id ?? ($data['delay_owner_id'] ?? null),
                 'last_action_at' => now(),
             ]);
 
             $case->seedDocumentChecklist();
-            $case->recordStatusChange($data['status_id'], $adminId, 'Case created');
-            $this->slaEngine->startTimersForCase($case->fresh());
+
+            $case->statusHistories()->create([
+                'status_id' => $status->id,
+                'delay_owner_id' => $status->delay_owner_id,
+                'changed_by_admin_id' => $adminId,
+                'notes' => 'Case created',
+            ]);
+
+            $this->delayService->applyOnStatusChange($case->fresh(), $status, $adminId);
 
             CaseStatusChanged::dispatch($case->fresh(), null, (int) $data['status_id'], $adminId, 'Case created');
 
@@ -67,44 +77,54 @@ class CredentialingCaseService
             return $case;
         }
 
-        $status = Status::findOrFail($statusId);
+        return DB::transaction(function () use ($case, $statusId, $adminId, $notes, $oldStatusId) {
+            $status = Status::findOrFail($statusId);
 
-        $case->update([
-            'status_id' => $statusId,
-            'delay_owner_id' => $status->delay_owner_id ?? $case->delay_owner_id,
-            'last_action_at' => now(),
-        ]);
+            $case->update([
+                'status_id' => $statusId,
+                'delay_owner_id' => $status->delay_owner_id ?? $case->delay_owner_id,
+                'last_action_at' => now(),
+            ]);
 
-        $case->statusHistories()->create([
-            'status_id' => $statusId,
-            'delay_owner_id' => $status->delay_owner_id,
-            'changed_by_admin_id' => $adminId,
-            'notes' => $notes,
-        ]);
+            $case->statusHistories()->create([
+                'status_id' => $statusId,
+                'delay_owner_id' => $status->delay_owner_id,
+                'changed_by_admin_id' => $adminId,
+                'notes' => $notes,
+            ]);
 
-        CaseStatusChanged::dispatch($case->fresh(), $oldStatusId, $statusId, $adminId, $notes);
+            CaseStatusChanged::dispatch($case->fresh(), $oldStatusId, $statusId, $adminId, $notes);
 
-        $this->delayService->applyOnStatusChange($case->fresh(), $status, $adminId);
+            $this->delayService->applyOnStatusChange($case->fresh(), $status, $adminId);
 
-        return $case->fresh();
+            return $case->fresh();
+        });
     }
 
     public function updateInline(CredentialingCase $case, array $fields, ?int $adminId = null): CredentialingCase
     {
-        $allowed = ['status_id', 'assigned_admin_id', 'priority_id', 'next_follow_up_date', 'delay_owner_id'];
-        $updates = array_intersect_key($fields, array_flip($allowed));
+        return DB::transaction(function () use ($case, $fields, $adminId) {
+            $allowed = ['status_id', 'assigned_admin_id', 'priority_id', 'next_follow_up_date', 'delay_owner_id'];
+            $updates = array_intersect_key($fields, array_flip($allowed));
 
-        if (isset($updates['status_id']) && $updates['status_id'] != $case->status_id) {
-            return $this->changeStatus($case, (int) $updates['status_id'], $adminId);
-        }
+            if (isset($updates['status_id']) && (int) $updates['status_id'] !== (int) $case->status_id) {
+                $statusId = (int) $updates['status_id'];
+                unset($updates['status_id']);
+                $case = $this->changeStatus($case, $statusId, $adminId);
+            } else {
+                unset($updates['status_id']);
+            }
 
-        $case->update([...$updates, 'last_action_at' => now()]);
+            if ($updates !== []) {
+                $case->update([...$updates, 'last_action_at' => now()]);
 
-        if ($case->wasChanged()) {
-            $case->addActivity('system', 'Case fields updated', $adminId);
-        }
+                if ($case->wasChanged()) {
+                    $case->addActivity('system', 'Case fields updated', $adminId);
+                }
+            }
 
-        return $case->fresh();
+            return $case->fresh();
+        });
     }
 
     public function readinessWarnings(CredentialingCase $case): array

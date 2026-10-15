@@ -64,6 +64,25 @@
                         @enderror
                     </div>
 
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Date of Birth</label>
+                        <input type="date" wire:model="formData.dob"
+                            class="form-control @error('formData.dob') is-invalid @enderror">
+                        @error('formData.dob')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">SSN</label>
+                        <input type="text" wire:model="formData.ssn"
+                            class="form-control @error('formData.ssn') is-invalid @enderror"
+                            placeholder="XXX-XX-XXXX">
+                        @error('formData.ssn')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
                     @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                     <div class="col-12">
                         <small class="text-muted">
@@ -79,7 +98,7 @@
                     <h6 class="text-primary fw-semibold mb-1">
                         <i class="ti tabler-stethoscope me-2"></i>Professional Details
                     </h6>
-                    <p class="text-muted small mb-0">NPI, specialty, and credentialing status.</p>
+                    <p class="text-muted small mb-0">NPI, specialty, degree, provider type, and credentialing status.</p>
                 </div>
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
@@ -99,11 +118,43 @@
                     </div>
 
                     <div class="col-md-4">
+                        <label class="form-label fw-medium">Degree</label>
+                        <input type="text" wire:model="formData.degree"
+                            class="form-control @error('formData.degree') is-invalid @enderror"
+                            placeholder="e.g., MD, DO, NP, PA">
+                        @error('formData.degree')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Provider Type</label>
+                        <input type="text" wire:model="formData.provider_type"
+                            class="form-control @error('formData.provider_type') is-invalid @enderror"
+                            placeholder="e.g., Physician, Nurse Practitioner">
+                        @error('formData.provider_type')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label fw-medium">NPI Number <span class="text-danger">*</span></label>
                         <input type="text" wire:model="formData.npi"
                             class="form-control @error('formData.npi') is-invalid @enderror"
                             placeholder="10-digit NPI">
                         @error('formData.npi')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">CAQH ID</label>
+                        <input type="text" wire:model="formData.caqh_id"
+                            class="form-control @error('formData.caqh_id') is-invalid @enderror"
+                            placeholder="Numeric CAQH Provider ID"
+                            inputmode="numeric"
+                            pattern="[0-9]*">
+                        @error('formData.caqh_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -133,29 +184,6 @@
                     </div>
                     @endif
                 </div>
-
-                {{-- Licenses & Credentials --}}
-                <div class="mb-3 pb-3 border-bottom">
-                    <h6 class="text-primary fw-semibold mb-1">
-                        <i class="ti tabler-certificate me-2"></i>Licenses & Credentials
-                    </h6>
-                    <p class="text-muted small mb-0">CAQH profile plus editable license, DEA, and CDS rows for regular maintenance.</p>
-                </div>
-                <div class="row g-4 mb-4">
-                    <div class="col-md-4">
-                        <label class="form-label fw-medium">CAQH ID</label>
-                        <input type="text" wire:model="formData.caqh_id"
-                            class="form-control @error('formData.caqh_id') is-invalid @enderror"
-                            placeholder="Numeric CAQH Provider ID"
-                            inputmode="numeric"
-                            pattern="[0-9]*">
-                        @error('formData.caqh_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                </div>
-
-                @include('livewire.admin.provider.partials.provider-credential-rows')
 
                 @include('livewire.admin.provider.partials.provider-extended-fields')
 
@@ -209,6 +237,54 @@
                         <x-admin.state-select wire:model="formData.state"
                             class="{{ $errors->has('formData.state') ? 'is-invalid' : '' }}" />
                         @error('formData.state')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+
+                {{-- Home Address --}}
+                <div class="mb-3 pb-3 border-bottom">
+                    <h6 class="text-primary fw-semibold mb-1">
+                        <i class="ti tabler-home me-2"></i>Home Address
+                    </h6>
+                    <p class="text-muted small mb-0">Provider's personal residential address (optional).</p>
+                </div>
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <label class="form-label fw-medium">Home Street Address</label>
+                        <input type="text" wire:model="formData.home_address"
+                            class="form-control @error('formData.home_address') is-invalid @enderror"
+                            placeholder="456 Residential Lane">
+                        @error('formData.home_address')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Home Zip Code</label>
+                        <input type="text" wire:model="formData.home_zip"
+                            class="form-control @error('formData.home_zip') is-invalid @enderror"
+                            placeholder="Zip code" maxlength="10" inputmode="numeric">
+                        @error('formData.home_zip')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Home City</label>
+                        <input type="text" wire:model="formData.home_city"
+                            class="form-control @error('formData.home_city') is-invalid @enderror"
+                            placeholder="City">
+                        @error('formData.home_city')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-medium">Home State</label>
+                        <x-admin.state-select wire:model="formData.home_state"
+                            class="{{ $errors->has('formData.home_state') ? 'is-invalid' : '' }}" />
+                        @error('formData.home_state')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>

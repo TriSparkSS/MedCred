@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Admin;
 use App\Models\ProviderDetails;
+use App\Services\AdminScopeService;
 
 class ProviderPolicy
 {
@@ -14,7 +15,8 @@ class ProviderPolicy
 
     public function view(Admin $admin, ProviderDetails $provider): bool
     {
-        return $admin->can('admin.providers.view');
+        return $admin->can('admin.providers.view')
+            && app(AdminScopeService::class)->canAccessProvider($admin, $provider);
     }
 
     public function create(Admin $admin): bool
@@ -24,6 +26,7 @@ class ProviderPolicy
 
     public function update(Admin $admin, ProviderDetails $provider): bool
     {
-        return $admin->can('admin.providers.edit');
+        return $admin->can('admin.providers.edit')
+            && app(AdminScopeService::class)->canAccessProvider($admin, $provider);
     }
 }

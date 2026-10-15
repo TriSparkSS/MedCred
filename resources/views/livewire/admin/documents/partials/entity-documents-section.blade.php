@@ -23,7 +23,7 @@
         return DocumentVerificationStatus::tryFrom((string) $status)?->label() ?? ucfirst((string) $status ?: 'Unknown');
     };
 
-    $ownerLabel = $isProvider ? 'Provider' : 'Practice';
+    $ownerLabel = ($isCase ?? false) ? 'Application' : ($isProvider ? 'Provider' : 'Practice');
 @endphp
 
 <div>
@@ -34,6 +34,8 @@
             <small class="text-muted">
                 @if ($typeIsLocked)
                     Upload malpractice insurance files for this provider.
+                @elseif ($isCase ?? false)
+                    Upload additional application documents, payer correspondence, or request letters. Linked documents also appear on the Practice and Provider profiles.
                 @else
                     Dedicated documents for this {{ strtolower($ownerLabel) }}. View and upload files here; they are stored in the Document Hub.
                 @endif
@@ -163,9 +165,16 @@
                             <td><span class="badge bg-label-secondary">Profile file</span></td>
                             <td><span class="badge bg-label-success">Active</span></td>
                             <td class="text-end">
-                                <a href="{{ route('admin.practices.legacy-document', $practiceId) }}" class="btn btn-sm btn-outline-secondary">
-                                    <i class="ti tabler-download"></i>
-                                </a>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('admin.practices.legacy-document', $practiceId) }}" class="btn btn-outline-secondary" title="Download">
+                                        <i class="ti tabler-download"></i>
+                                    </a>
+                                    @if ($canUpload)
+                                        <button type="button" wire:click.stop="deleteLegacyDocument" wire:confirm="Delete this document?" class="btn btn-outline-danger" title="Delete">
+                                            <i class="ti tabler-trash"></i>
+                                        </button>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @else
@@ -242,6 +251,30 @@
                                         </div>
                                     </div>
                                 @endif
+                            @endif
+                            @if ($isCase ?? false)
+                                <div class="col-12">
+                                    <label class="form-label fw-medium d-block mb-1">Also Link Document To:</label>
+                                    <div class="d-flex flex-wrap gap-4">
+                                        @if ($practiceId)
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" wire:model="formData.link_to_practice" id="linkToPractice-{{ $caseId }}">
+                                                <label class="form-check-label" for="linkToPractice-{{ $caseId }}">
+                                                    Practice Profile (License &amp; Documents)
+                                                </label>
+                                            </div>
+                                        @endif
+                                        @if ($providerId)
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" wire:model="formData.link_to_provider" id="linkToProvider-{{ $caseId }}">
+                                                <label class="form-check-label" for="linkToProvider-{{ $caseId }}">
+                                                    Provider Profile (Provider Documents)
+                                                </label>
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <small class="text-muted">Checked profiles will automatically display this document in their Documents section.</small>
+                                </div>
                             @endif
                             <div class="col-12">
                                 <label class="form-label">File @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>

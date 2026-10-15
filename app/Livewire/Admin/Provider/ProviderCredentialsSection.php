@@ -12,18 +12,22 @@ use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class ProviderCredentialsSection extends Component
 {
+    #[Locked]
     public int $providerId;
 
+    #[Locked]
     public bool $canEdit = false;
 
     public bool $showModal = false;
 
     public string $modalMode = 'create';
 
+    #[Locked]
     public ?int $credentialId = null;
 
     public array $formData = [];
@@ -32,6 +36,7 @@ class ProviderCredentialsSection extends Component
     {
         $this->providerId = $providerId;
         $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
+        $this->authorizeProvider();
         $this->resetForm();
     }
 
@@ -51,7 +56,9 @@ class ProviderCredentialsSection extends Component
 
     public function openCreateModal(): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
+        $this->authorizeProvider();
         $this->resetForm();
         $this->modalMode = 'create';
         $this->showModal = true;
@@ -59,7 +66,9 @@ class ProviderCredentialsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
+        $this->authorizeProvider();
 
         $credential = ProviderCredential::query()
             ->where('provider_id', $this->providerId)
@@ -82,9 +91,10 @@ class ProviderCredentialsSection extends Component
 
     public function save(ProviderCredentialService $credentials): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
-        $this->validate();
         $this->authorizeProvider();
+        $this->validate();
 
         try {
             $credentials->save($this->provider(), $this->formData, $this->credentialId);
@@ -100,6 +110,7 @@ class ProviderCredentialsSection extends Component
 
     public function delete(int $id, ProviderCredentialService $credentials): void
     {
+        $this->canEdit = (bool) Auth::guard('admin')->user()?->can('admin.providers.edit');
         abort_unless($this->canEdit, 403);
         $this->authorizeProvider();
 
@@ -148,6 +159,8 @@ class ProviderCredentialsSection extends Component
 
     public function render()
     {
+        $this->authorizeProvider();
+
         $credentials = ProviderCredential::query()
             ->where('provider_id', $this->providerId)
             ->with('document')

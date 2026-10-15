@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('provider_details', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('specialty_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignId('specialty_id')->nullable()->constrained()->nullOnDelete();
             $table->string('status')->nullable();
             $table->string('npi')->nullable();
             $table->string('practice')->nullable();

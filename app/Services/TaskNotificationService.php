@@ -56,12 +56,24 @@ class TaskNotificationService
                     return;
                 }
 
+                $link = route('admin.tasks.kanban', ['task_id' => $task->id]);
+                $alreadySentToday = AdminNotification::query()
+                    ->where('admin_id', $task->assigned_admin_id)
+                    ->where('type', 'task_due_tomorrow')
+                    ->where('link', $link)
+                    ->whereDate('created_at', today())
+                    ->exists();
+
+                if ($alreadySentToday) {
+                    return;
+                }
+
                 $this->create(
                     $task->assigned_admin_id,
                     'task_due_tomorrow',
                     'Task due tomorrow',
                     $task->title,
-                    route('admin.tasks.kanban', ['task_id' => $task->id]),
+                    $link,
                     ['task_id' => $task->id]
                 );
 
@@ -82,12 +94,24 @@ class TaskNotificationService
                     return;
                 }
 
+                $link = route('admin.tasks.kanban', ['task_id' => $task->id]);
+                $alreadySentToday = AdminNotification::query()
+                    ->where('admin_id', $task->assigned_admin_id)
+                    ->where('type', 'task_overdue')
+                    ->where('link', $link)
+                    ->whereDate('created_at', today())
+                    ->exists();
+
+                if ($alreadySentToday) {
+                    return;
+                }
+
                 $this->create(
                     $task->assigned_admin_id,
                     'task_overdue',
                     'Task overdue',
                     $task->title,
-                    route('admin.tasks.kanban', ['task_id' => $task->id]),
+                    $link,
                     ['task_id' => $task->id]
                 );
 

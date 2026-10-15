@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\Master;
 
 use App\Models\NotificationTemplate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -24,7 +25,12 @@ class NotificationTemplateManager extends Component
     {
         return [
             'formData.name' => 'required|string|max:255',
-            'formData.template_key' => 'required|string|max:100',
+            'formData.template_key' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('notification_templates', 'template_key')->ignore($this->formData['id'] ?? null),
+            ],
             'formData.subject' => 'required|string|max:255',
             'formData.body' => 'required|string|max:10000',
             'formData.category' => 'required|string|max:50',
@@ -69,7 +75,7 @@ class NotificationTemplateManager extends Component
 
     public function render()
     {
-        $records = NotificationTemplate::when($this->search, fn ($q) => $q->where('name', 'like', '%' . $this->search . '%'))
+        $records = NotificationTemplate::when($this->search, fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))
             ->orderBy('name')
             ->paginate(15);
 

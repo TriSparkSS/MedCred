@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\CredentialingCase;
+use App\Models\EmailAttachment;
+use App\Models\EmailMessage;
+use App\Services\AdminScopeService;
+use App\Services\EmailCaseLinkService;
 use App\Services\GraphMailboxService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,6 +23,14 @@ class EmailAttachmentDownloadController
     ): StreamedResponse|Response {
         $decodedMessageId = $this->decode($messageId);
         $decodedAttachmentId = $this->decode($attachmentId);
+
+        $admin = auth('admin')->user();
+        if ($admin) {
+            $linkedCase = $this->resolveLinkedCase($decodedMessageId, $decodedAttachmentId);
+            if ($linkedCase && ! app(AdminScopeService::class)->canAccessCase($admin, $linkedCase)) {
+                abort(403, 'You do not have access to this attachment.');
+            }
+        }
 
         try {
             $file = $graph->downloadAttachment($decodedMessageId, $decodedAttachmentId);
@@ -44,6 +57,32 @@ class EmailAttachmentDownloadController
         ]);
     }
 
+    protected function resolveLinkedCase(string $decodedMessageId, string $decodedAttachmentId): ?CredentialingCase
+    {
+        $case = app(EmailCaseLinkService::class)->findCase($decodedMessageId);
+        if ($case) {
+            return $case;
+        }
+
+        $emailMessage = EmailMessage::with('credentialingCase')
+            ->where('external_message_id', $decodedMessageId)
+            ->orWhere('message_id', $decodedMessageId)
+            ->first();
+
+        if ($emailMessage?->credentialingCase) {
+            return $emailMessage->credentialingCase;
+        }
+
+        if (ctype_digit($decodedAttachmentId)) {
+            $attachment = EmailAttachment::with('emailMessage.credentialingCase')->find((int) $decodedAttachmentId);
+            if ($attachment?->emailMessage?->credentialingCase) {
+                return $attachment->emailMessage->credentialingCase;
+            }
+        }
+
+        return null;
+    }
+
     protected function resolveContentType(string $contentType, string $filename): string
     {
         $type = strtolower(trim(explode(';', $contentType)[0]));
@@ -54,6 +93,7 @@ class EmailAttachmentDownloadController
 
         return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
             'pdf' => 'application/pdf',
+            'svg' => 'image/svg+xml',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
             'gif' => 'image/gif',
@@ -70,6 +110,10 @@ class EmailAttachmentDownloadController
     protected function isInlineViewable(string $contentType): bool
     {
         $type = strtolower(trim(explode(';', $contentType)[0]));
+
+        if ($type === 'image/svg+xml' || str_contains($type, 'svg')) {
+            return false;
+        }
 
         return $type === 'application/pdf' || str_starts_with($type, 'image/');
     }

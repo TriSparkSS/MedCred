@@ -50,14 +50,4 @@ class FollowUpEngineListener
             $document->credentialingCase?->syncChecklistFromDocument($document);
         }
     }
-
-    public function subscribe($events): array
-    {
-        return [
-            DocumentRequestSent::class => 'handleDocumentRequestSent',
-            CaseStatusChanged::class => 'handleCaseStatusChanged',
-            ProviderResponseReceived::class => 'handleProviderResponseReceived',
-            DocumentVerified::class => 'handleDocumentVerified',
-        ];
-    }
 }

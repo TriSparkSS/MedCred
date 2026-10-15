@@ -82,13 +82,13 @@ class UsStates
             return $code;
         }
 
-        $name = strtolower($state);
+        $name = strtolower(trim($state));
         foreach (self::all() as $abbr => $full) {
             if (strtolower($full) === $name) {
                 return $abbr;
             }
         }
 
-        return strlen($code) <= 2 ? $code : substr($code, 0, 2);
+        return null;
     }
 }

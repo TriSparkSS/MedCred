@@ -62,18 +62,17 @@ test('practice create page shows the License & Documents section and fields', fu
         ->assertSee('Expiration');
 });
 
-test('practice edit page shows the License & Documents section and document columns', function () {
+test('practice edit page shows the unified License & Documents section without duplicate single-file inputs', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $practice = licenseDocumentsPractice();
 
     Livewire::actingAs($admin, 'admin')
         ->test(PracticeEditPage::class, ['practice' => $practice->id])
         ->assertSee('License & Documents')
-        ->assertSee('License / document name')
-        ->assertSee('License Number')
-        ->assertSee('Effective date')
-        ->assertSee('Expiration')
+        ->assertDontSee('License / document name')
         ->assertSee('Number')
+        ->assertSee('Effective')
+        ->assertSee('Expiration')
         ->assertSeeLivewire(EntityDocumentsSection::class);
 });
 

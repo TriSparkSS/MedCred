@@ -15,6 +15,7 @@ use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -44,7 +45,8 @@ class DocumentListPage extends Component
 
     public $showVersionModal = false;
 
-    public $selectedDocumentId = null;
+    #[Locked]
+    public ?int $selectedDocumentId = null;
 
     public $uploadFile;
 
@@ -58,7 +60,8 @@ class DocumentListPage extends Component
 
     public $rejectionReason = '';
 
-    public $rejectDocumentId = null;
+    #[Locked]
+    public ?int $rejectDocumentId = null;
 
     protected function rules(): array
     {
@@ -108,8 +111,21 @@ class DocumentListPage extends Component
         }
     }
 
+    protected function findScopedDocument(int $id): Document
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin, 403);
+
+        $query = Document::query();
+        app(AdminScopeService::class)->scopeDocuments($query, $admin);
+
+        return $query->findOrFail($id);
+    }
+
     public function openUploadModal(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.upload'), 403);
+
         $this->modalMode = 'upload';
         $this->selectedDocumentId = null;
         $this->resetForm();
@@ -127,7 +143,7 @@ class DocumentListPage extends Component
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.documents.upload'), 403);
 
-        $document = Document::findOrFail($documentId);
+        $document = $this->findScopedDocument($documentId);
 
         $this->modalMode = 'edit';
         $this->selectedDocumentId = $document->id;
@@ -150,8 +166,6 @@ class DocumentListPage extends Component
 
     public function mount(): void
     {
-        $this->syncExpiringDocumentTasks();
-
         if ($providerId = request()->query('provider')) {
             $this->filterProvider = $providerId;
             $this->formData['provider_id'] = $providerId;
@@ -166,28 +180,37 @@ class DocumentListPage extends Component
             $this->filterExpiry = 'expiring';
         }
 
-        if (request()->query('upload')) {
+        if (request()->query('upload') && Auth::guard('admin')->user()?->can('admin.documents.upload')) {
             $this->openUploadModal();
         }
     }
 
-    protected function syncExpiringDocumentTasks(): void
-    {
-        Document::expiringSoon(30)->with('documentType')->each(function (Document $document) {
-            $this->createExpiryTask($document);
-        });
-    }
-
     public function saveDocument(DocumentService $documentService): void
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin?->can('admin.documents.upload'), 403);
+
         $this->normalizeEmptyIds();
         $this->validate();
 
-        $adminId = Auth::guard('admin')->id();
+        $scope = app(AdminScopeService::class);
+        if (! empty($this->formData['practice_id'])) {
+            abort_unless($scope->canAccessPractice($admin, (int) $this->formData['practice_id']), 403);
+        }
+        if (! empty($this->formData['provider_id'])) {
+            $provider = ProviderDetails::findOrFail($this->formData['provider_id']);
+            abort_unless($scope->canAccessProvider($admin, $provider), 403);
+        }
+        if (! empty($this->formData['credentialing_case_id'])) {
+            $case = CredentialingCase::findOrFail($this->formData['credentialing_case_id']);
+            abort_unless($scope->canAccessCase($admin, $case), 403);
+        }
+
+        $adminId = $admin->id;
 
         if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
             $documentService->update(
-                Document::findOrFail($this->selectedDocumentId),
+                $this->findScopedDocument((int) $this->selectedDocumentId),
                 $this->formData,
                 $this->uploadFile,
                 $adminId
@@ -216,7 +239,10 @@ class DocumentListPage extends Component
 
     public function openVersionModal(int $documentId): void
     {
-        $this->selectedDocumentId = $documentId;
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.upload'), 403);
+
+        $document = $this->findScopedDocument($documentId);
+        $this->selectedDocumentId = $document->id;
         $this->versionFile = null;
         $this->versionNotes = '';
         $this->showVersionModal = true;
@@ -224,12 +250,14 @@ class DocumentListPage extends Component
 
     public function uploadNewVersion(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.upload'), 403);
+
         $this->validate([
             'versionFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'versionNotes' => 'nullable|string|max:500',
         ]);
 
-        $document = Document::findOrFail($this->selectedDocumentId);
+        $document = $this->findScopedDocument((int) $this->selectedDocumentId);
         $document->addVersion($this->versionFile, Auth::guard('admin')->id(), $this->versionNotes);
 
         $this->showVersionModal = false;
@@ -238,21 +266,28 @@ class DocumentListPage extends Component
 
     public function verifyDocument(int $id, DocumentService $documentService): void
     {
-        $documentService->verify(Document::findOrFail($id), Auth::guard('admin')->id());
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.verify'), 403);
+
+        $documentService->verify($this->findScopedDocument($id), Auth::guard('admin')->id());
         flash()->success('Document verified.');
     }
 
     public function openRejectModal(int $id): void
     {
-        $this->rejectDocumentId = $id;
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.verify'), 403);
+
+        $document = $this->findScopedDocument($id);
+        $this->rejectDocumentId = $document->id;
         $this->rejectionReason = '';
     }
 
     public function rejectDocument(DocumentService $documentService): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.verify'), 403);
+
         $this->validate(['rejectionReason' => 'required|string|max:1000']);
         $documentService->reject(
-            Document::findOrFail($this->rejectDocumentId),
+            $this->findScopedDocument((int) $this->rejectDocumentId),
             $this->rejectionReason,
             Auth::guard('admin')->id()
         );
@@ -263,7 +298,9 @@ class DocumentListPage extends Component
 
     public function deleteDocument(int $id): void
     {
-        Document::findOrFail($id)->delete();
+        abort_unless(Auth::guard('admin')->user()?->can('admin.documents.delete'), 403);
+
+        $this->findScopedDocument($id)->delete();
         flash()->info('Document deleted.');
     }
 

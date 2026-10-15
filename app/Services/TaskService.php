@@ -72,6 +72,7 @@ class TaskService
             $this->validateAssignee($data['assigned_admin_id']);
         }
 
+        $previousAssigneeId = $task->assigned_admin_id;
         $previous = $task->only(['title', 'description', 'priority_id', 'due_date', 'follow_up_date', 'credentialing_case_id', 'provider_id', 'payer_id']);
 
         $case = isset($data['credentialing_case_id'])
@@ -84,6 +85,13 @@ class TaskService
         }
 
         $task->update($data);
+
+        if (array_key_exists('assigned_admin_id', $data) && (int) $previousAssigneeId !== (int) $task->assigned_admin_id) {
+            event(new TaskReassigned($task->fresh(), $adminId, [
+                'previous_assigned_admin_id' => $previousAssigneeId,
+                'assigned_admin_id' => $task->assigned_admin_id,
+            ]));
+        }
 
         $this->recordActivity($task, 'updated', $adminId, 'Task updated', [
             'previous' => $previous,

@@ -81,7 +81,13 @@ class PortalAssignedItemsService
         $providerIds = $practice->providers()->pluck('provider_details.id');
         $taskQuery = $providerIds->isEmpty()
             ? Task::query()->whereRaw('0 = 1')
-            : Task::query()->whereIn('provider_id', $providerIds)->with('provider.user');
+            : Task::query()
+                ->whereIn('provider_id', $providerIds)
+                ->where(function ($q) use ($practice) {
+                    $q->whereNull('credentialing_case_id')
+                        ->orWhereHas('credentialingCase', fn ($cq) => $cq->where('practice_id', $practice->id));
+                })
+                ->with('provider.user');
 
         $items = $items->concat($this->taskItems(
             $taskQuery,

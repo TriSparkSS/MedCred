@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\Admin\DocumentDownloadController;
 use App\Http\Controllers\Admin\EmailAttachmentDownloadController;
@@ -7,6 +7,7 @@ use App\Http\Controllers\ReportExportController;
 use App\Livewire\Admin\Analytics\ProductivityDashboardPage;
 use App\Livewire\Admin\Credential\CredentialCreatePage;
 use App\Livewire\Admin\Credential\CredentialDetailsPage;
+use App\Livewire\Admin\Credential\CredentialEditPage;
 use App\Livewire\Admin\Credential\CredentialListPage;
 use App\Livewire\Admin\DashboardPage;
 use App\Livewire\Admin\Documents\DocumentListPage;
@@ -52,11 +53,14 @@ use App\Livewire\Practice\PracticeCaseDetailPage;
 use App\Livewire\Practice\PracticeCasesPage;
 use App\Livewire\Practice\PracticeDashboardPage;
 use App\Livewire\Practice\PracticeDocumentsPage;
+use App\Livewire\Practice\PracticeProfilePage;
+use App\Livewire\Practice\PracticeProvidersPage;
 use App\Livewire\Provider\ProviderActionItemsPage;
 use App\Livewire\Provider\ProviderCaseDetailPage;
 use App\Livewire\Provider\ProviderCasesPage;
 use App\Livewire\Provider\ProviderDashboardPage;
 use App\Livewire\Provider\ProviderDocumentsPage;
+use App\Livewire\Provider\ProviderProfilePage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -74,7 +78,7 @@ Route::prefix('provider')->name('provider.')->middleware(['provider_auth'])->gro
     Route::get('action-items', ProviderActionItemsPage::class)
         ->middleware('portal.permission:portal.action_items.view')
         ->name('action-items');
-    Route::redirect('profile', '/provider/cases')->name('profile');
+    Route::get('profile', ProviderProfilePage::class)->middleware('portal.permission:portal.profile.view')->name('profile');
 
     Route::get('cases', ProviderCasesPage::class)->middleware('portal.permission:portal.cases.view')->name('cases');
     Route::get('cases/{case}', ProviderCaseDetailPage::class)->middleware('portal.permission:portal.cases.view')->name('cases.show');
@@ -86,8 +90,8 @@ Route::prefix('practice')->name('practice.')->middleware(['practice_auth'])->gro
     Route::get('action-items', PracticeActionItemsPage::class)
         ->middleware('portal.permission:portal.action_items.view')
         ->name('action-items');
-    Route::redirect('providers', '/practice/cases')->name('providers');
-    Route::redirect('profile', '/practice/cases')->name('profile');
+    Route::get('providers', PracticeProvidersPage::class)->middleware('portal.permission:portal.providers.view')->name('providers');
+    Route::get('profile', PracticeProfilePage::class)->middleware('portal.permission:portal.profile.view')->name('profile');
 
     Route::get('cases', PracticeCasesPage::class)->middleware('portal.permission:portal.cases.view')->name('cases');
     Route::get('cases/{case}', PracticeCaseDetailPage::class)->middleware('portal.permission:portal.cases.view')->name('cases.show');
@@ -112,6 +116,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('applications', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('applications');
     Route::get('credentials', CredentialListPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials');
     Route::get('credentials/create', CredentialCreatePage::class)->middleware('admin.permission:admin.credentials.create')->name('credentials.create');
+    Route::get('credentials/{case}/edit', CredentialEditPage::class)->middleware('admin.permission:admin.credentials.edit')->name('credentials.edit');
     Route::get('credentials/{case}/packet', [CredentialPacketController::class, 'download'])->middleware('admin.permission:admin.credentials.view')->name('credentials.packet');
     Route::get('credentials/{case}', CredentialDetailsPage::class)->middleware('admin.permission:admin.credentials.view')->name('credentials.show');
 

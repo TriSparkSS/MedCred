@@ -15,38 +15,84 @@ class ProductivityDashboardService
 
     public function executiveMetrics(): Collection
     {
-        return Admin::orderBy('name')->get()->map(function (Admin $admin) {
-            $cases = CredentialingCase::where('assigned_admin_id', $admin->id);
-            $this->applyCaseScope($cases);
-            $closedCategories = ['approved', 'closed'];
+        $admins = Admin::orderBy('name')->get();
 
-            $approved = (clone $cases)->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))->count();
-            $active = (clone $cases)->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))->count();
+        if ($admins->isEmpty()) {
+            return collect();
+        }
 
-            $avgTurnaround = (clone $cases)
-                ->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))
-                ->whereNotNull('submission_date')
-                ->whereNotNull('effective_date')
-                ->get()
-                ->avg(fn ($case) => $case->submission_date->diffInDays($case->effective_date));
+        $adminIds = $admins->pluck('id')->all();
+        $closedCategories = ['approved', 'closed'];
 
-            $overdueQuery = CredentialingCase::where('assigned_admin_id', $admin->id)->filterCategory('overdue');
-            $this->applyCaseScope($overdueQuery);
+        $approvedCountsQuery = CredentialingCase::query()
+            ->whereIn('assigned_admin_id', $adminIds)
+            ->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'));
+        $this->applyCaseScope($approvedCountsQuery);
+        $approvedCounts = $approvedCountsQuery
+            ->selectRaw('assigned_admin_id, COUNT(*) as aggregate')
+            ->groupBy('assigned_admin_id')
+            ->pluck('aggregate', 'assigned_admin_id');
 
-            $taskQuery = \App\Models\Task::open()->where('assigned_admin_id', $admin->id);
-            $viewer = Auth::guard('admin')->user();
-            if ($viewer) {
-                $this->scope->scopeTasks($taskQuery, $viewer);
-            }
+        $activeCountsQuery = CredentialingCase::query()
+            ->whereIn('assigned_admin_id', $adminIds)
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories));
+        $this->applyCaseScope($activeCountsQuery);
+        $activeCounts = $activeCountsQuery
+            ->selectRaw('assigned_admin_id, COUNT(*) as aggregate')
+            ->groupBy('assigned_admin_id')
+            ->pluck('aggregate', 'assigned_admin_id');
 
+        $overdueCountsQuery = CredentialingCase::query()
+            ->whereIn('assigned_admin_id', $adminIds)
+            ->filterCategory('overdue');
+        $this->applyCaseScope($overdueCountsQuery);
+        $overdueCounts = $overdueCountsQuery
+            ->selectRaw('assigned_admin_id, COUNT(*) as aggregate')
+            ->groupBy('assigned_admin_id')
+            ->pluck('aggregate', 'assigned_admin_id');
+
+        $turnaroundCasesQuery = CredentialingCase::query()
+            ->select(['assigned_admin_id', 'submission_date', 'effective_date'])
+            ->whereIn('assigned_admin_id', $adminIds)
+            ->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))
+            ->whereNotNull('submission_date')
+            ->whereNotNull('effective_date');
+        $this->applyCaseScope($turnaroundCasesQuery);
+        $turnaroundByAdmin = $turnaroundCasesQuery
+            ->get()
+            ->groupBy('assigned_admin_id')
+            ->map(function (Collection $cases) {
+                $avg = $cases->avg(fn ($case) => $case->submission_date->diffInDays($case->effective_date));
+
+                return $avg ? round($avg) : null;
+            });
+
+        $taskCountsQuery = \App\Models\Task::open()
+            ->whereIn('assigned_admin_id', $adminIds);
+        $viewer = Auth::guard('admin')->user();
+        if ($viewer) {
+            $this->scope->scopeTasks($taskCountsQuery, $viewer);
+        }
+        $openTaskCounts = $taskCountsQuery
+            ->selectRaw('assigned_admin_id, COUNT(*) as aggregate')
+            ->groupBy('assigned_admin_id')
+            ->pluck('aggregate', 'assigned_admin_id');
+
+        return $admins->map(function (Admin $admin) use (
+            $activeCounts,
+            $approvedCounts,
+            $overdueCounts,
+            $openTaskCounts,
+            $turnaroundByAdmin,
+        ) {
             return [
                 'admin_id' => $admin->id,
                 'name' => $admin->name,
-                'active_cases' => $active,
-                'approved_cases' => $approved,
-                'overdue_cases' => $overdueQuery->count(),
-                'open_tasks' => $taskQuery->count(),
-                'avg_turnaround_days' => $avgTurnaround ? round($avgTurnaround) : null,
+                'active_cases' => (int) ($activeCounts[$admin->id] ?? 0),
+                'approved_cases' => (int) ($approvedCounts[$admin->id] ?? 0),
+                'overdue_cases' => (int) ($overdueCounts[$admin->id] ?? 0),
+                'open_tasks' => (int) ($openTaskCounts[$admin->id] ?? 0),
+                'avg_turnaround_days' => $turnaroundByAdmin[$admin->id] ?? null,
             ];
         });
     }

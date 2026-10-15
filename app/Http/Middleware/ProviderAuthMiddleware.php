@@ -30,6 +30,19 @@ class ProviderAuthMiddleware
             return redirect()->route('portal.login')->withErrors(['login' => 'No provider profile linked to this account.']);
         }
 
+        $providerStatus = $user->providerDetails->status instanceof \BackedEnum
+            ? $user->providerDetails->status->value
+            : (string) $user->providerDetails->status;
+
+        if ((int) ($user->status ?? 1) !== 1 || $user->status === 'inactive' || ! ($user->providerDetails->is_active ?? true) || $providerStatus === 'inactive') {
+            Auth::guard('web')->logout();
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json(['error' => 'Provider account is inactive.'], 403);
+            }
+
+            return redirect()->route('provider.login')->withErrors(['login' => 'Your provider account is inactive.']);
+        }
+
         if (! $user->hasRole('provider')) {
             Auth::guard('web')->logout();
 

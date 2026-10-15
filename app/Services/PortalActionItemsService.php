@@ -43,7 +43,7 @@ class PortalActionItemsService
 
     public function practiceTasks(Practice $practice): Collection
     {
-        $providerIds = $practice->providers()->pluck('id');
+        $providerIds = $practice->providers()->pluck('provider_details.id');
 
         if ($providerIds->isEmpty()) {
             return collect();
@@ -51,6 +51,10 @@ class PortalActionItemsService
 
         return Task::query()
             ->whereIn('provider_id', $providerIds)
+            ->where(function ($q) use ($practice) {
+                $q->whereNull('credentialing_case_id')
+                    ->orWhereHas('credentialingCase', fn ($cq) => $cq->where('practice_id', $practice->id));
+            })
             ->open()
             ->whereIn('task_type', TaskType::providerPortalTypes())
             ->with(['credentialingCase.payer', 'priority', 'provider.user'])

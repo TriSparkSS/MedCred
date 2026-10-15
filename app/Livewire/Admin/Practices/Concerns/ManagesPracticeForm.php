@@ -192,9 +192,7 @@ trait ManagesPracticeForm
         if ($file) {
             $service = app(DocumentService::class);
 
-            return $existing
-                ? $service->update($existing, $payload, $file, $adminId)
-                : $service->upload($payload, $file, $adminId);
+            return $service->upload($payload, $file, $adminId);
         }
 
         if ($existing) {

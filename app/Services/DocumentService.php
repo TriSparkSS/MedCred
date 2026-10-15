@@ -9,59 +9,65 @@ use App\Models\Document;
 use App\Models\DocumentType;
 use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 
 class DocumentService
 {
     public function upload(array $data, UploadedFile $file, ?int $adminId = null, ?int $userId = null): Document
     {
-        $syncCredential = (bool) ($data['sync_credential'] ?? false);
-        unset($data['sync_credential']);
-        $data = $this->normalizePayload($data);
+        return DB::transaction(function () use ($data, $file, $adminId, $userId) {
+            $syncCredential = (bool) ($data['sync_credential'] ?? false);
+            unset($data['sync_credential']);
+            $data = $this->normalizePayload($data);
 
-        $data['state'] = UsStates::normalize($data['state'] ?? null);
+            $data['state'] = UsStates::normalize($data['state'] ?? null);
 
-        $existing = $this->findExistingStateDocument($data);
-        if ($existing) {
-            $existing->addVersion($file, $adminId, 'Replacement for same type and state', $userId);
-            $existing->update([
-                'title' => $data['title'] ?? $existing->title,
-                'document_number' => $data['document_number'] ?? $existing->document_number,
-                'effective_date' => $data['effective_date'] ?? $existing->effective_date,
-                'expiry_date' => $data['expiry_date'] ?? $existing->expiry_date,
-                'verification_status' => DocumentVerificationStatus::Uploaded->value,
-                'verified_at' => null,
-                'verified_by_admin_id' => null,
-                'rejection_reason' => null,
-            ]);
+            $existing = $this->findExistingStateDocument($data);
+            if ($existing) {
+                $existing->addVersion($file, $adminId, 'Replacement for same type and state', $userId);
+                $existing->update([
+                    'title' => $data['title'] ?? $existing->title,
+                    'document_number' => $data['document_number'] ?? $existing->document_number,
+                    'effective_date' => $data['effective_date'] ?? $existing->effective_date,
+                    'expiry_date' => $data['expiry_date'] ?? $existing->expiry_date,
+                    'verification_status' => DocumentVerificationStatus::Uploaded->value,
+                    'verified_at' => null,
+                    'verified_by_admin_id' => null,
+                    'rejection_reason' => null,
+                ]);
 
-            $document = $existing->fresh(['versions', 'documentType', 'provider']);
-        } else {
-            $document = Document::createWithFile([
-                ...$data,
-                'verification_status' => DocumentVerificationStatus::Uploaded->value,
-            ], $file, $adminId, $userId);
-        }
+                $document = $existing->fresh(['versions', 'documentType', 'provider']);
+            } else {
+                $document = Document::createWithFile([
+                    ...$data,
+                    'verification_status' => DocumentVerificationStatus::Uploaded->value,
+                ], $file, $adminId, $userId);
+            }
 
-        if ($document->credentialing_case_id) {
-            $document->credentialingCase?->syncChecklistFromDocument($document);
-        }
+            if ($document->credentialing_case_id) {
+                $document->credentialingCase?->syncChecklistFromDocument($document);
+            }
 
-        AuditLog::record('document.uploaded', $document, $adminId);
+            AuditLog::record('document.uploaded', $document, $adminId);
 
-        if ($syncCredential) {
-            app(ProviderCredentialService::class)->syncFromDocument($document->fresh('documentType'));
-        }
+            if ($syncCredential) {
+                app(ProviderCredentialService::class)->syncFromDocument($document->fresh('documentType'));
+            }
 
-        return $document->fresh(['versions', 'documentType']);
+            return $document->fresh(['versions', 'documentType']);
+        });
     }
 
     protected function findExistingStateDocument(array $data): ?Document
     {
         $providerId = $data['provider_id'] ?? null;
+        $practiceId = $data['practice_id'] ?? null;
+        $caseId = $data['credentialing_case_id'] ?? null;
+        $payerId = $data['payer_id'] ?? null;
         $typeId = $data['document_type_id'] ?? null;
         $state = $data['state'] ?? null;
 
-        if (! $providerId || ! $typeId || ! $state) {
+        if ((! $providerId && ! $practiceId && ! $caseId) || ! $typeId || ! $state) {
             return null;
         }
 
@@ -72,6 +78,9 @@ class DocumentService
 
         return Document::query()
             ->where('provider_id', $providerId)
+            ->where('practice_id', $practiceId)
+            ->where('credentialing_case_id', $caseId)
+            ->where('payer_id', $payerId)
             ->where('document_type_id', $typeId)
             ->where('state', $state)
             ->latest('id')
@@ -80,45 +89,47 @@ class DocumentService
 
     public function update(Document $document, array $data, ?UploadedFile $file = null, ?int $adminId = null): Document
     {
-        $syncCredential = (bool) ($data['sync_credential'] ?? false);
-        unset($data['sync_credential']);
-        $data = $this->normalizePayload($data);
+        return DB::transaction(function () use ($document, $data, $file, $adminId) {
+            $syncCredential = (bool) ($data['sync_credential'] ?? false);
+            unset($data['sync_credential']);
+            $data = $this->normalizePayload($data);
 
-        $data['state'] = UsStates::normalize($data['state'] ?? null);
+            $data['state'] = UsStates::normalize($data['state'] ?? null);
 
-        $document->update([
-            'title' => $data['title'] ?? $document->title,
-            'document_number' => $data['document_number'] ?? $document->document_number,
-            'document_type_id' => array_key_exists('document_type_id', $data) ? $data['document_type_id'] : $document->document_type_id,
-            'provider_id' => array_key_exists('provider_id', $data) ? $data['provider_id'] : $document->provider_id,
-            'practice_id' => array_key_exists('practice_id', $data) ? $data['practice_id'] : $document->practice_id,
-            'credentialing_case_id' => array_key_exists('credentialing_case_id', $data) ? $data['credentialing_case_id'] : $document->credentialing_case_id,
-            'effective_date' => $data['effective_date'] ?? null,
-            'expiry_date' => $data['expiry_date'] ?? null,
-            'state' => array_key_exists('state', $data) ? $data['state'] : $document->state,
-        ]);
-
-        if ($file) {
-            $document->addVersion($file, $adminId, 'Updated file');
             $document->update([
-                'verification_status' => DocumentVerificationStatus::Uploaded->value,
-                'verified_at' => null,
-                'verified_by_admin_id' => null,
-                'rejection_reason' => null,
+                'title' => $data['title'] ?? $document->title,
+                'document_number' => $data['document_number'] ?? $document->document_number,
+                'document_type_id' => array_key_exists('document_type_id', $data) ? $data['document_type_id'] : $document->document_type_id,
+                'provider_id' => array_key_exists('provider_id', $data) ? $data['provider_id'] : $document->provider_id,
+                'practice_id' => array_key_exists('practice_id', $data) ? $data['practice_id'] : $document->practice_id,
+                'credentialing_case_id' => array_key_exists('credentialing_case_id', $data) ? $data['credentialing_case_id'] : $document->credentialing_case_id,
+                'effective_date' => $data['effective_date'] ?? null,
+                'expiry_date' => $data['expiry_date'] ?? null,
+                'state' => array_key_exists('state', $data) ? $data['state'] : $document->state,
             ]);
-        }
 
-        AuditLog::record('document.updated', $document, $adminId);
+            if ($file) {
+                $document->addVersion($file, $adminId, 'Updated file');
+                $document->update([
+                    'verification_status' => DocumentVerificationStatus::Uploaded->value,
+                    'verified_at' => null,
+                    'verified_by_admin_id' => null,
+                    'rejection_reason' => null,
+                ]);
+            }
 
-        if ($syncCredential) {
-            app(ProviderCredentialService::class)->syncFromDocument($document->fresh('documentType'));
-        }
+            AuditLog::record('document.updated', $document, $adminId);
 
-        if ($document->credentialing_case_id) {
-            $document->credentialingCase?->syncChecklistFromDocument($document->fresh());
-        }
+            if ($syncCredential) {
+                app(ProviderCredentialService::class)->syncFromDocument($document->fresh('documentType'));
+            }
 
-        return $document->fresh(['versions', 'documentType']);
+            if ($document->credentialing_case_id) {
+                $document->credentialingCase?->syncChecklistFromDocument($document->fresh());
+            }
+
+            return $document->fresh(['versions', 'documentType']);
+        });
     }
 
     public function verify(Document $document, ?int $adminId = null): Document
@@ -159,19 +170,21 @@ class DocumentService
 
     public function supersede(Document $document, UploadedFile $file, ?int $adminId = null): Document
     {
-        $document->update(['verification_status' => DocumentVerificationStatus::Superseded->value]);
-        $document->addVersion($file, $adminId, 'Superseded by new version');
+        return DB::transaction(function () use ($document, $file, $adminId) {
+            $document->update(['verification_status' => DocumentVerificationStatus::Superseded->value]);
+            $document->addVersion($file, $adminId, 'Superseded by new version');
 
-        $document->update([
-            'verification_status' => DocumentVerificationStatus::Uploaded->value,
-            'verified_at' => null,
-            'verified_by_admin_id' => null,
-            'rejection_reason' => null,
-        ]);
+            $document->update([
+                'verification_status' => DocumentVerificationStatus::Uploaded->value,
+                'verified_at' => null,
+                'verified_by_admin_id' => null,
+                'rejection_reason' => null,
+            ]);
 
-        AuditLog::record('document.superseded', $document, $adminId);
+            AuditLog::record('document.superseded', $document, $adminId);
 
-        return $document->fresh();
+            return $document->fresh();
+        });
     }
 
     public function markExpired(Document $document): Document

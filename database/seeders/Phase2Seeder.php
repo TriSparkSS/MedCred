@@ -77,9 +77,8 @@ class Phase2Seeder extends Seeder
                 ['rule_key' => $rule['rule_key']],
                 [
                     'name' => $rule['name'],
-                    'days' => $rule['days'],
-                    'business_days_only' => true,
-                    'applies_to' => $rule['applies_to'],
+                    'dashboard_category' => $rule['applies_to'],
+                    'business_days' => $rule['days'],
                     'action' => $rule['action'],
                     'notification_template_id' => $rule['template'] ? ($templateIds[$rule['template']] ?? null) : null,
                     'is_active' => true,

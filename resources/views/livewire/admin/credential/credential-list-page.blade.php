@@ -337,6 +337,13 @@
                                             title="View application details">
                                             <i class="ti tabler-eye me-1"></i>View
                                         </a>
+                                        @if ($canEditCredentials)
+                                            <a href="{{ route('admin.credentials.edit', $case) }}"
+                                                class="btn btn-sm btn-outline-secondary"
+                                                title="Edit application">
+                                                <i class="ti tabler-edit me-1"></i>Edit
+                                            </a>
+                                        @endif
                                         @if ($canEscalateTasks)
                                         <button type="button"
                                             wire:click="toggleEscalation({{ $case->id }})"

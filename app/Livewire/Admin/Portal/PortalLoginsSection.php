@@ -7,20 +7,25 @@ use App\Models\ProviderDetails;
 use App\Services\AdminScopeService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class PortalLoginsSection extends Component
 {
+    #[Locked]
     public string $ownerType;
 
+    #[Locked]
     public int $ownerId;
 
+    #[Locked]
     public bool $canManage = false;
 
     public bool $showModal = false;
 
     public string $modalMode = 'create';
 
+    #[Locked]
     public ?int $loginId = null;
 
     public array $formData = [];
@@ -42,6 +47,7 @@ class PortalLoginsSection extends Component
     {
         return [
             'formData.portal_name' => 'required|string|max:255',
+            'formData.assigned_id' => 'nullable|string|max:50|regex:/^[A-Za-z0-9\-]+$/',
             'formData.username' => 'nullable|string|max:255',
             'formData.password' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|string|max:500',
             'formData.mfa_email' => 'nullable|email|max:255',
@@ -54,7 +60,9 @@ class PortalLoginsSection extends Component
 
     public function openCreateModal(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.portal-credentials.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizeOwner();
         $this->resetForm();
         $this->modalMode = 'create';
         $this->showModal = true;
@@ -62,7 +70,9 @@ class PortalLoginsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.portal-credentials.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizeOwner();
 
         $login = $this->owner()->portalLogins()->findOrFail($id);
         $this->loginId = $login->id;
@@ -70,6 +80,7 @@ class PortalLoginsSection extends Component
         $this->showPassword = true;
         $this->formData = [
             'portal_name' => $login->portal_name,
+            'assigned_id' => $login->assigned_id,
             'username' => $login->username,
             'password' => (string) ($login->makeVisible('password')->password ?? ''),
             'mfa_email' => $login->mfa_email,
@@ -84,12 +95,14 @@ class PortalLoginsSection extends Component
 
     public function save(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.portal-credentials.manage');
         abort_unless($this->canManage, 403);
         $this->authorizeOwner();
         $this->validate();
 
         $payload = [
             'portal_name' => $this->formData['portal_name'],
+            'assigned_id' => ($this->formData['assigned_id'] ?? '') !== '' ? $this->formData['assigned_id'] : null,
             'username' => $this->formData['username'] ?: null,
             'mfa_email' => $this->formData['mfa_email'] ?: null,
             'mfa_phone' => $this->formData['mfa_phone'] ?: null,
@@ -115,6 +128,7 @@ class PortalLoginsSection extends Component
 
     public function delete(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.portal-credentials.manage');
         abort_unless($this->canManage, 403);
         $this->authorizeOwner();
         $this->owner()->portalLogins()->findOrFail($id)->delete();
@@ -138,6 +152,7 @@ class PortalLoginsSection extends Component
         $this->showPassword = true;
         $this->formData = [
             'portal_name' => '',
+            'assigned_id' => '',
             'username' => '',
             'password' => '',
             'mfa_email' => '',
@@ -178,6 +193,8 @@ class PortalLoginsSection extends Component
 
     public function render()
     {
+        $this->authorizeOwner();
+
         return view('livewire.admin.portal.partials.portal-logins-section', [
             'logins' => $this->owner()->portalLogins()->orderBy('portal_name')->get(),
             'heading' => $this->ownerType === 'practice' ? 'Practice logins' : 'Provider logins',

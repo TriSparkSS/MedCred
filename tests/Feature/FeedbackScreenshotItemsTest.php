@@ -142,7 +142,7 @@ test('add provider fills mailing address from selected practice and links the pr
         ->and($provider->practices()->where('practices.id', $practice->id)->exists())->toBeTrue();
 });
 
-test('provider details keeps location actions and points credentials to edit', function () {
+test('provider details keeps location actions and provider edit omits removed Licenses & Credentials section', function () {
     $admin = Admin::where('username', 'superadmin')->firstOrFail();
     $provider = screenshotProvider();
 
@@ -150,18 +150,17 @@ test('provider details keeps location actions and points credentials to edit', f
         ->test(ProviderDetailsPage::class, ['provider' => $provider])
         ->assertDontSeeLivewire(ProviderCredentialsSection::class)
         ->assertSeeLivewire(ProviderLocationsSection::class)
-        ->assertSee('Edit credentials')
         ->assertSee('Add Location');
 
     Livewire::actingAs($admin, 'admin')
         ->test(ProviderEditPage::class, ['provider' => $provider->id])
-        ->set('credentialRows.0.credential_type', 'license')
-        ->set('credentialRows.0.state', 'TX')
-        ->set('credentialRows.0.number', 'TX-900')
+        ->assertDontSee('Licenses & other credentials')
+        ->assertSee('CAQH ID')
+        ->set('formData.caqh_id', '12345900')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($provider->credentials()->where('number', 'TX-900')->exists())->toBeTrue();
+    expect($provider->fresh()->caqh_id)->toBe('12345900');
 });
 
 test('malpractice documents section uploads only malpractice insurance files', function () {

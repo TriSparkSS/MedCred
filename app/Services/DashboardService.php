@@ -49,27 +49,13 @@ class DashboardService
         $activeCases = $caseQuery()->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories));
 
         $documentQuery = Document::expiringSoon(30);
-        if ($admin && $this->scope->isPracticeScoped($admin)) {
-            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
-            if ($ids === []) {
-                $documentQuery->whereRaw('0 = 1');
-            } else {
-                $documentQuery->where(function ($q) use ($ids) {
-                    $q->whereIn('practice_id', $ids)
-                        ->orWhereHas('credentialingCase', fn ($cq) => $cq->whereIn('practice_id', $ids))
-                        ->orWhereHas('provider.practices', fn ($pq) => $pq->whereIn('practices.id', $ids));
-                });
-            }
+        if ($admin) {
+            $this->scope->scopeDocuments($documentQuery, $admin);
         }
 
         $taskOverdueQuery = Task::open()->forColumn('overdue');
-        if ($admin && $this->scope->isPracticeScoped($admin)) {
-            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
-            if ($ids === []) {
-                $taskOverdueQuery->whereRaw('0 = 1');
-            } else {
-                $taskOverdueQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
-            }
+        if ($admin) {
+            $this->scope->scopeTasks($taskOverdueQuery, $admin);
         }
 
         return [
@@ -96,13 +82,22 @@ class DashboardService
     public function delayBreakdown(): array
     {
         $admin = $this->admin();
-        $query = CredentialingCase::active()->with('delayOwner');
+        $query = CredentialingCase::active()
+            ->leftJoin('delay_owners', function ($join) {
+                $join->on('credentialing_cases.delay_owner_id', '=', 'delay_owners.id')
+                    ->whereNull('delay_owners.deleted_at');
+            });
+
         if ($admin) {
             $this->scope->scopeCredentialingCases($query, $admin);
         }
 
-        $activeCases = $query->get();
-        $total = $activeCases->count();
+        $rows = $query
+            ->selectRaw('credentialing_cases.delay_owner_id, delay_owners.name as owner_name, COUNT(*) as case_count')
+            ->groupBy('credentialing_cases.delay_owner_id', 'delay_owners.name')
+            ->get();
+
+        $total = (int) $rows->sum('case_count');
 
         if ($total === 0) {
             return [
@@ -112,17 +107,11 @@ class DashboardService
             ];
         }
 
-        $grouped = $activeCases->groupBy(fn ($case) => $case->delay_owner_id ?? 0);
-
-        $items = $grouped->map(function (Collection $cases, $ownerId) use ($total) {
-            $owner = $ownerId
-                ? DelayOwner::find($ownerId)
-                : null;
-
-            $count = $cases->count();
+        $items = $rows->map(function ($row) use ($total) {
+            $count = (int) $row->case_count;
 
             return [
-                'name' => $owner?->name ?? 'Unassigned',
+                'name' => $row->owner_name ?? 'Unassigned',
                 'count' => $count,
                 'percent' => round(($count / $total) * 100),
             ];
@@ -146,13 +135,8 @@ class DashboardService
                     ->orWhereDate('due_date', now());
             });
 
-        if ($admin && $this->scope->isPracticeScoped($admin)) {
-            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
-            if ($ids === []) {
-                $taskQuery->whereRaw('0 = 1');
-            } else {
-                $taskQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
-            }
+        if ($admin) {
+            $this->scope->scopeTasks($taskQuery, $admin);
         }
 
         $tasks = $taskQuery->orderBy('due_date')
@@ -331,21 +315,10 @@ class DashboardService
         $taskOverdueQuery = Task::open()->forColumn('overdue');
         $overdueCasesQuery = CredentialingCase::filterCategory('overdue');
 
-        if ($admin && $this->scope->isPracticeScoped($admin)) {
-            $ids = $this->scope->assignedPracticeIds($admin) ?? [];
-            if ($ids === []) {
-                $documentQuery->whereRaw('0 = 1');
-                $taskOverdueQuery->whereRaw('0 = 1');
-                $overdueCasesQuery->whereRaw('0 = 1');
-            } else {
-                $documentQuery->where(function ($q) use ($ids) {
-                    $q->whereIn('practice_id', $ids)
-                        ->orWhereHas('credentialingCase', fn ($cq) => $cq->whereIn('practice_id', $ids))
-                        ->orWhereHas('provider.practices', fn ($pq) => $pq->whereIn('practices.id', $ids));
-                });
-                $taskOverdueQuery->whereHas('credentialingCase', fn ($q) => $q->whereIn('practice_id', $ids));
-                $this->scope->scopeCredentialingCases($overdueCasesQuery, $admin);
-            }
+        if ($admin) {
+            $this->scope->scopeDocuments($documentQuery, $admin);
+            $this->scope->scopeTasks($taskOverdueQuery, $admin);
+            $this->scope->scopeCredentialingCases($overdueCasesQuery, $admin);
         }
 
         return [

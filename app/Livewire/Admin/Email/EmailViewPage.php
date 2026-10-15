@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Email;
 use App\Data\MailMessageDto;
 use App\Models\CredentialingCase;
 use App\Models\NotificationTemplate;
+use App\Services\AdminScopeService;
 use App\Services\CredentialingEmailService;
 use App\Services\EmailCaseLinkService;
 use App\Services\EmailMatchingService;
@@ -13,13 +14,17 @@ use App\Services\MailSettingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 #[Layout('layouts::admin', ['title' => 'Email Conversation'])]
 class EmailViewPage extends Component
 {
+    #[Locked]
     public string $folder = 'inbox';
 
+    #[Locked]
     public string $messageId = '';
 
     public bool $showLinkModal = false;
@@ -44,11 +49,25 @@ class EmailViewPage extends Component
 
     public ?string $loadError = null;
 
-    public function mount(string $folder, string $messageId): void
+    protected function canSendEmail(): bool
+    {
+        $admin = Auth::guard('admin')->user();
+
+        return (bool) ($admin && ($admin->can('admin.emails.send') || $admin->can('admin.email.send')));
+    }
+
+    protected function canLinkEmail(): bool
+    {
+        $admin = Auth::guard('admin')->user();
+
+        return (bool) ($admin && ($admin->can('admin.emails.link') || $admin->can('admin.email.link')));
+    }
+
+    public function mount(string $folder = 'inbox', string $messageId = ''): void
     {
         $this->folder = app(GraphMailboxService::class)->normalizeFolder($folder);
 
-        if (! self::isValidEncodedId($messageId)) {
+        if ($messageId !== '' && ! self::isValidEncodedId($messageId)) {
             abort(404);
         }
 
@@ -58,6 +77,8 @@ class EmailViewPage extends Component
 
     public function openLinkModal(?string $internetMessageId = null): void
     {
+        abort_unless($this->canLinkEmail(), 403);
+
         $this->linkMessageId = $internetMessageId ?: $this->linkMessageId;
         $this->showLinkModal = true;
     }
@@ -70,13 +91,18 @@ class EmailViewPage extends Component
 
     public function linkToCase(CredentialingEmailService $emailService): void
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($this->canLinkEmail(), 403);
+
         $this->validate([
             'linkCaseId' => 'required|exists:credentialing_cases,id',
             'linkMessageId' => 'required|string',
         ]);
 
         $case = CredentialingCase::findOrFail((int) $this->linkCaseId);
-        $emailService->linkMessageToCase($this->linkMessageId, $case, Auth::guard('admin')->id());
+        abort_unless($admin && app(AdminScopeService::class)->canAccessCase($admin, $case), 403);
+
+        $emailService->linkMessageToCase($this->linkMessageId, $case, $admin->id);
         $this->closeLinkModal();
         flash()->success('Email linked to case '.$case->case_number);
     }
@@ -86,8 +112,31 @@ class EmailViewPage extends Component
         $this->linkToCase($emailService);
     }
 
+    public function unlinkCase(?string $messageId = null): void
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($this->canLinkEmail(), 403);
+
+        $targetMessageId = $messageId ?: $this->linkMessageId;
+        if (blank($targetMessageId)) {
+            return;
+        }
+
+        $caseLinks = app(EmailCaseLinkService::class);
+        $existingCase = $caseLinks->findCase($targetMessageId);
+        if ($existingCase) {
+            abort_unless($admin && app(AdminScopeService::class)->canAccessCase($admin, $existingCase), 403);
+        }
+
+        $caseLinks->unlink($targetMessageId);
+        $this->linkCaseId = '';
+        flash()->info('Email unlinked from case.');
+    }
+
     public function openReplyModal(string $to, string $subject, string $inReplyTo = '', string $caseId = ''): void
     {
+        abort_unless($this->canSendEmail(), 403);
+
         $this->composeTo = $to;
         $this->composeSubject = str_starts_with(strtolower($subject), 're:') ? $subject : 'Re: '.$subject;
         $this->composeBody = '';
@@ -104,6 +153,9 @@ class EmailViewPage extends Component
 
     public function sendEmail(CredentialingEmailService $emailService, MailSettingsService $mailSettings, GraphMailboxService $graph): void
     {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($this->canSendEmail(), 403);
+
         $this->validate([
             'composeTo' => 'required|email',
             'composeSubject' => 'required|string|max:500',
@@ -111,9 +163,13 @@ class EmailViewPage extends Component
             'composeCaseId' => 'nullable|exists:credentialing_cases,id',
         ]);
 
+        $case = $this->composeCaseId ? CredentialingCase::findOrFail((int) $this->composeCaseId) : null;
+        if ($case) {
+            abort_unless($admin && app(AdminScopeService::class)->canAccessCase($admin, $case), 403);
+        }
+
         $mailSettings->assertConfigured();
 
-        $case = $this->composeCaseId ? CredentialingCase::find((int) $this->composeCaseId) : null;
         $template = $this->composeTemplateId ? NotificationTemplate::find((int) $this->composeTemplateId) : null;
 
         if ($template && $case) {
@@ -121,7 +177,7 @@ class EmailViewPage extends Component
                 $case,
                 $template,
                 $this->composeTo,
-                Auth::guard('admin')->id(),
+                $admin->id,
                 null,
                 [],
                 $this->composeInReplyTo ?: null,
@@ -132,7 +188,7 @@ class EmailViewPage extends Component
                 $this->composeTo,
                 $this->composeSubject,
                 $this->composeBody,
-                Auth::guard('admin')->id(),
+                $admin->id,
                 $template,
                 null,
                 $this->composeInReplyTo ?: null,
@@ -150,12 +206,25 @@ class EmailViewPage extends Component
         $this->closeComposeModal();
     }
 
+    public function sendReply(CredentialingEmailService $emailService, MailSettingsService $mailSettings, GraphMailboxService $graph): void
+    {
+        $this->sendEmail($emailService, $mailSettings, $graph);
+    }
+
+    public function sendForward(CredentialingEmailService $emailService, MailSettingsService $mailSettings, GraphMailboxService $graph): void
+    {
+        $this->sendEmail($emailService, $mailSettings, $graph);
+    }
+
     public function render(
         GraphMailboxService $graph,
         EmailCaseLinkService $caseLinks,
         EmailMatchingService $matching,
         MailSettingsService $mailSettings,
     ) {
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+
         /** @var Collection<int, MailMessageDto> $threadMessages */
         $threadMessages = collect();
         $this->loadError = null;
@@ -164,7 +233,7 @@ class EmailViewPage extends Component
 
         if (! $graph->isConfigured()) {
             $this->loadError = 'Microsoft Graph is not configured.';
-        } else {
+        } elseif ($this->messageId !== '') {
             try {
                 $decodedMessageId = self::decodeId($this->messageId);
                 $anchor = $graph->getMessage($decodedMessageId, $this->folder, true);
@@ -176,14 +245,23 @@ class EmailViewPage extends Component
                 );
 
                 $existingCaseId = $caseMap[$anchor->normalizedMessageId() ?? ''] ?? null;
+                if ($existingCaseId && $admin) {
+                    $existingCase = CredentialingCase::find((int) $existingCaseId);
+                    if ($existingCase) {
+                        abort_unless($scope->canAccessCase($admin, $existingCase), 403);
+                    }
+                }
+
                 if (! $existingCaseId && $this->linkCaseId === '') {
                     $match = $matching->match($anchor->subject, $anchor->displayBody(), $anchor->fromAddress);
-                    if ($match['case']) {
+                    if ($match['case'] && (! $admin || $scope->canAccessCase($admin, $match['case']))) {
                         $this->linkCaseId = (string) $match['case']->id;
                     }
                 } elseif ($existingCaseId && $this->linkCaseId === '') {
                     $this->linkCaseId = (string) $existingCaseId;
                 }
+            } catch (HttpException $e) {
+                throw $e;
             } catch (\Throwable $e) {
                 $this->loadError = self::sanitizeUtf8($e->getMessage());
             }
@@ -191,10 +269,18 @@ class EmailViewPage extends Component
 
         $linkedCases = [];
         if ($caseMap !== []) {
-            $linkedCases = CredentialingCase::query()
-                ->whereIn('id', array_values($caseMap))
+            $linkedCasesQuery = CredentialingCase::query()->whereIn('id', array_values($caseMap));
+            if ($admin) {
+                $scope->scopeCredentialingCases($linkedCasesQuery, $admin);
+            }
+            $linkedCases = $linkedCasesQuery
                 ->get(['id', 'case_number'])
                 ->keyBy('id');
+        }
+
+        $casesQuery = CredentialingCase::with('provider.user')->latest();
+        if ($admin) {
+            $scope->scopeCredentialingCases($casesQuery, $admin);
         }
 
         return view('livewire.admin.email.email-view-page', [
@@ -202,12 +288,12 @@ class EmailViewPage extends Component
             'anchor' => $anchor,
             'caseMap' => $caseMap,
             'linkedCases' => $linkedCases,
-            'cases' => CredentialingCase::with('provider.user')->latest()->limit(100)->get(['id', 'case_number', 'provider_id']),
+            'cases' => $casesQuery->limit(100)->get(['id', 'case_number', 'provider_id']),
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'smtpConfigured' => $mailSettings->isConfigured(),
-            'canSend' => Auth::guard('admin')->user()?->can('admin.emails.send') ?? false,
-            'canManageMail' => Auth::guard('admin')->user()?->can('admin.settings.mail') ?? false,
-            'canLink' => Auth::guard('admin')->user()?->can('admin.emails.link') ?? false,
+            'canSend' => $this->canSendEmail(),
+            'canManageMail' => $admin?->can('admin.settings.mail') ?? false,
+            'canLink' => $this->canLinkEmail(),
         ]);
     }
 

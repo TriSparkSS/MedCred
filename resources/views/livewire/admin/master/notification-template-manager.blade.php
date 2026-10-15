@@ -74,12 +74,20 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Name</label>
-                                    <input type="text" wire:model="formData.name" class="form-control">
+                                    <input type="text" wire:model="formData.name"
+                                        class="form-control @error('formData.name') is-invalid @enderror">
+                                    @error('formData.name')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Template Key</label>
-                                    <input type="text" wire:model="formData.template_key" class="form-control"
+                                    <input type="text" wire:model="formData.template_key"
+                                        class="form-control @error('formData.template_key') is-invalid @enderror"
                                         @if ($modalMode === 'edit') readonly @endif>
+                                    @error('formData.template_key')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Category</label>
@@ -101,14 +109,22 @@
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Subject</label>
-                                    <input type="text" wire:model="formData.subject" class="form-control">
+                                    <input type="text" wire:model="formData.subject"
+                                        class="form-control @error('formData.subject') is-invalid @enderror">
+                                    @error('formData.subject')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                     <small class="text-muted">Variables: @{{ case_number }}, @{{ provider_name }},
                                         @{{ payer_name }}, @{{ practice_name }}, @{{ state }},
                                         @{{ next_follow_up_date }}</small>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Body</label>
-                                    <textarea wire:model="formData.body" rows="10" class="form-control"></textarea>
+                                    <textarea wire:model="formData.body" rows="10"
+                                        class="form-control @error('formData.body') is-invalid @enderror"></textarea>
+                                    @error('formData.body')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                         </div>

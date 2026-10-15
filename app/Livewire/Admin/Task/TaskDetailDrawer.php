@@ -3,10 +3,12 @@
 namespace App\Livewire\Admin\Task;
 
 use App\Models\Task;
+use App\Services\AdminScopeService;
 use App\Services\TaskService;
 use App\Services\TaskSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -15,6 +17,7 @@ class TaskDetailDrawer extends Component
     use AuthorizesRequests;
     use WithFileUploads;
 
+    #[Locked]
     public ?int $taskId = null;
 
     public bool $show = false;
@@ -31,7 +34,10 @@ class TaskDetailDrawer extends Component
 
     public function open(int $taskId): void
     {
-        $this->taskId = $taskId;
+        $task = $this->findAuthorizedTask($taskId);
+        abort_if(! $task, 403);
+
+        $this->taskId = $task->id;
         $this->show = true;
         $this->reset(['noteBody', 'reassignReason', 'reassignAdminId', 'attachment']);
     }
@@ -46,7 +52,8 @@ class TaskDetailDrawer extends Component
     {
         $this->validate(['noteBody' => 'required|string|max:5000']);
 
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('update', $task);
 
         $taskService->addNote($task, $this->noteBody, Auth::guard('admin')->id());
@@ -58,7 +65,8 @@ class TaskDetailDrawer extends Component
     {
         $this->validate(['attachment' => 'required|file|max:10240']);
 
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('update', $task);
 
         $taskService->attachFile($task, $this->attachment, Auth::guard('admin')->id());
@@ -68,7 +76,8 @@ class TaskDetailDrawer extends Component
 
     public function complete(TaskService $taskService): void
     {
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('update', $task);
         $taskService->complete($task, Auth::guard('admin')->id());
         flash()->success('Task completed.');
@@ -77,7 +86,8 @@ class TaskDetailDrawer extends Component
 
     public function reopen(TaskService $taskService): void
     {
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('reopen', $task);
         $taskService->reopen($task, Auth::guard('admin')->id());
         flash()->success('Task reopened.');
@@ -86,7 +96,8 @@ class TaskDetailDrawer extends Component
 
     public function escalate(TaskService $taskService): void
     {
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('escalate', $task);
         $taskService->escalate($task, Auth::guard('admin')->id());
         flash()->success('Task escalated.');
@@ -95,7 +106,8 @@ class TaskDetailDrawer extends Component
 
     public function reassign(TaskService $taskService): void
     {
-        $task = Task::findOrFail($this->taskId);
+        $task = $this->findAuthorizedTask($this->taskId);
+        abort_if(! $task, 403);
         $this->authorize('assign', $task);
 
         $taskService->reassign(
@@ -110,20 +122,36 @@ class TaskDetailDrawer extends Component
         $this->dispatch('taskUpdated');
     }
 
+    protected function findAuthorizedTask(?int $id): ?Task
+    {
+        if (! $id) {
+            return null;
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if (! $admin || ! $admin->can('admin.tasks.view')) {
+            return null;
+        }
+
+        $query = Task::with([
+            'assignedAdmin',
+            'createdByAdmin',
+            'provider.user',
+            'credentialingCase.payer',
+            'priority',
+            'notes.admin',
+            'attachments.uploadedByAdmin',
+            'activities.admin',
+        ]);
+
+        app(AdminScopeService::class)->scopeTasks($query, $admin);
+
+        return $query->find($id);
+    }
+
     public function render(TaskSyncService $taskSync)
     {
-        $task = $this->taskId
-            ? Task::with([
-                'assignedAdmin',
-                'createdByAdmin',
-                'provider.user',
-                'credentialingCase.payer',
-                'priority',
-                'notes.admin',
-                'attachments.uploadedByAdmin',
-                'activities.admin',
-            ])->find($this->taskId)
-            : null;
+        $task = $this->findAuthorizedTask($this->taskId);
 
         return view('livewire.admin.task.task-detail-drawer', [
             'task' => $task,

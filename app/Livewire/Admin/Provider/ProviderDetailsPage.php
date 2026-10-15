@@ -60,8 +60,17 @@ class ProviderDetailsPage extends Component
             'user', 'specialty', 'practices.locations',
             'providerPracticeLocations.practice', 'providerPracticeLocations.location',
             'credentials',
-            'credentialingCases.payer', 'credentialingCases.status', 'credentialingCases.delayOwner',
-            'credentialingCases.assignedAdmin', 'credentialingCases.practice',
+            'credentialingCases.practice',
+            'credentialingCases.provider.user',
+            'credentialingCases.payer',
+            'credentialingCases.status',
+            'credentialingCases.caseType',
+            'credentialingCases.priority',
+            'credentialingCases.delayOwner',
+            'credentialingCases.assignedAdmin',
+            'credentialingCases.activities.user',
+            'credentialingCases.activities.admin',
+            'credentialingCases.activities.credentialingCase',
             'documents.documentType', 'documents.versions',
         ]);
 
@@ -147,9 +156,28 @@ class ProviderDetailsPage extends Component
 
     public function render(BillingReadinessService $billing, TaskSyncService $taskSync)
     {
-        $cases = $this->provider->credentialingCases()->with(['payer', 'status', 'delayOwner', 'assignedAdmin'])->get();
+        $this->provider->loadMissing([
+            'user', 'specialty', 'practices.locations',
+            'providerPracticeLocations.practice', 'providerPracticeLocations.location',
+            'credentials',
+            'credentialingCases.practice',
+            'credentialingCases.provider.user',
+            'credentialingCases.payer',
+            'credentialingCases.status',
+            'credentialingCases.caseType',
+            'credentialingCases.priority',
+            'credentialingCases.delayOwner',
+            'credentialingCases.assignedAdmin',
+            'credentialingCases.activities.user',
+            'credentialingCases.activities.admin',
+            'credentialingCases.activities.credentialingCase',
+            'documents.documentType', 'documents.versions',
+        ]);
 
-        $timelineActivities = $cases->flatMap(fn ($case) => $case->activities()->with('admin')->get())
+        $cases = $this->provider->credentialingCases;
+
+        $timelineActivities = $cases
+            ->flatMap(fn ($case) => $case->activities)
             ->sortByDesc('created_at')
             ->take(100);
 
@@ -164,8 +192,8 @@ class ProviderDetailsPage extends Component
         $providerTasks = $this->providerTasksQuery()->orderBy('due_date')->get();
         $openTaskCount = Task::where('provider_id', $this->provider->id)->open()->count();
 
-        $delayHistories = DelayOwnerHistory::whereIn('credentialing_case_id', $cases->pluck('id'))
-            ->with(['delayOwner', 'changedByAdmin'])
+        $delayHistories = DelayOwnerHistory::whereIn('credentialing_case_id', $caseIds)
+            ->with(['credentialingCase', 'previousDelayOwner', 'delayOwner', 'changedByAdmin'])
             ->latest()
             ->limit(50)
             ->get();

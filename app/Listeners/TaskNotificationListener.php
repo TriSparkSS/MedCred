@@ -27,13 +27,4 @@ class TaskNotificationListener
     {
         $this->notifications->notifyEscalated($event);
     }
-
-    public function subscribe($events): array
-    {
-        return [
-            TaskAssigned::class => 'handleTaskAssigned',
-            TaskReassigned::class => 'handleTaskReassigned',
-            TaskEscalated::class => 'handleTaskEscalated',
-        ];
-    }
 }

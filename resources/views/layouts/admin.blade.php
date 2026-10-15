@@ -26,8 +26,7 @@
 
             --bs-danger: #ff4c51;
 
-
-            --bs-primary-rgb: rgb(#091572);
+            --bs-primary-rgb: 9, 21, 114;
 
             --bs-link-color: #091572;
 

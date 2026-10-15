@@ -14,9 +14,9 @@ class ProviderLocationService
     public function saveLink(ProviderDetails $provider, array $data, ?int $linkId = null): ProviderPracticeLocation
     {
         $practiceId = (int) $data['practice_id'];
-        $locationId = (int) $data['location_id'];
+        $rawLocationId = (string) ($data['location_id'] ?? '');
 
-        $location = Location::where('practice_id', $practiceId)->findOrFail($locationId);
+        $location = $this->resolveLocation($practiceId, $rawLocationId);
 
         $duplicate = ProviderPracticeLocation::query()
             ->where('provider_id', $provider->id)
@@ -130,6 +130,14 @@ class ProviderLocationService
                 ]);
                 $hasPrimary = true;
             }
+
+            if (! ProviderPracticeLocation::query()->where('provider_id', $provider->id)->where('is_primary', true)->exists()) {
+                $next = ProviderPracticeLocation::query()
+                    ->where('provider_id', $provider->id)
+                    ->orderBy('id')
+                    ->first();
+                $next?->update(['is_primary' => true]);
+            }
         });
     }
 
@@ -176,5 +184,50 @@ class ProviderLocationService
             'practice_id' => $practiceId,
             'primary_flag' => $isPrimaryPractice,
         ]);
+    }
+
+    public function resolveLocation(int $practiceId, string|int $rawLocationId): Location
+    {
+        $raw = (string) $rawLocationId;
+
+        if (str_starts_with($raw, 'address:')) {
+            $addressId = (int) substr($raw, strlen('address:'));
+            $practice = \App\Models\Practice::findOrFail($practiceId);
+            $address = $practice->addresses()->findOrFail($addressId);
+
+            $typeLabels = [
+                'primary' => 'Primary Location Address',
+                'alternative' => 'Alternative Address (Location)',
+                'mailing' => 'Mailing Address',
+                'billing' => 'Billing Address',
+            ];
+            $typeLabel = $typeLabels[$address->type] ?? ucfirst((string) $address->type).' Address';
+            $locationName = filled($address->location_name)
+                ? $typeLabel.' — '.$address->location_name
+                : $typeLabel;
+
+            return Location::firstOrCreate(
+                [
+                    'practice_id' => $practiceId,
+                    'address1' => $address->address1,
+                    'city' => $address->city,
+                    'state' => $address->state,
+                    'zip_code' => $address->zip_code,
+                    'address_type' => $address->type,
+                ],
+                [
+                    'name' => $locationName,
+                    'address2' => $address->address2,
+                    'county' => $address->county,
+                    'country' => $address->country ?: 'United States',
+                    'phone' => $address->phone,
+                    'fax' => $address->fax,
+                    'status' => 'active',
+                    'is_primary' => $address->type === 'primary',
+                ]
+            );
+        }
+
+        return Location::where('practice_id', $practiceId)->findOrFail((int) $raw);
     }
 }

@@ -6,9 +6,11 @@
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-files me-2"></i>Document Repository</h4>
                 <p class="text-muted mb-0">Upload, version, and track provider, practice, and case documents.</p>
             </div>
-            <button type="button" wire:click="openUploadModal" class="btn btn-primary">
-                <i class="ti tabler-upload me-1"></i>Upload Document
-            </button>
+            @if(auth('admin')->user()?->can('admin.documents.upload'))
+                <button type="button" wire:click="openUploadModal" class="btn btn-primary">
+                    <i class="ti tabler-upload me-1"></i>Upload Document
+                </button>
+            @endif
         </div>
     </div>
 
@@ -195,23 +197,25 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
-                                    @if ($canUpload)
+                                    @if (auth('admin')->user()?->can('admin.documents.upload'))
                                         <button type="button" wire:click.stop="openEditModal({{ $document->id }})"
                                             class="btn btn-outline-primary" title="Edit">
                                             <i class="ti tabler-edit pe-none"></i>
                                         </button>
                                     @endif
-                                    @if ($vStatus !== 'verified')
-                                        <button type="button" wire:click="verifyDocument({{ $document->id }})"
-                                            class="btn btn-outline-success" title="Verify">
-                                            <i class="ti tabler-check"></i>
-                                        </button>
-                                    @endif
-                                    @if ($vStatus !== 'rejected')
-                                        <button type="button" wire:click="openRejectModal({{ $document->id }})"
-                                            class="btn btn-outline-danger" title="Reject">
-                                            <i class="ti tabler-x"></i>
-                                        </button>
+                                    @if (auth('admin')->user()?->can('admin.documents.verify'))
+                                        @if ($vStatus !== 'verified')
+                                            <button type="button" wire:click="verifyDocument({{ $document->id }})"
+                                                class="btn btn-outline-success" title="Verify">
+                                                <i class="ti tabler-check"></i>
+                                            </button>
+                                        @endif
+                                        @if ($vStatus !== 'rejected')
+                                            <button type="button" wire:click="openRejectModal({{ $document->id }})"
+                                                class="btn btn-outline-danger" title="Reject">
+                                                <i class="ti tabler-x"></i>
+                                            </button>
+                                        @endif
                                     @endif
                                     @if ($version)
                                         <a href="{{ route('admin.documents.download', $document) }}"
@@ -219,15 +223,19 @@
                                             <i class="ti tabler-download"></i>
                                         </a>
                                     @endif
-                                    <button type="button" wire:click="openVersionModal({{ $document->id }})"
-                                        class="btn btn-outline-primary" title="New Version">
-                                        <i class="ti tabler-versions"></i>
-                                    </button>
-                                    <button type="button" wire:click="deleteDocument({{ $document->id }})"
-                                        wire:confirm="Delete this document?" class="btn btn-outline-danger"
-                                        title="Delete">
-                                        <i class="ti tabler-trash"></i>
-                                    </button>
+                                    @if (auth('admin')->user()?->can('admin.documents.upload'))
+                                        <button type="button" wire:click="openVersionModal({{ $document->id }})"
+                                            class="btn btn-outline-primary" title="New Version">
+                                            <i class="ti tabler-versions"></i>
+                                        </button>
+                                    @endif
+                                    @if (auth('admin')->user()?->can('admin.documents.delete'))
+                                        <button type="button" wire:click="deleteDocument({{ $document->id }})"
+                                            wire:confirm="Delete this document?" class="btn btn-outline-danger"
+                                            title="Delete">
+                                            <i class="ti tabler-trash"></i>
+                                        </button>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\DelayOwnerChanged;
 use App\Models\AuditLog;
 use App\Models\CaseActivity;
 use App\Models\CaseSlaTimer;
@@ -11,6 +12,7 @@ use App\Models\DelayOverride;
 use App\Models\SlaRule;
 use App\Models\Status;
 use App\Support\BusinessDayCalculator;
+use Illuminate\Support\Facades\DB;
 
 class DelayOwnershipService
 {
@@ -21,11 +23,13 @@ class DelayOwnershipService
 
     public function applyOnStatusChange(CredentialingCase $case, Status $status, ?int $adminId = null): void
     {
-        if ($status->delay_owner_id) {
-            $this->setDelayOwner($case, $status->delay_owner_id, 'Auto-assigned from status: ' . $status->name, $adminId, false);
-        }
+        DB::transaction(function () use ($case, $status, $adminId) {
+            if ($status->delay_owner_id) {
+                $this->setDelayOwner($case, $status->delay_owner_id, 'Auto-assigned from status: ' . $status->name, $adminId, false);
+            }
 
-        $this->slaEngine->syncTimersForCase($case, $status);
+            $this->slaEngine->syncTimersForCase($case, $status);
+        });
     }
 
     public function overrideDelayOwner(
@@ -34,30 +38,36 @@ class DelayOwnershipService
         string $reason,
         ?int $adminId = null
     ): void {
-        $previousId = $case->delay_owner_id;
+        DB::transaction(function () use ($case, $newDelayOwnerId, $reason, $adminId) {
+            $previousId = $case->delay_owner_id;
 
-        DelayOverride::create([
-            'credentialing_case_id' => $case->id,
-            'previous_delay_owner_id' => $previousId,
-            'new_delay_owner_id' => $newDelayOwnerId,
-            'reason' => $reason,
-            'admin_id' => $adminId,
-        ]);
+            DelayOverride::create([
+                'credentialing_case_id' => $case->id,
+                'previous_delay_owner_id' => $previousId,
+                'new_delay_owner_id' => $newDelayOwnerId,
+                'reason' => $reason,
+                'admin_id' => $adminId,
+            ]);
 
-        $case->update(['delay_owner_id' => $newDelayOwnerId]);
+            $case->update(['delay_owner_id' => $newDelayOwnerId]);
 
-        $newOwner = DelayOwner::find($newDelayOwnerId);
-        $case->addActivity(
-            'system',
-            'Delay owner manually overridden to ' . ($newOwner->name ?? 'Unknown') . ': ' . $reason,
-            $adminId
-        );
+            $newOwner = DelayOwner::find($newDelayOwnerId);
+            $case->addActivity(
+                'system',
+                'Delay owner manually overridden to ' . ($newOwner->name ?? 'Unknown') . ': ' . $reason,
+                $adminId
+            );
 
-        AuditLog::record('delay_owner_override', $case, $adminId, [
-            'previous_delay_owner_id' => $previousId,
-            'new_delay_owner_id' => $newDelayOwnerId,
-            'reason' => $reason,
-        ]);
+            if ((int) $previousId !== $newDelayOwnerId) {
+                DelayOwnerChanged::dispatch($case->fresh(), $previousId, $newDelayOwnerId, 'override', $reason, $adminId);
+            }
+
+            AuditLog::record('delay_owner_override', $case, $adminId, [
+                'previous_delay_owner_id' => $previousId,
+                'new_delay_owner_id' => $newDelayOwnerId,
+                'reason' => $reason,
+            ]);
+        });
     }
 
     protected function setDelayOwner(
@@ -76,6 +86,8 @@ class DelayOwnershipService
 
         $owner = DelayOwner::find($delayOwnerId);
         $case->addActivity('system', $reason . ' → ' . ($owner->name ?? 'Unknown'), $adminId);
+
+        DelayOwnerChanged::dispatch($case->fresh(), $previousId, $delayOwnerId, 'status_change', $reason, $adminId);
 
         if ($logOverride) {
             AuditLog::record('delay_owner_auto', $case, $adminId, [

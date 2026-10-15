@@ -54,26 +54,70 @@ class PacketBuilderService
         return $this->legacyPacket->build($case);
     }
 
-    protected function buildHtml(CredentialingCase $case, FormTemplate $template): string
+    public function buildHtml(CredentialingCase $case, ?FormTemplate $template = null): string
     {
+        $case->loadMissing([
+            'provider.user',
+            'provider.specialty',
+            'practice',
+            'payer',
+            'caseType',
+            'priority',
+            'status',
+            'documents.documentType',
+        ]);
+
         $provider = $case->provider;
-        $mapping = $template->field_mapping ?? [];
+        $mapping = $template?->field_mapping ?? [];
+
+        $caseNumber = e((string) ($case->case_number ?? 'N/A'));
+        $providerName = e((string) ($provider?->user?->name ?? 'N/A'));
+        $npi = e((string) ($provider?->npi ?? 'N/A'));
+        $taxId = e((string) ($case->practice?->ein_tin ?? $case->practice?->tax_id ?? 'N/A'));
+        $specialty = e((string) ($provider?->specialty?->name ?? 'N/A'));
+        $practiceName = e((string) ($case->practice?->legal_name ?? $provider?->practice ?? 'N/A'));
+        $payerName = e((string) ($case->payer?->name ?? 'N/A'));
+        $caseTypeName = e((string) ($case->caseType?->name ?? 'N/A'));
+        $priorityName = e((string) ($case->priority?->name ?? 'N/A'));
+        $statusName = e((string) ($case->status?->name ?? 'N/A'));
 
         $rows = '';
         foreach ($mapping as $label => $field) {
-            $value = data_get($case, $field) ?? data_get($provider, $field) ?? data_get($case->practice, $field) ?? '—';
-            $rows .= "<tr><td><strong>{$label}</strong></td><td>{$value}</td></tr>";
+            $raw = data_get($case, $field) ?? data_get($provider, $field) ?? data_get($case->practice, $field) ?? '—';
+            if (is_array($raw)) {
+                $raw = implode(', ', array_map('strval', $raw));
+            }
+            $safeLabel = e((string) $label);
+            $safeValue = e((string) $raw);
+            $rows .= "<tr><td><strong>{$safeLabel}</strong></td><td>{$safeValue}</td></tr>";
         }
 
         if ($rows === '') {
             $rows = '<tr><td colspan="2">No mapped fields — configure template field mapping in Admin Settings.</td></tr>';
         }
 
+        $docRows = '';
+        foreach ($case->documents as $d) {
+            $docTitle = e((string) ($d->title ?? '—'));
+            $docType = e((string) ($d->documentType?->name ?? '—'));
+            $docNumber = e((string) ($d->document_number ?? '—'));
+            $issuingAuthority = e((string) ($d->issuing_authority ?? '—'));
+            $verificationStatus = e((string) ($d->verification_status ?? $d->status ?? '—'));
+            $docRows .= "<tr><td>{$docTitle}</td><td>{$docType}</td><td>{$docNumber}</td><td>{$issuingAuthority}</td><td>{$verificationStatus}</td></tr>";
+        }
+
+        $documentsSection = $docRows !== ''
+            ? "<h2>Documents</h2><table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" width=\"100%\"><thead><tr><th>Title</th><th>Type</th><th>Number</th><th>Issuing Authority</th><th>Verification Status</th></tr></thead><tbody>{$docRows}</tbody></table>"
+            : '';
+
         return <<<HTML
         <html><body>
-        <h1>Credentialing Packet — {$case->case_number}</h1>
-        <p>Provider: {$provider->user->name ?? 'N/A'} | Payer: {$case->payer->name ?? 'N/A'}</p>
+        <h1>Credentialing Packet — {$caseNumber}</h1>
+        <p>Provider: {$providerName} | NPI: {$npi} | Specialty: {$specialty}</p>
+        <p>Practice: {$practiceName} | Tax ID: {$taxId} | Payer: {$payerName}</p>
+        <p>Case Type: {$caseTypeName} | Priority: {$priorityName} | Status: {$statusName}</p>
         <table border="1" cellpadding="6" cellspacing="0" width="100%">{$rows}</table>
+        {$documentsSection}
         </body></html>
         HTML;
     }
@@ -87,7 +131,8 @@ class PacketBuilderService
         $dompdf->setPaper('letter');
         $dompdf->render();
 
-        $filename = "packets/{$case->case_number}_" . now()->format('YmdHis') . '.pdf';
+        $safeCaseNumber = preg_replace('/[^A-Za-z0-9._\-]/', '_', (string) $case->case_number);
+        $filename = "packets/{$safeCaseNumber}_" . now()->format('YmdHis') . '.pdf';
         Storage::disk('public')->put($filename, $dompdf->output());
 
         return $filename;

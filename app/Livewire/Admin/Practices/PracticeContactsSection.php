@@ -3,26 +3,40 @@
 namespace App\Livewire\Admin\Practices;
 
 use App\Models\PracticeContact;
+use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class PracticeContactsSection extends Component
 {
+    #[Locked]
     public $practiceId;
 
+    #[Locked]
     public bool $canManage = false;
 
     public $showModal = false;
 
     public $modalMode = 'create';
 
+    #[Locked]
     public $contactId = null;
 
     public $formData = [];
 
     public function mount(): void
     {
+        $this->authorizePractice();
         $this->canManage = Auth::guard('admin')->user()?->can('admin.practices.manage') ?? false;
+    }
+
+    protected function authorizePractice(): void
+    {
+        $admin = Auth::guard('admin')->user();
+        if ($admin && $this->practiceId && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $this->practiceId)) {
+            abort(403);
+        }
     }
 
     protected function rules(): array
@@ -40,7 +54,9 @@ class PracticeContactsSection extends Component
 
     public function openCreateModal(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $this->resetForm();
         $this->modalMode = 'create';
@@ -50,7 +66,9 @@ class PracticeContactsSection extends Component
 
     public function openEditModal(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $contact = PracticeContact::where('practice_id', $this->practiceId)->findOrFail($id);
         $this->contactId = $id;
@@ -61,7 +79,9 @@ class PracticeContactsSection extends Component
 
     public function save(): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         $this->validate();
 
@@ -82,7 +102,9 @@ class PracticeContactsSection extends Component
 
     public function delete(int $id): void
     {
+        $this->canManage = (bool) Auth::guard('admin')->user()?->can('admin.practices.manage');
         abort_unless($this->canManage, 403);
+        $this->authorizePractice();
 
         PracticeContact::where('practice_id', $this->practiceId)->findOrFail($id)->delete();
         flash()->info('Contact deleted.');
@@ -103,6 +125,8 @@ class PracticeContactsSection extends Component
 
     public function render()
     {
+        $this->authorizePractice();
+
         $contacts = PracticeContact::where('practice_id', $this->practiceId)->orderByDesc('is_primary')->orderBy('name')->get();
 
         return view('livewire.admin.practices.partials.practice-contacts-section', compact('contacts'));

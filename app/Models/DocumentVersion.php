@@ -33,4 +33,9 @@ class DocumentVersion extends Model
     {
         return $this->belongsTo(Admin::class, 'uploaded_by_admin_id');
     }
+
+    public function uploadedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by_user_id');
+    }
 }

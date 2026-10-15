@@ -118,18 +118,4 @@ class RecordTaskActivity
             $event->metadata
         );
     }
-
-    public function subscribe($events): array
-    {
-        return [
-            TaskCreated::class => 'handleTaskCreated',
-            TaskAssigned::class => 'handleTaskAssigned',
-            TaskReassigned::class => 'handleTaskReassigned',
-            TaskCompleted::class => 'handleTaskCompleted',
-            TaskReopened::class => 'handleTaskReopened',
-            TaskEscalated::class => 'handleTaskEscalated',
-            TaskDeleted::class => 'handleTaskDeleted',
-            TaskNoteAdded::class => 'handleTaskNoteAdded',
-        ];
-    }
 }

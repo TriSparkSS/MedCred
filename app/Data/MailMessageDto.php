@@ -425,7 +425,11 @@ class MailMessageDto
             return false;
         }
 
-        if (preg_match('#^(https?:|mailto:|/admin/)#i', $url) === 1) {
+        if (preg_match('#^(https?:|mailto:)#i', $url) === 1) {
+            return false;
+        }
+
+        if (preg_match('#^/admin/emails/attachment/[A-Za-z0-9_\-/]+$#', $url) === 1 && ! str_contains($url, '..')) {
             return false;
         }
 

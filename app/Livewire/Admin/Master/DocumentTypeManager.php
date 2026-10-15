@@ -27,6 +27,16 @@ class DocumentTypeManager extends Component
 
     public $sortDirection = 'asc';
 
+    protected array $allowedSortFields = [
+        'id',
+        'name',
+        'is_active',
+        'is_state_specific',
+        'requires_expiry',
+        'expiry_warning_days',
+        'created_at',
+    ];
+
     public function render()
     {
         $query = DocumentType::query();
@@ -35,7 +45,12 @@ class DocumentTypeManager extends Component
             $query->where('name', 'like', '%'.$this->search.'%');
         }
 
-        $query->orderBy($this->sortField, $this->sortDirection);
+        $sortField = in_array($this->sortField, $this->allowedSortFields, true) ? $this->sortField : 'name';
+        $sortDirection = in_array(strtolower((string) $this->sortDirection), ['asc', 'desc'], true)
+            ? strtolower((string) $this->sortDirection)
+            : 'asc';
+
+        $query->orderBy($sortField, $sortDirection);
         $records = $query->paginate(10);
 
         return view('livewire.admin.master.document-type-manager', [
@@ -52,6 +67,10 @@ class DocumentTypeManager extends Component
 
     public function sortBy($field)
     {
+        if (! in_array($field, $this->allowedSortFields, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {

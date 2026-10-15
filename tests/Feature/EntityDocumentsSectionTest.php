@@ -509,3 +509,38 @@ test('document hub search matches practice name, client code, provider name, and
         ->assertDontSee($providerDoc->title)
         ->assertDontSee($payerDoc->title);
 });
+
+test('entity documents section blocks client-side tampering of canUpload and canVerify and enforces practice scope', function () {
+    $billing = Admin::where('username', 'billing')->firstOrFail();
+    $assignedPractice = documentsTestPractice();
+    $unassignedPractice = Practice::create([
+        'legal_name' => 'Unassigned Docs Practice',
+        'client_code' => 'UDP',
+        'email' => 'unassigned-docs@example.com',
+        'status' => 'active',
+        'user_id' => User::create([
+            'name' => 'Unassigned Docs User',
+            'email' => 'unassigned-docs-user@example.com',
+            'password' => 'password',
+        ])->id,
+    ]);
+    $billing->practices()->sync([$assignedPractice->id]);
+
+    $component = Livewire::actingAs($billing, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $assignedPractice->id])
+        ->assertSet('canUpload', false)
+        ->assertSet('canVerify', false);
+
+    expect(fn () => $component->set('canUpload', true))
+        ->toThrow(\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class);
+
+    expect(fn () => $component->set('canVerify', true))
+        ->toThrow(\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class);
+
+    $component->call('openUploadModal')
+        ->assertForbidden();
+
+    Livewire::actingAs($billing, 'admin')
+        ->test(EntityDocumentsSection::class, ['practiceId' => $unassignedPractice->id])
+        ->assertForbidden();
+});
