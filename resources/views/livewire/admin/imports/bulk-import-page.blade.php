@@ -13,16 +13,14 @@
         <div class="col-lg-6">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-                        <div>
+                    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                        <div class="min-w-0">
                             <h5 class="mb-1">Facilities (Practices)</h5>
                             <p class="text-muted small mb-0">
-                                Required: <code>legal_name</code>, <code>client_code</code>, <code>email</code>,
-                                <code>address1</code>, <code>city</code>, <code>state</code>, <code>zip_code</code>.
-                                Optional: {{ implode(', ', array_diff($practiceColumns, ['legal_name', 'client_code', 'email', 'address1', 'city', 'state', 'zip_code'])) }}.
+                                Download the Excel template, fill in facility details, and upload below.
                             </p>
                         </div>
-                        <button type="button" wire:click="downloadPracticeTemplate" class="btn btn-sm btn-outline-primary text-nowrap">
+                        <button type="button" wire:click="downloadPracticeTemplate" class="btn btn-sm btn-outline-primary text-nowrap flex-shrink-0">
                             <i class="ti tabler-download me-1"></i>Template
                         </button>
                     </div>
@@ -47,16 +45,14 @@
         <div class="col-lg-6">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
-                        <div>
+                    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                        <div class="min-w-0">
                             <h5 class="mb-1">Providers</h5>
                             <p class="text-muted small mb-0">
-                                Required: <code>name</code>, <code>email</code>, <code>npi</code>,
-                                <code>practice</code>, <code>address</code>, <code>city</code>, <code>state</code>, <code>zip</code>.
-                                Optional: {{ implode(', ', array_diff($providerColumns, ['name', 'email', 'npi', 'practice', 'address', 'city', 'state', 'zip'])) }}.
+                                Download the Excel template, fill in provider details, and upload below.
                             </p>
                         </div>
-                        <button type="button" wire:click="downloadProviderTemplate" class="btn btn-sm btn-outline-primary text-nowrap">
+                        <button type="button" wire:click="downloadProviderTemplate" class="btn btn-sm btn-outline-primary text-nowrap flex-shrink-0">
                             <i class="ti tabler-download me-1"></i>Template
                         </button>
                     </div>
