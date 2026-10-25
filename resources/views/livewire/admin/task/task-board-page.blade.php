@@ -119,41 +119,6 @@
         @endif
     </div>
 
-    @if ($openApplications->isNotEmpty())
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-bottom">
-                <h6 class="mb-0 fw-semibold">Open applications</h6>
-                <small class="text-muted">Active cases for the selected practice or provider.</small>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Case #</th>
-                            <th>Type</th>
-                            <th>Provider</th>
-                            <th>Practice</th>
-                            <th>Payer</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($openApplications as $app)
-                            <tr wire:key="open-app-{{ $app->id }}">
-                                <td><a href="{{ route('admin.credentials.show', $app) }}" class="fw-semibold">{{ $app->case_number }}</a></td>
-                                <td><small>{{ $app->enrollment_level?->label() ?? 'Individual' }}</small></td>
-                                <td><small>{{ $app->provider?->user?->name ?? '—' }}</small></td>
-                                <td><small>{{ $app->practice?->legal_name ?? '—' }}</small></td>
-                                <td><small>{{ $app->payer?->name ?? '—' }}</small></td>
-                                <td><small>{{ $app->status?->name ?? '—' }}</small></td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    @endif
-
     @if (count($selectedTaskIds) > 0)
         <div class="card shadow-sm border-primary mb-3 sticky-top" style="z-index: 1020; top: 0.75rem;">
             <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
@@ -231,6 +196,8 @@
                                     @checked($listPageSelected) title="Select page">
                             </th>
                             <th>Task</th>
+                            <th>Practice</th>
+                            <th>Provider</th>
                             <th>Assigned To</th>
                             <th>Status</th>
                             <th>Priority</th>
@@ -242,6 +209,12 @@
                     </thead>
                     <tbody>
                         @forelse($listTasks as $task)
+                            @php
+                                $taskPractice = $task->credentialingCase?->practice
+                                    ?? $task->provider?->practices?->firstWhere('pivot.primary_flag', true)
+                                    ?? $task->provider?->practices?->first();
+                                $taskProvider = $task->provider ?? $task->credentialingCase?->provider;
+                            @endphp
                             <tr wire:key="list-task-{{ $task->id }}">
                                 <td>
                                     <input type="checkbox" class="form-check-input" value="{{ $task->id }}"
@@ -251,6 +224,8 @@
                                     <div class="fw-semibold">{{ $task->title }}</div>
                                     <small class="text-muted">{{ $taskTypeLabels($task->task_type) }}</small>
                                 </td>
+                                <td><small>{{ $taskPractice?->legal_name ?? '—' }}</small></td>
+                                <td><small>{{ $taskProvider?->user?->name ?? '—' }}</small></td>
                                 <td><small>{{ $task->assignedAdmin->name ?? 'Unassigned' }}</small></td>
                                 <td><span
                                         class="badge bg-label-secondary">{{ $task->status?->label() ?? 'Open' }}</span>
@@ -258,7 +233,16 @@
                                 <td><small>{{ $task->priority->name ?? '—' }}</small></td>
                                 <td><small>{{ $task->due_date?->format('m/d/Y') ?: '—' }}</small></td>
                                 <td><small>{{ $task->follow_up_date?->format('m/d/Y') ?: '—' }}</small></td>
-                                <td><small>{{ $task->credentialingCase->case_number ?? '—' }}</small></td>
+                                <td>
+                                    @if ($task->credentialingCase)
+                                        <a href="{{ route('admin.credentials.show', $task->credentialingCase) }}"
+                                            class="small fw-semibold text-primary text-decoration-underline">
+                                            {{ $task->credentialingCase->case_number }}
+                                        </a>
+                                    @else
+                                        <small>—</small>
+                                    @endif
+                                </td>
                                 <td class="text-end">
                                     <button wire:click="openDetail({{ $task->id }})"
                                         class="btn btn-sm btn-outline-primary">View</button>
@@ -270,7 +254,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-5 text-muted">No tasks found.</td>
+                                <td colspan="11" class="text-center py-5 text-muted">No tasks found.</td>
                             </tr>
                         @endforelse
                     </tbody>

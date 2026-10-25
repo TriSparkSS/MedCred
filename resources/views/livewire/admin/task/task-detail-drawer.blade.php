@@ -16,6 +16,13 @@
                 <p class="text-muted small">{{ $task->description }}</p>
             @endif
 
+            @php
+                $drawerPractice = $task->credentialingCase?->practice
+                    ?? $task->provider?->practices?->firstWhere('pivot.primary_flag', true)
+                    ?? $task->provider?->practices?->first();
+                $drawerProvider = $task->provider ?? $task->credentialingCase?->provider;
+            @endphp
+
             <dl class="row small mb-3">
                 <dt class="col-5">Assigned To (Staff)</dt>
                 <dd class="col-7">{{ $task->assignedAdmin?->displayLabel() ?? 'Unassigned' }}</dd>
@@ -23,9 +30,30 @@
                 <dd class="col-7">{{ $task->due_date?->format('m/d/Y') ?: '—' }}</dd>
                 <dt class="col-5">Follow-up</dt>
                 <dd class="col-7">{{ $task->follow_up_date?->format('m/d/Y') ?: '—' }}</dd>
+                @if ($drawerPractice)
+                    <dt class="col-5">Practice</dt>
+                    <dd class="col-7">
+                        <a href="{{ route('admin.practices.show', $drawerPractice) }}" class="text-primary text-decoration-underline">
+                            {{ $drawerPractice->legal_name }}
+                        </a>
+                    </dd>
+                @endif
+                @if ($drawerProvider)
+                    <dt class="col-5">Provider</dt>
+                    <dd class="col-7">
+                        <a href="{{ route('admin.providers.show', $drawerProvider) }}" class="text-primary text-decoration-underline">
+                            {{ $drawerProvider->user?->name ?? 'Provider #'.$drawerProvider->id }}
+                        </a>
+                    </dd>
+                @endif
                 @if ($task->credentialingCase)
                     <dt class="col-5">Case</dt>
-                    <dd class="col-7">{{ $task->credentialingCase->case_number }}</dd>
+                    <dd class="col-7">
+                        <a href="{{ route('admin.credentials.show', $task->credentialingCase) }}"
+                            class="fw-semibold text-primary text-decoration-underline">
+                            {{ $task->credentialingCase->case_number }}
+                        </a>
+                    </dd>
                 @endif
             </dl>
 

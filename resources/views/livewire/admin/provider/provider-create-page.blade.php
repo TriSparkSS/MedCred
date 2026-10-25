@@ -41,7 +41,8 @@
 
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Email Address <span class="text-danger">*</span></label>
-                        <input type="email" wire:model="userData.email"
+                        <input type="email" wire:model="userData.email" name="new_provider_email"
+                            autocomplete="off"
                             class="form-control @error('userData.email') is-invalid @enderror"
                             placeholder="provider@example.com">
                         @error('userData.email')
@@ -81,7 +82,8 @@
                     <div class="col-md-4">
                         @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                         <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
-                        <input type="password" wire:model="userData.password"
+                        <input type="password" wire:model="userData.password" name="new_provider_password"
+                            autocomplete="new-password"
                             class="form-control @error('userData.password') is-invalid @enderror"
                             placeholder="Minimum 6 characters">
                         @error('userData.password')
@@ -246,6 +248,8 @@
                     </div>
                 </div>
 
+                @include('livewire.admin.provider.partials.service-locations-create')
+
                 {{-- Home Address --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
@@ -267,11 +271,15 @@
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Home Zip Code</label>
                         <input type="text" wire:model="formData.home_zip"
+                            wire:blur="lookupZip('formData', 'home_zip', 'home_city', 'home_state')"
                             class="form-control @error('formData.home_zip') is-invalid @enderror"
                             placeholder="Zip code" maxlength="10" inputmode="numeric">
                         @error('formData.home_zip')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        @if (! empty($zipLookupMessages['formData.home_zip'] ?? null))
+                            <div class="form-text text-warning">{{ $zipLookupMessages['formData.home_zip'] }}</div>
+                        @endif
                     </div>
 
                     <div class="col-md-4">

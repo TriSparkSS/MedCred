@@ -263,11 +263,15 @@
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Home Zip Code</label>
                         <input type="text" wire:model="formData.home_zip"
+                            wire:blur="lookupZip('formData', 'home_zip', 'home_city', 'home_state')"
                             class="form-control @error('formData.home_zip') is-invalid @enderror"
                             placeholder="Zip code" maxlength="10" inputmode="numeric">
                         @error('formData.home_zip')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        @if (! empty($zipLookupMessages['formData.home_zip'] ?? null))
+                            <div class="form-text text-warning">{{ $zipLookupMessages['formData.home_zip'] }}</div>
+                        @endif
                     </div>
 
                     <div class="col-md-4">

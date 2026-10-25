@@ -74,7 +74,8 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Email <span class="text-danger">*</span></label>
-                        <input type="email" wire:model="formData.email"
+                        <input type="email" wire:model="formData.email" name="new_practice_email"
+                            autocomplete="off"
                             class="form-control @error('formData.email') is-invalid @enderror"
                             placeholder="practice@example.com">
                         @error('formData.email')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -113,7 +114,8 @@
                     @if (auth('admin')->user()?->can('admin.portal-credentials.manage'))
                     <div class="col-md-4">
                         <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
-                        <input type="password" wire:model="userData.password"
+                        <input type="password" wire:model="userData.password" name="new_practice_password"
+                            autocomplete="new-password"
                             class="form-control @error('userData.password') is-invalid @enderror"
                             placeholder="Minimum 6 characters">
                         @error('userData.password')<div class="invalid-feedback">{{ $message }}</div>@enderror

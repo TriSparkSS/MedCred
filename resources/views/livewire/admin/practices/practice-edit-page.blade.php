@@ -24,7 +24,7 @@
     {{-- Form --}}
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
-            <form wire:submit.prevent="save">
+            <form id="practice-edit-form" wire:submit.prevent="save">
 
                 {{-- Practice Details --}}
                 <div class="mb-3 pb-3 border-bottom">
@@ -233,18 +233,29 @@
                         @error('formData.bank_address')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>
-
-                {{-- Actions --}}
-                <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pt-3 border-top">
-                    <p class="text-muted small mb-0"><span class="text-danger">*</span> Required fields</p>
-                    <div class="d-flex gap-2">
-                        <a href="{{ route('admin.practices') }}" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="ti tabler-device-floppy me-1"></i>Save Changes
-                        </button>
-                    </div>
-                </div>
             </form>
+
+            @if ($practiceId)
+                <div class="mb-4">
+                    <livewire:admin.documents.entity-documents-section
+                        :practice-id="$practiceId"
+                        locked-type-name="Bank Document"
+                        heading="Bank Documents"
+                        :show-profile-link="false"
+                        :key="'edit-practice-bank-docs-'.$practiceId" />
+                </div>
+            @endif
+
+            {{-- Actions --}}
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pt-3 border-top">
+                <p class="text-muted small mb-0"><span class="text-danger">*</span> Required fields</p>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('admin.practices') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" form="practice-edit-form" wire:click="save" wire:loading.attr="disabled" wire:target="save" class="btn btn-primary">
+                        <i class="ti tabler-device-floppy me-1"></i>Save Changes
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

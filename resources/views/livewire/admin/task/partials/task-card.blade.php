@@ -20,12 +20,27 @@
     @if ($task->description)
         <p class="small text-muted mb-2">{{ Str::limit($task->description, 80) }}</p>
     @endif
+    @php
+        $cardPractice = $task->credentialingCase?->practice
+            ?? $task->provider?->practices?->firstWhere('pivot.primary_flag', true)
+            ?? $task->provider?->practices?->first();
+        $cardProvider = $task->provider ?? $task->credentialingCase?->provider;
+    @endphp
     <div class="small text-muted mb-2">
-        @if ($task->provider)
-            <div><i class="ti tabler-user me-1"></i>{{ $task->provider->user->name ?? 'Provider' }}</div>
+        @if ($cardPractice)
+            <div><i class="ti tabler-building-hospital me-1"></i>{{ $cardPractice->legal_name }}</div>
+        @endif
+        @if ($cardProvider)
+            <div><i class="ti tabler-user me-1"></i>{{ $cardProvider->user->name ?? 'Provider' }}</div>
         @endif
         @if ($task->credentialingCase)
-            <div><i class="ti tabler-briefcase me-1"></i>{{ $task->credentialingCase->case_number }}</div>
+            <div>
+                <i class="ti tabler-briefcase me-1"></i>
+                <a href="{{ route('admin.credentials.show', $task->credentialingCase) }}"
+                    class="text-primary text-decoration-underline fw-semibold">
+                    {{ $task->credentialingCase->case_number }}
+                </a>
+            </div>
         @endif
     </div>
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">

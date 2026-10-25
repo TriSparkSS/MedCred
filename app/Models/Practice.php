@@ -179,6 +179,7 @@ class Practice extends Model
             $cityState = trim(($address->city ?? '').', '.($address->state ?? ''), ' ,');
 
             $options['address:'.$address->id] = [
+                'name' => $typeLabel.$name,
                 'label' => $typeLabel.$name.($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : ''),
                 'practice' => $this->legal_name,
                 'address' => $street,
@@ -195,6 +196,7 @@ class Practice extends Model
             $cityState = trim(($location->city ?? '').', '.($location->state ?? ''), ' ,');
 
             $options['location:'.$location->id] = [
+                'name' => (string) $location->name,
                 'label' => $kind.' — '.$location->name.($street !== '' ? ' — '.$street : '').($cityState !== '' ? ', '.$cityState : ''),
                 'practice' => $this->legal_name,
                 'address' => $street,

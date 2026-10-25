@@ -29,7 +29,7 @@ class TaskBoardPage extends Component
     use WithPagination;
 
     #[Url(as: 'view', history: true)]
-    public string $viewMode = 'board';
+    public string $viewMode = 'list';
 
     public bool $showCreateModal = false;
 
@@ -303,7 +303,7 @@ class TaskBoardPage extends Component
 
     public function toggleSelectPage(): void
     {
-        $ids = $this->baseQuery()->orderByDesc('updated_at')->paginate(20)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $ids = $this->listQuery()->orderByDesc('updated_at')->paginate(20)->pluck('id')->map(fn ($id) => (int) $id)->all();
         $selected = array_map('intval', $this->selectedTaskIds);
         $allSelected = $ids !== [] && count(array_diff($ids, $selected)) === 0;
 
@@ -314,7 +314,8 @@ class TaskBoardPage extends Component
 
     public function selectAllMatching(): void
     {
-        $ids = $this->baseQuery()->orderByDesc('updated_at')->limit(200)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $query = $this->viewMode === 'list' ? $this->listQuery() : $this->baseQuery();
+        $ids = $query->orderByDesc('updated_at')->limit(200)->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->selectedTaskIds = array_values(array_unique($ids));
 
         if ($ids === []) {
@@ -466,16 +467,24 @@ class TaskBoardPage extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterPracticeId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterPriority(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedFilterProviderId($value): void
     {
         if (! $value) {
-            $this->filterPracticeId = '';
-
             return;
         }
 
         $practice = ProviderDetails::find($value)?->primaryPractice();
-        if ($practice) {
+        if ($practice && $this->filterPracticeId === '') {
             $this->filterPracticeId = (string) $practice->id;
         }
     }
@@ -505,7 +514,10 @@ class TaskBoardPage extends Component
         $query = Task::with([
             'assignedAdmin',
             'provider.user',
+            'provider.practices',
             'credentialingCase.payer',
+            'credentialingCase.practice',
+            'credentialingCase.provider.user',
             'payer',
             'priority',
         ]);
@@ -523,11 +535,19 @@ class TaskBoardPage extends Component
         }
 
         if ($this->filterProviderId) {
-            $query->where('provider_id', $this->filterProviderId);
+            $providerId = (int) $this->filterProviderId;
+            $query->where(function ($q) use ($providerId) {
+                $q->where('provider_id', $providerId)
+                    ->orWhereHas('credentialingCase', fn ($cq) => $cq->where('provider_id', $providerId));
+            });
         }
 
         if ($this->filterPracticeId) {
-            $query->whereHas('credentialingCase', fn ($q) => $q->where('practice_id', (int) $this->filterPracticeId));
+            $practiceId = (int) $this->filterPracticeId;
+            $query->where(function ($q) use ($practiceId) {
+                $q->whereHas('credentialingCase', fn ($cq) => $cq->where('practice_id', $practiceId))
+                    ->orWhereHas('provider.practices', fn ($pq) => $pq->where('practices.id', $practiceId));
+            });
         }
 
         if ($this->filterPayerId) {
@@ -555,13 +575,26 @@ class TaskBoardPage extends Component
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
                     ->orWhere('description', 'like', $search)
-                    ->orWhereHas('credentialingCase', fn ($q) => $q->where('case_number', 'like', $search));
+                    ->orWhereHas('credentialingCase', fn ($cq) => $cq->where('case_number', 'like', $search)
+                        ->orWhereHas('practice', fn ($pq) => $pq->where('legal_name', 'like', $search)))
+                    ->orWhereHas('provider.user', fn ($uq) => $uq->where('name', 'like', $search));
             });
         }
 
         $admin = Auth::guard('admin')->user();
         if ($admin) {
             app(AdminScopeService::class)->scopeTasks($query, $admin);
+        }
+
+        return $query;
+    }
+
+    protected function listQuery()
+    {
+        $query = $this->baseQuery();
+
+        if ($this->filterStatus === '' && $this->filterChip === '') {
+            $query->open();
         }
 
         return $query;
@@ -641,37 +674,27 @@ class TaskBoardPage extends Component
         }
 
         $listTasks = $this->viewMode === 'list'
-            ? $this->baseQuery()->orderByDesc('updated_at')->paginate(20)
+            ? $this->listQuery()->orderByDesc('updated_at')->paginate(20)
             : null;
 
         $openCount = (clone $this->baseQuery())->open()->count();
         $closedCategories = ['approved', 'closed'];
         $admin = Auth::guard('admin')->user();
 
-        $openAppsQuery = CredentialingCase::query()->active()->with(['provider.user', 'practice', 'payer', 'status']);
-        if ($this->filterPracticeId) {
-            $openAppsQuery->where('practice_id', (int) $this->filterPracticeId);
-        }
-        if ($this->filterProviderId) {
-            $openAppsQuery->where('provider_id', (int) $this->filterProviderId);
-        }
-        if ($admin) {
-            app(AdminScopeService::class)->scopeCredentialingCases($openAppsQuery, $admin);
-        }
-
         $practiceQuery = Practice::orderBy('legal_name');
+        $providerQuery = ProviderDetails::with('user')->orderBy('id');
         if ($admin) {
             app(AdminScopeService::class)->scopePractices($practiceQuery, $admin);
+            app(AdminScopeService::class)->scopeProviders($providerQuery, $admin);
         }
 
         return view('livewire.admin.task.task-board-page', [
             'board' => $board,
             'listTasks' => $listTasks,
             'openCount' => $openCount,
-            'openApplications' => $openAppsQuery->orderByDesc('last_action_at')->limit(25)->get(),
             'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),
             'admins' => Admin::assignable()->get(['id', 'name', 'username']),
-            'providers' => ProviderDetails::with('user')->orderBy('id')->limit(200)->get(),
+            'providers' => $providerQuery->limit(200)->get(),
             'payers' => Payer::orderBy('name')->get(['id', 'name']),
             'cases' => CredentialingCase::whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))
                 ->with('payer')
