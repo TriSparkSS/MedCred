@@ -42,136 +42,158 @@
                             <td class="fw-semibold">{{ $record->name }}</td>
                             <td>{{ $record->username }}</td>
                             <td>{{ $record->email }}</td>
-                            <td>
-                                <span
-                                    class="badge {{ ($record->status ?? 'active') === 'active' ? 'bg-label-success' : 'bg-label-secondary' }}">
-                                    {{ ucfirst($record->status ?? 'active') }}
-                                </span>
-                            </td>
-                            <td>
-                                @forelse($record->roles as $role)
-                                    <span class="badge bg-label-primary me-1">{{ $role->name }}</span>
-                                @empty
-                                    <span class="text-muted">No roles assigned</span>
-                                @endforelse
-                            </td>
-                            <td>
-                                @if ($record->practices->isNotEmpty())
-                                    <span class="badge bg-label-info">{{ $record->practices->count() }} assigned</span>
-                                @else
-                                    <span class="text-muted small">None</span>
-                                @endif
-                            </td>
-                            <td class="text-end">
-                                <div class="d-inline-flex justify-content-end gap-1">
-                                    <button wire:click="openEditModal({{ $record->id }})"
-                                        class="btn btn-sm btn-outline-secondary" title="Edit">
-                                        <i class="ti tabler-edit"></i>
-                                    </button>
-                                    <button wire:click="openRoleModal({{ $record->id }})"
-                                        class="btn btn-sm btn-outline-primary" title="Roles">
-                                        <i class="ti tabler-shield"></i>
-                                    </button>
-                                    <button wire:click="openPracticeModal({{ $record->id }})"
-                                        class="btn btn-sm btn-outline-info" title="Assign practices">
-                                        <i class="ti tabler-building"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">No admin users found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        <div class="card-footer bg-white">{{ $records->links('livewire::bootstrap') }}</div>
-    </div>
-
-    @if ($showUserModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">{{ $editingUserId ? 'Edit Admin User' : 'Create User' }}</h5>
-                        <button type="button" class="btn-close" wire:click="closeUserModal"></button>
-                    </div>
-                    <form wire:submit.prevent="saveUser">
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label class="form-label">Name <span class="text-danger">*</span></label>
-                                <input type="text" wire:model="userName"
-                                    class="form-control @error('userName') is-invalid @enderror">
-                                @error('userName')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            @if (!$editingUserId)
-                                <div class="mb-3">
-                                    <label class="form-label">Username <span class="text-danger">*</span></label>
-                                    <input type="text" wire:model="userUsername"
-                                        class="form-control @error('userUsername') is-invalid @enderror">
-                                    @error('userUsername')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            @else
-                                <div class="mb-3">
-                                    <label class="form-label">Username</label>
-                                    <input type="text" class="form-control" value="{{ $userUsername }}" disabled>
-                                </div>
-                            @endif
-                            <div class="mb-3">
-                                <label class="form-label">Email <span class="text-danger">*</span></label>
-                                <input type="email" wire:model="userEmail"
-                                    class="form-control @error('userEmail') is-invalid @enderror">
-                                @error('userEmail')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    Password @if (!$editingUserId)
-                                    <span class="text-danger">*</span>@else<small class="text-muted">(leave blank to
-                                            keep current)</small>
-                                    @endif
-                                </label>
-                                <input type="password" wire:model="userPassword"
-                                    class="form-control @error('userPassword') is-invalid @enderror"
-                                    autocomplete="new-password">
-                                @error('userPassword')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Status</label>
-                                <select wire:model="userStatus"
-                                    class="form-select @error('userStatus') is-invalid @enderror">
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                                @error('userStatus')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            @if (!$editingUserId)
-                                <div class="mb-0">
-                                    <label class="form-label">Role <span class="text-danger">*</span></label>
-                                    <select wire:model="userRole"
-                                        class="form-select @error('userRole') is-invalid @enderror">
-                                        <option value="">Select role...</option>
-                                        @foreach ($availableRoles as $role)
-                                            <option value="{{ $role['value'] }}">{{ $role['label'] }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('userRole')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            @endif
-                        </div>
+                             <td>
+                                 <span
+                                     class="badge {{ ($record->status ?? 'active') === 'active' ? 'bg-label-success' : 'bg-label-secondary' }}">
+                                     {{ ucfirst($record->status ?? 'active') }}
+                                 </span>
+                                 @if ($record->is_two_factor)
+                                     <span class="badge bg-label-info ms-1" title="Two-Factor Authentication Enabled">2FA</span>
+                                 @endif
+                                 @if ($record->isLockedOut())
+                                     <span class="badge bg-label-danger ms-1" title="Account Locked">Locked</span>
+                                 @endif
+                             </td>
+                             <td>
+                                 @forelse($record->roles as $role)
+                                     <span class="badge bg-label-primary me-1">{{ $role->name }}</span>
+                                 @empty
+                                     <span class="text-muted">No roles assigned</span>
+                                 @endforelse
+                             </td>
+                             <td>
+                                 @if ($record->practices->isNotEmpty())
+                                     <span class="badge bg-label-info">{{ $record->practices->count() }} assigned</span>
+                                 @else
+                                     <span class="text-muted small">None</span>
+                                 @endif
+                             </td>
+                             <td class="text-end">
+                                 <div class="d-inline-flex justify-content-end gap-1">
+                                     @if ($record->isLockedOut() || $record->failed_login_attempts > 0)
+                                         <button wire:click="unlockAdmin({{ $record->id }})"
+                                             class="btn btn-sm btn-outline-warning" title="Unlock Account">
+                                             <i class="ti tabler-lock-open"></i>
+                                         </button>
+                                     @endif
+                                     <button wire:click="openEditModal({{ $record->id }})"
+                                         class="btn btn-sm btn-outline-secondary" title="Edit">
+                                         <i class="ti tabler-edit"></i>
+                                     </button>
+                                     <button wire:click="openRoleModal({{ $record->id }})"
+                                         class="btn btn-sm btn-outline-primary" title="Roles">
+                                         <i class="ti tabler-shield"></i>
+                                     </button>
+                                     <button wire:click="openPracticeModal({{ $record->id }})"
+                                         class="btn btn-sm btn-outline-info" title="Assign practices">
+                                         <i class="ti tabler-building"></i>
+                                     </button>
+                                 </div>
+                             </td>
+                         </tr>
+                     @empty
+                         <tr>
+                             <td colspan="7" class="text-center py-5 text-muted">No admin users found.</td>
+                         </tr>
+                     @endforelse
+                 </tbody>
+             </table>
+         </div>
+         <div class="card-footer bg-white">{{ $records->links('livewire::bootstrap') }}</div>
+     </div>
+ 
+     @if ($showUserModal)
+         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+             <div class="modal-dialog modal-dialog-centered">
+                 <div class="modal-content">
+                     <div class="modal-header">
+                         <h5 class="modal-title">{{ $editingUserId ? 'Edit Admin User' : 'Create User' }}</h5>
+                         <button type="button" class="btn-close" wire:click="closeUserModal"></button>
+                     </div>
+                     <form wire:submit.prevent="saveUser">
+                         <div class="modal-body">
+                             <div class="mb-3">
+                                 <label class="form-label">Name <span class="text-danger">*</span></label>
+                                 <input type="text" wire:model="userName"
+                                     class="form-control @error('userName') is-invalid @enderror">
+                                 @error('userName')
+                                     <div class="invalid-feedback">{{ $message }}</div>
+                                 @enderror
+                             </div>
+                             @if (!$editingUserId)
+                                 <div class="mb-3">
+                                     <label class="form-label">Username <span class="text-danger">*</span></label>
+                                     <input type="text" wire:model="userUsername"
+                                         class="form-control @error('userUsername') is-invalid @enderror">
+                                     @error('userUsername')
+                                         <div class="invalid-feedback">{{ $message }}</div>
+                                     @enderror
+                                 </div>
+                             @else
+                                 <div class="mb-3">
+                                     <label class="form-label">Username</label>
+                                     <input type="text" class="form-control" value="{{ $userUsername }}" disabled>
+                                 </div>
+                             @endif
+                             <div class="mb-3">
+                                 <label class="form-label">Email <span class="text-danger">*</span></label>
+                                 <input type="email" wire:model="userEmail"
+                                     class="form-control @error('userEmail') is-invalid @enderror">
+                                 @error('userEmail')
+                                     <div class="invalid-feedback">{{ $message }}</div>
+                                 @enderror
+                             </div>
+                             <div class="mb-3">
+                                 <label class="form-label">
+                                     Password @if (!$editingUserId)
+                                     <span class="text-danger">*</span>@else<small class="text-muted">(leave blank to
+                                             keep current)</small>
+                                     @endif
+                                 </label>
+                                 <input type="password" wire:model="userPassword"
+                                     class="form-control @error('userPassword') is-invalid @enderror"
+                                     autocomplete="new-password">
+                                 <small class="text-muted d-block mt-1">Min 8 characters with uppercase, lowercase, number, and symbol.</small>
+                                 @error('userPassword')
+                                     <div class="invalid-feedback">{{ $message }}</div>
+                                 @enderror
+                             </div>
+                             <div class="mb-3">
+                                 <label class="form-label">Status</label>
+                                 <select wire:model="userStatus"
+                                     class="form-select @error('userStatus') is-invalid @enderror">
+                                     <option value="active">Active</option>
+                                     <option value="inactive">Inactive</option>
+                                 </select>
+                                 @error('userStatus')
+                                     <div class="invalid-feedback">{{ $message }}</div>
+                                 @enderror
+                             </div>
+                             <div class="mb-3">
+                                 <div class="form-check">
+                                     <input type="checkbox" class="form-check-input" id="is_two_factor"
+                                         wire:model="is_two_factor">
+                                     <label class="form-check-label" for="is_two_factor">
+                                         Require Two-Factor Authentication (2FA)
+                                     </label>
+                                 </div>
+                             </div>
+                             @if (!$editingUserId)
+                                 <div class="mb-0">
+                                     <label class="form-label">Role <span class="text-danger">*</span></label>
+                                     <select wire:model="userRole"
+                                         class="form-select @error('userRole') is-invalid @enderror">
+                                         <option value="">Select role...</option>
+                                         @foreach ($availableRoles as $role)
+                                             <option value="{{ $role['value'] }}">{{ $role['label'] }}</option>
+                                         @endforeach
+                                     </select>
+                                     @error('userRole')
+                                         <div class="invalid-feedback">{{ $message }}</div>
+                                     @enderror
+                                 </div>
+                             @endif
+                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary"
                                 wire:click="closeUserModal">Cancel</button>

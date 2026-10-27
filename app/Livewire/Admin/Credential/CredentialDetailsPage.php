@@ -4,6 +4,8 @@ namespace App\Livewire\Admin\Credential;
 
 use App\Events\DocumentRequestSent;
 use App\Models\Admin;
+use App\Models\AuditLog;
+use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\NotificationTemplate;
@@ -33,6 +35,18 @@ class CredentialDetailsPage extends Component
     public string $activeTab = 'details';
 
     public $newNote = '';
+
+    public string $commType = 'note';
+
+    public string $commContactPerson = '';
+
+    public string $commPhoneOrFax = '';
+
+    public string $commReferenceNumber = '';
+
+    public string $commOutcome = '';
+
+    public string $commNextFollowUpDate = '';
 
     public $statusId = '';
 
@@ -122,11 +136,78 @@ class CredentialDetailsPage extends Component
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
 
-        $this->validate(['newNote' => 'required|string|max:2000']);
+        $this->validate([
+            'commType' => 'required|in:note,call_log,fax_log,portal_check,follow_up',
+            'newNote' => 'required|string|max:2000',
+            'commContactPerson' => 'nullable|string|max:255',
+            'commPhoneOrFax' => 'nullable|string|max:100',
+            'commReferenceNumber' => 'nullable|string|max:150',
+            'commOutcome' => 'nullable|string|max:255',
+            'commNextFollowUpDate' => 'nullable|date',
+        ]);
 
-        $this->case->addActivity('note', $this->newNote, Auth::guard('admin')->id());
+        $adminId = Auth::guard('admin')->id();
+        $metadata = array_filter([
+            'contact_person' => trim($this->commContactPerson),
+            'phone_or_fax' => trim($this->commPhoneOrFax),
+            'reference_number' => trim($this->commReferenceNumber),
+            'outcome' => trim($this->commOutcome),
+            'next_follow_up_date' => trim($this->commNextFollowUpDate),
+        ], fn ($value) => $value !== '');
+
+        CaseActivity::create([
+            'credentialing_case_id' => $this->case->id,
+            'activity_type' => $this->commType,
+            'admin_id' => $adminId,
+            'summary' => $this->newNote,
+            'reference_number' => $this->commReferenceNumber !== '' ? $this->commReferenceNumber : null,
+            'next_action_date' => $this->commNextFollowUpDate !== '' ? $this->commNextFollowUpDate : null,
+            'metadata' => $metadata !== [] ? $metadata : null,
+        ]);
+
+        $caseUpdates = ['last_action_at' => now()];
+        if ($this->commNextFollowUpDate !== '') {
+            $caseUpdates['next_follow_up_date'] = $this->commNextFollowUpDate;
+        }
+        $this->case->update($caseUpdates);
+        $this->case->refresh();
+
         $this->newNote = '';
-        flash()->success('Note added.');
+        $this->commContactPerson = '';
+        $this->commPhoneOrFax = '';
+        $this->commReferenceNumber = '';
+        $this->commOutcome = '';
+        $this->commNextFollowUpDate = '';
+
+        flash()->success('Communication entry logged.');
+    }
+
+    public function toggleAutomationPause(string $reason = ''): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.credentials.edit'), 403);
+
+        $adminId = Auth::guard('admin')->id();
+        $paused = ! $this->case->automation_paused;
+
+        $this->case->update([
+            'automation_paused' => $paused,
+            'automation_pause_reason' => $paused ? ($reason !== '' ? $reason : 'Manual override') : null,
+        ]);
+        $this->case->refresh();
+
+        $summary = $paused
+            ? 'Automation paused'.($reason !== '' ? ": {$reason}" : '')
+            : 'Automation resumed';
+
+        $this->case->addActivity('system', $summary, $adminId);
+        AuditLog::record(
+            $paused ? 'case.automation_paused' : 'case.automation_resumed',
+            $this->case,
+            $adminId,
+            ['reason' => $reason]
+        );
+
+        flash()->success($paused ? 'Case automation paused.' : 'Case automation resumed.');
     }
 
     public function saveDelayOverride(DelayOwnershipService $delayService): void
@@ -355,6 +436,7 @@ class CredentialDetailsPage extends Component
             'documentItems.documentType', 'documentItems.document.versions',
             'tasks' => fn ($q) => $q->with('assignedAdmin')->orderByRaw('completed_at IS NOT NULL')->orderBy('due_date'),
             'emailCaseLinks' => fn ($q) => $q->latest()->limit(20),
+            'emailMessages' => fn ($q) => $q->latest()->limit(30),
             'slaTimers' => fn ($q) => $q->where('status', 'active'),
         ]);
 

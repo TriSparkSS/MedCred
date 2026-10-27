@@ -70,7 +70,44 @@
                         <button wire:click="reopen" class="btn btn-sm btn-outline-secondary">Reopen</button>
                     @endcan
                 @endif
+                @if ($canSendEmails ?? false)
+                    <button type="button" wire:click="toggleEmailForm" class="btn btn-sm {{ $showEmailForm ? 'btn-primary' : 'btn-outline-primary' }}">
+                        <i class="ti tabler-mail me-1"></i>Send Email
+                    </button>
+                @endif
             </div>
+
+            @if (($canSendEmails ?? false) && $showEmailForm)
+                <div class="border border-primary border-opacity-25 rounded p-3 mb-4 bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label small fw-semibold mb-0"><i class="ti tabler-mail-forward me-1 text-primary"></i>Send Email from Task</label>
+                        <button type="button" class="btn-close btn-sm" wire:click="toggleEmailForm"></button>
+                    </div>
+                    <div class="mb-2">
+                        <select wire:model.live="emailTemplateId" class="form-select form-select-sm">
+                            <option value="">Custom message (or choose template)...</option>
+                            @foreach ($emailTemplates ?? [] as $tpl)
+                                <option value="{{ $tpl->id }}">{{ $tpl->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <input type="email" wire:model="emailTo" class="form-control form-control-sm @error('emailTo') is-invalid @enderror" placeholder="Recipient email (to)">
+                        @error('emailTo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" wire:model="emailSubject" class="form-control form-control-sm @error('emailSubject') is-invalid @enderror" placeholder="Subject">
+                        @error('emailSubject')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mb-2">
+                        <textarea wire:model="emailBody" rows="3" class="form-control form-control-sm @error('emailBody') is-invalid @enderror" placeholder="Email message..."></textarea>
+                        @error('emailBody')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <button type="button" wire:click="sendTaskEmail" class="btn btn-sm btn-primary w-100">
+                        <i class="ti tabler-send me-1"></i>Send Email
+                    </button>
+                </div>
+            @endif
 
             @can('assign', $task)
                 <div class="border rounded p-3 mb-4">

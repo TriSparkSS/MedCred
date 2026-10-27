@@ -209,21 +209,140 @@
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 text-white"
-        style="background: linear-gradient(135deg, #0d2a75 0%, #1f4fa9 100%);">
-        <div class="card-body">
-            <div class="row g-4 align-items-center">
-                <div class="col-md-8">
-                    <h5 class="fw-bold text-white mb-2">Audit Compliance Logs</h5>
-                    <p class="text-white-75 mb-0">Ensure regulatory adherence with full-spectrum audit trails.
-                        Revantage logs every action taken within the configuration suite for HIPAA compliance and
-                        operational security.</p>
-                </div>
-                <div class="col-md-4 d-flex gap-2 flex-wrap justify-content-md-end">
-                    <a href="#" class="btn btn-light">Download Annual Report</a>
-                    <a href="#" class="btn btn-outline-light">Search Logs</a>
+    <div class="row g-4 mb-4">
+        <div class="col-xl-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-1">Security, Encryption & Record Retention</h6>
+                            <p class="text-muted small mb-0">Configure HIPAA retention windows, password rotation, and document encryption at rest.</p>
+                        </div>
+                        <span class="badge bg-label-primary">Security Policy</span>
+                    </div>
+                    <form wire:submit.prevent="saveSecuritySettings">
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Record Retention (Days)</label>
+                                <input type="number" min="1" max="3650" wire:model="record_retention_days"
+                                    class="form-control form-control-sm @error('record_retention_days') is-invalid @enderror">
+                                @error('record_retention_days')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Password Expiry (Days)</label>
+                                <input type="number" min="1" max="365" wire:model="password_expiry_days"
+                                    class="form-control form-control-sm @error('password_expiry_days') is-invalid @enderror">
+                                @error('password_expiry_days')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="encrypt_documents_at_rest"
+                                        wire:model="encrypt_documents_at_rest">
+                                    <label class="form-check-label small" for="encrypt_documents_at_rest">
+                                        Encrypt newly uploaded document files at rest (AES-256)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="ti tabler-device-floppy me-1"></i> Save Security Policy
+                            </button>
+                            <button type="button" wire:click="runRetentionNow" class="btn btn-sm btn-outline-secondary">
+                                <i class="ti tabler-trash me-1"></i> Run Retention Cleanup Now
+                            </button>
+                            <button type="button" wire:click="downloadBackupSnapshot" class="btn btn-sm btn-outline-info">
+                                <i class="ti tabler-download me-1"></i> Download Backup Snapshot
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
+        </div>
+
+        <div class="col-xl-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-1">Production Go-Live Readiness</h6>
+                            <p class="text-muted small mb-0">Automated verification of database views, encryption, TLS, storage, and mail configuration.</p>
+                        </div>
+                        <span class="badge bg-label-success">Checklist</span>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @foreach ($readinessChecks as $check)
+                            <div class="list-group-item px-0 py-2 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="fw-semibold small">{{ $check['label'] }}</div>
+                                    <div class="text-muted" style="font-size: 12px;">{{ $check['detail'] }}</div>
+                                </div>
+                                <span class="badge {{ $check['passed'] ? 'bg-label-success' : 'bg-label-warning' }}">
+                                    {{ $check['passed'] ? 'Ready' : 'Review' }}
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom py-3 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+            <div>
+                <h5 class="fw-bold mb-0">Audit Compliance Logs</h5>
+                <small class="text-muted">Ensure regulatory adherence with full-spectrum audit trails for logins, downloads, deletes, exports, and overrides.</small>
+            </div>
+            <div class="d-flex gap-2">
+                <input type="search" wire:model.live.debounce.250ms="auditSearch"
+                    class="form-control form-control-sm" style="min-width: 240px;"
+                    placeholder="Search action, entity, or admin...">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Action</th>
+                        <th>Admin</th>
+                        <th>Target Entity</th>
+                        <th>Metadata</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($auditLogs as $log)
+                        <tr>
+                            <td class="text-muted small text-nowrap">{{ $log->created_at?->format('Y-m-d H:i:s') }}</td>
+                            <td><span class="badge bg-label-primary">{{ $log->action }}</span></td>
+                            <td class="small">{{ $log->admin?->name ?? ($log->admin_id ? 'Admin #' . $log->admin_id : 'System') }}</td>
+                            <td class="small text-muted">
+                                @if ($log->auditable_type)
+                                    {{ class_basename($log->auditable_type) }} #{{ $log->auditable_id }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td class="small text-muted">
+                                @if (!empty($log->metadata))
+                                    <code>{{ \Illuminate\Support\Str::limit(json_encode($log->metadata), 90) }}</code>
+                                @else
+                                    —
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted small">No audit log entries match the current filter.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

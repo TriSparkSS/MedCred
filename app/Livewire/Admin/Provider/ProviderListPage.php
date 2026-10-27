@@ -4,10 +4,12 @@ namespace App\Livewire\Admin\Provider;
 
 use App\Enums\ProviderStatus;
 use App\Models\Location;
+use App\Models\Payer;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Services\AdminScopeService;
+use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -35,6 +37,12 @@ class ProviderListPage extends Component
 
     public $filterLocation = '';
 
+    public $filterState = '';
+
+    public $filterPayer = '';
+
+    public $filterCompliance = '';
+
     protected $rules = [
         'formData.user_id' => 'required|exists:users,id',
         'formData.specialty_id' => 'nullable|exists:specialties,id',
@@ -54,7 +62,16 @@ class ProviderListPage extends Component
 
     public function updated($propertyName)
     {
-        if (in_array($propertyName, ['search', 'filterSpecialty', 'filterStatus', 'filterPractice', 'filterLocation'], true)) {
+        if (in_array($propertyName, [
+            'search',
+            'filterSpecialty',
+            'filterStatus',
+            'filterPractice',
+            'filterLocation',
+            'filterState',
+            'filterPayer',
+            'filterCompliance',
+        ], true)) {
             $this->resetPage();
         }
     }
@@ -72,6 +89,9 @@ class ProviderListPage extends Component
         $this->filterStatus = '';
         $this->filterPractice = '';
         $this->filterLocation = '';
+        $this->filterState = '';
+        $this->filterPayer = '';
+        $this->filterCompliance = '';
         $this->resetPage();
     }
 
@@ -139,6 +159,9 @@ class ProviderListPage extends Component
             'providerPracticeLocations.practice',
             'credentialingCases.payer',
             'credentialingCases.status',
+            'credentialingCases.documentItems',
+            'documents',
+            'credentials',
         ]);
 
         if ($admin) {
@@ -168,6 +191,51 @@ class ProviderListPage extends Component
             });
         }
 
+        if ($this->filterState) {
+            $state = $this->filterState;
+            $query->where(function ($q) use ($state) {
+                $q->where('state', $state)
+                    ->orWhereHas('credentialingCases', fn ($cq) => $cq->where('state', $state))
+                    ->orWhereHas('providerPracticeLocations.location', fn ($lq) => $lq->where('state', $state));
+            });
+        }
+
+        if ($this->filterPayer) {
+            $query->whereHas('credentialingCases', fn ($q) => $q->where('payer_id', (int) $this->filterPayer));
+        }
+
+        if ($this->filterCompliance === 'missing_docs') {
+            $query->where(function ($q) {
+                $q->doesntHave('documents')
+                    ->orWhereHas('credentialingCases.documentItems', function ($di) {
+                        $di->where('is_required', true)
+                            ->where(function ($sub) {
+                                $sub->where('is_received', false)
+                                    ->orWhereHas('document', fn ($dq) => $dq->where('verification_status', 'rejected'));
+                            });
+                    });
+            });
+        } elseif ($this->filterCompliance === 'expiring_soon') {
+            $today = now()->toDateString();
+            $in30Days = now()->addDays(30)->toDateString();
+            $query->where(function ($q) use ($today, $in30Days) {
+                $q->whereHas('documents', fn ($dq) => $dq->whereNotNull('expiry_date')
+                    ->whereDate('expiry_date', '>=', $today)
+                    ->whereDate('expiry_date', '<=', $in30Days))
+                    ->orWhereHas('credentials', fn ($cq) => $cq->whereNotNull('expiry_date')
+                        ->whereDate('expiry_date', '>=', $today)
+                        ->whereDate('expiry_date', '<=', $in30Days));
+            });
+        } elseif ($this->filterCompliance === 'expired') {
+            $today = now()->toDateString();
+            $query->where(function ($q) use ($today) {
+                $q->whereHas('documents', fn ($dq) => $dq->whereNotNull('expiry_date')
+                    ->whereDate('expiry_date', '<', $today))
+                    ->orWhereHas('credentials', fn ($cq) => $cq->whereNotNull('expiry_date')
+                        ->whereDate('expiry_date', '<', $today));
+            });
+        }
+
         if ($this->search) {
             $term = '%'.$this->search.'%';
             $query->where(function ($q) use ($term) {
@@ -178,6 +246,7 @@ class ProviderListPage extends Component
                             ->orWhere('dba_name', 'like', $term);
                     })
                     ->orWhere('npi', 'like', $term)
+                    ->orWhere('caqh_id', 'like', $term)
                     ->orWhere('practice', 'like', $term);
             });
         }
@@ -220,6 +289,8 @@ class ProviderListPage extends Component
             'facilityLocations'
         ) + [
             'practices' => $practiceQuery->get(['id', 'legal_name']),
+            'payers' => Payer::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'usStates' => UsStates::all(),
         ]);
     }
 }

@@ -25,6 +25,8 @@ class Document extends Model
         'expiry_date',
         'state',
         'status',
+        'visibility',
+        'allowed_roles',
         'verification_status',
         'rejection_reason',
         'verified_by_admin_id',
@@ -37,6 +39,7 @@ class Document extends Model
         'effective_date' => 'date',
         'expiry_date' => 'date',
         'verified_at' => 'datetime',
+        'allowed_roles' => 'array',
     ];
 
     public function documentType(): BelongsTo

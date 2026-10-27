@@ -17,10 +17,18 @@
     $followUpOverdue = $case->isOverdue();
     $providerName = $case->provider?->user?->name ?? 'N/A';
     $providerInitial = strtoupper(substr($providerName !== 'N/A' ? $providerName : 'C', 0, 1));
+    $commTypes = ['note', 'call_log', 'fax_log', 'portal_check', 'follow_up'];
     $detailNotes = $case->activities
-        ->where('activity_type', 'note')
+        ->whereIn('activity_type', $commTypes)
         ->sortByDesc('id')
         ->values();
+    $commTypeBadge = fn (string $type) => match ($type) {
+        'call_log' => ['label' => 'Call Log', 'class' => 'bg-label-info'],
+        'fax_log' => ['label' => 'Fax Log', 'class' => 'bg-label-warning'],
+        'portal_check' => ['label' => 'Portal Check', 'class' => 'bg-label-primary'],
+        'follow_up' => ['label' => 'Follow-up', 'class' => 'bg-label-success'],
+        default => ['label' => 'Note', 'class' => 'bg-label-secondary'],
+    };
 
     $detailFields = [
         ['label' => 'Practice', 'value' => $case->practice?->legal_name],
@@ -49,6 +57,9 @@
                         <h4 class="fw-bold text-primary mb-0">{{ $case->case_number }}</h4>
                         @if ($case->is_escalated)
                             <span class="badge bg-danger">Escalated</span>
+                        @endif
+                        @if ($case->automation_paused)
+                            <span class="badge bg-warning text-dark">Automation Paused</span>
                         @endif
                         @if ($case->status)
                             <span class="badge bg-label-{{ $statusBadge }}">{{ $case->status->name }}</span>
@@ -85,6 +96,11 @@
                     <a href="{{ route('admin.credentials.edit', $case) }}" class="btn btn-outline-primary">
                         <i class="ti tabler-edit me-1"></i>Edit Application
                     </a>
+                    <button type="button"
+                        wire:click="toggleAutomationPause"
+                        class="btn {{ $case->automation_paused ? 'btn-warning' : 'btn-outline-warning' }}">
+                        <i class="ti tabler-player-pause me-1"></i>{{ $case->automation_paused ? 'Resume Automation' : 'Pause Automation' }}
+                    </button>
                 @endif
                 @if ($canEscalateTasks)
                     <button type="button"
@@ -266,31 +282,86 @@
                 @if ($canEditCredentials)
                     <div class="card shadow-sm border-0 mb-4">
                         <div class="card-header bg-white">
-                            <h6 class="mb-0 fw-semibold">Notes</h6>
-                            <small class="text-muted">Logged notes also appear on the Timeline tab</small>
+                            <h6 class="mb-0 fw-semibold">Communication &amp; Notes Journal</h6>
+                            <small class="text-muted">Log calls, faxes, portal checks, follow-ups, or notes</small>
                         </div>
                         <div class="card-body">
-                            <textarea wire:model="newNote" rows="5" class="form-control mb-2" placeholder="Log a call, follow-up, or detailed note..."></textarea>
+                            <div class="row g-2 mb-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Channel / Type</label>
+                                    <select wire:model.live="commType" class="form-select form-select-sm">
+                                        <option value="note">Internal Note</option>
+                                        <option value="call_log">Phone Call Log</option>
+                                        <option value="fax_log">Fax Log</option>
+                                        <option value="portal_check">Payer Portal Check</option>
+                                        <option value="follow_up">Follow-up Log</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Reference / Ticket #</label>
+                                    <input type="text" wire:model="commReferenceNumber" class="form-control form-control-sm" placeholder="Call ref / Fax ID / Ticket #">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Contact Person / Rep</label>
+                                    <input type="text" wire:model="commContactPerson" class="form-control form-control-sm" placeholder="Rep name (optional)">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Phone / Fax / Portal</label>
+                                    <input type="text" wire:model="commPhoneOrFax" class="form-control form-control-sm" placeholder="800-555-0199 / Availity">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Outcome</label>
+                                    <input type="text" wire:model="commOutcome" class="form-control form-control-sm" placeholder="In process / Missing W-9">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Next Follow-up Date</label>
+                                    <input type="date" wire:model="commNextFollowUpDate" class="form-control form-control-sm">
+                                </div>
+                            </div>
+                            <textarea wire:model="newNote" rows="4" class="form-control mb-2" placeholder="Log call details, payer rep summary, fax confirmation, or note..."></textarea>
                             @error('newNote')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
-                            <button type="button" wire:click="addNote" class="btn btn-outline-primary mb-3">Add Note</button>
+                            <button type="button" wire:click="addNote" class="btn btn-outline-primary mb-3">
+                                <i class="ti tabler-notebook me-1"></i>Log Entry
+                            </button>
 
                             <div class="border rounded-3 p-3" style="max-height: 520px; overflow-y: auto; overflow-x: hidden;">
                                 @forelse ($detailNotes as $activity)
+                                    @php
+                                        $badge = $commTypeBadge($activity->activity_type);
+                                        $meta = (array) ($activity->metadata ?? []);
+                                    @endphp
                                     <div class="d-flex gap-2 mb-3 {{ ! $loop->last ? 'pb-3 border-bottom' : '' }}">
                                         <span class="avatar avatar-sm rounded-circle bg-label-primary text-primary fw-semibold d-flex align-items-center justify-content-center flex-shrink-0"
                                             style="width: 32px; height: 32px;">
                                             {{ strtoupper(substr($activity->admin?->name ?? $activity->user?->name ?? 'S', 0, 1)) }}
                                         </span>
                                         <div class="small flex-grow-1" style="min-width: 0;">
-                                            <div class="text-muted mb-1">
-                                                {{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}
-                                                · {{ $activity->created_at?->format('m/d/Y g:i A') }}
+                                            <div class="d-flex flex-wrap align-items-center gap-1 text-muted mb-1">
+                                                <span class="badge {{ $badge['class'] }}">{{ $badge['label'] }}</span>
+                                                <span>{{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}</span>
+                                                <span>· {{ $activity->created_at?->format('m/d/Y g:i A') }}</span>
+                                                @if ($activity->reference_number)
+                                                    <span class="badge bg-label-dark">Ref: {{ $activity->reference_number }}</span>
+                                                @endif
                                             </div>
+                                            @if ($meta !== [])
+                                                <div class="d-flex flex-wrap gap-2 small text-muted mb-1">
+                                                    @if (! empty($meta['contact_person']))
+                                                        <span><strong>Rep:</strong> {{ $meta['contact_person'] }}</span>
+                                                    @endif
+                                                    @if (! empty($meta['phone_or_fax']))
+                                                        <span><strong>Channel:</strong> {{ $meta['phone_or_fax'] }}</span>
+                                                    @endif
+                                                    @if (! empty($meta['outcome']))
+                                                        <span><strong>Outcome:</strong> {{ $meta['outcome'] }}</span>
+                                                    @endif
+                                                </div>
+                                            @endif
                                             <div style="white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;">{{ $activity->summary }}</div>
                                         </div>
                                     </div>
                                 @empty
-                                    <p class="text-muted small mb-0">No notes yet. Notes added here also appear on the Timeline tab.</p>
+                                    <p class="text-muted small mb-0">No communication entries yet. Entries added here also appear on the Communication and Timeline tabs.</p>
                                 @endforelse
                             </div>
                         </div>
@@ -298,13 +369,15 @@
                 @else
                     <div class="card shadow-sm border-0 mb-4">
                         <div class="card-header bg-white">
-                            <h6 class="mb-0 fw-semibold">Notes</h6>
+                            <h6 class="mb-0 fw-semibold">Communication &amp; Notes</h6>
                         </div>
                         <div class="card-body">
                             <div class="border rounded-3 p-3" style="max-height: 520px; overflow-y: auto; overflow-x: hidden;">
                                 @forelse ($detailNotes as $activity)
+                                    @php $badge = $commTypeBadge($activity->activity_type); @endphp
                                     <div class="mb-2 pb-2 {{ ! $loop->last ? 'border-bottom' : '' }} small">
                                         <div class="text-muted">
+                                            <span class="badge {{ $badge['class'] }} me-1">{{ $badge['label'] }}</span>
                                             {{ $activity->admin?->name ?? $activity->user?->name ?? 'System' }}
                                             · {{ $activity->created_at?->format('m/d/Y g:i A') }}
                                         </div>
@@ -406,7 +479,7 @@
     @elseif ($activeTab === 'communication')
         <div class="row g-4">
             <div class="col-lg-5">
-                <div class="card shadow-sm border-0 h-100">
+                <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white">
                         <h6 class="mb-0 fw-semibold">Send Email</h6>
                         <small class="text-muted">Request documents from the provider</small>
@@ -431,20 +504,105 @@
                         </div>
                     </div>
                 </div>
+
+                @if ($canEditCredentials)
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0 fw-semibold">Log Call / Fax / Portal Check</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <select wire:model.live="commType" class="form-select form-select-sm">
+                                        <option value="call_log">Phone Call Log</option>
+                                        <option value="fax_log">Fax Log</option>
+                                        <option value="portal_check">Payer Portal Check</option>
+                                        <option value="follow_up">Follow-up Log</option>
+                                        <option value="note">Internal Note</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" wire:model="commReferenceNumber" class="form-control form-control-sm" placeholder="Ref / Ticket #">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" wire:model="commContactPerson" class="form-control form-control-sm" placeholder="Contact / Rep">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" wire:model="commPhoneOrFax" class="form-control form-control-sm" placeholder="Phone / Fax / Portal">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" wire:model="commOutcome" class="form-control form-control-sm" placeholder="Outcome">
+                                </div>
+                                <div class="col-6">
+                                    <input type="date" wire:model="commNextFollowUpDate" class="form-control form-control-sm">
+                                </div>
+                            </div>
+                            <textarea wire:model="newNote" rows="3" class="form-control form-control-sm mb-2" placeholder="Summary..."></textarea>
+                            <button type="button" wire:click="addNote" class="btn btn-sm btn-primary">Save Log</button>
+                        </div>
+                    </div>
+                @endif
             </div>
             <div class="col-lg-7">
-                <div class="card shadow-sm border-0 h-100">
+                <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white">
-                        <h6 class="mb-0 fw-semibold">Linked Messages</h6>
+                        <h6 class="mb-0 fw-semibold">Structured Communication Journal</h6>
                     </div>
                     <div class="card-body">
+                        @forelse ($detailNotes as $activity)
+                            @php
+                                $badge = $commTypeBadge($activity->activity_type);
+                                $meta = (array) ($activity->metadata ?? []);
+                            @endphp
+                            <div class="small border-bottom py-2">
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                    <span class="badge {{ $badge['class'] }}">{{ $badge['label'] }}</span>
+                                    <span class="fw-semibold">{{ $activity->admin?->name ?? 'System' }}</span>
+                                    <span class="text-muted">· {{ $activity->created_at?->format('m/d/Y g:i A') }}</span>
+                                    @if ($activity->reference_number)
+                                        <span class="badge bg-label-dark">Ref: {{ $activity->reference_number }}</span>
+                                    @endif
+                                </div>
+                                @if ($meta !== [])
+                                    <div class="text-muted mb-1">
+                                        @if (! empty($meta['contact_person'])) Rep: {{ $meta['contact_person'] }} · @endif
+                                        @if (! empty($meta['phone_or_fax'])) {{ $meta['phone_or_fax'] }} · @endif
+                                        @if (! empty($meta['outcome'])) Outcome: {{ $meta['outcome'] }} @endif
+                                    </div>
+                                @endif
+                                <div>{{ $activity->summary }}</div>
+                            </div>
+                        @empty
+                            <p class="text-muted small mb-0">No structured communication logs recorded yet.</p>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0 fw-semibold">Linked Email Messages</h6>
+                    </div>
+                    <div class="card-body">
+                        @if ($case->emailMessages && $case->emailMessages->isNotEmpty())
+                            @foreach ($case->emailMessages as $msg)
+                                <div class="small border-bottom py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>{{ $msg->subject ?: '(No Subject)' }}</strong>
+                                        <span class="badge bg-label-{{ $msg->direction === 'inbound' ? 'info' : 'primary' }}">{{ ucfirst($msg->direction ?? 'email') }}</span>
+                                    </div>
+                                    <div class="text-muted">{{ $msg->from_address }} → {{ $msg->to_address }}</div>
+                                </div>
+                            @endforeach
+                        @endif
                         @forelse($case->emailCaseLinks as $link)
                             <div class="small border-bottom py-2">
                                 <strong class="text-break">{{ $link->message_id }}</strong>
                                 <div class="text-muted">Linked {{ $link->created_at->format('m/d/Y g:i A') }}</div>
                             </div>
                         @empty
-                            <p class="text-muted small mb-0">No Message-ID links yet. Link emails from Email Center.</p>
+                            @if (! $case->emailMessages || $case->emailMessages->isEmpty())
+                                <p class="text-muted small mb-0">No Message-ID links yet. Link emails from Email Center.</p>
+                            @endif
                         @endforelse
                     </div>
                 </div>

@@ -63,8 +63,24 @@ class AdminScopeService
         return $this->canAccessPractice($admin, (int) $case->practice_id);
     }
 
+    public function canViewRestrictedDocument(Admin $admin, Document $document): bool
+    {
+        if ($document->visibility === 'restricted' && ! $this->isUnrestricted($admin)) {
+            $allowedRoles = array_filter((array) ($document->allowed_roles ?? []));
+            if ($allowedRoles !== [] && ! $admin->hasAnyRole($allowedRoles) && (int) $document->uploaded_by_admin_id !== (int) $admin->id) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function canAccessDocument(Admin $admin, Document $document): bool
     {
+        if (! $this->canViewRestrictedDocument($admin, $document)) {
+            return false;
+        }
+
         $ids = $this->assignedPracticeIds($admin);
 
         if ($ids === null) {

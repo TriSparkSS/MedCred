@@ -53,7 +53,7 @@ new class extends Component {
     public function searchResults(): array
     {
         if (!$this->showSearchResults) {
-            return ['providers' => collect(), 'cases' => collect(), 'payers' => collect()];
+            return ['providers' => collect(), 'practices' => collect(), 'cases' => collect(), 'payers' => collect()];
         }
 
         return app(GlobalSearchService::class)->search($this->search);
@@ -93,7 +93,7 @@ new class extends Component {
             <div class="input-group input-group-sm">
                 <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                 <input type="search" wire:model.live.debounce.300ms="search" class="form-control border-start-0"
-                    placeholder="Search provider, NPI, payer, or application ID..." autocomplete="off"
+                    placeholder="Search provider, NPI, CAQH, tax ID, practice, payer, status, or case #..." autocomplete="off"
                     wire:keydown.escape="clearSearch">
                 @if ($search)
                     <button type="button" class="btn btn-outline-secondary" wire:click="clearSearch">
@@ -109,6 +109,17 @@ new class extends Component {
                         @if ($this->searchResults['providers']->isNotEmpty())
                             <div class="dropdown-header text-uppercase small">Providers</div>
                             @foreach ($this->searchResults['providers'] as $result)
+                                <a href="{{ $result['url'] }}" class="dropdown-item py-2">
+                                    <div class="fw-medium">{{ $result['label'] }}</div>
+                                    @if ($result['meta'])
+                                        <small class="text-muted">{{ $result['meta'] }}</small>
+                                    @endif
+                                </a>
+                            @endforeach
+                        @endif
+                        @if (($this->searchResults['practices'] ?? collect())->isNotEmpty())
+                            <div class="dropdown-header text-uppercase small">Practices</div>
+                            @foreach ($this->searchResults['practices'] as $result)
                                 <a href="{{ $result['url'] }}" class="dropdown-item py-2">
                                     <div class="fw-medium">{{ $result['label'] }}</div>
                                     @if ($result['meta'])

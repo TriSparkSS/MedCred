@@ -93,6 +93,17 @@
                 </div>
             </a>
         </div>
+        <div class="col-sm-6 col-md-4 col-xl-2">
+            <a href="{{ route('admin.credentials') }}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm border-0 border-warning">
+                    <div class="card-body">
+                        <div class="text-uppercase text-muted fw-semibold small mb-2">Revenue Stuck</div>
+                        <h2 class="fw-bold text-warning mb-1">{{ $stats['revenue_stuck'] ?? 0 }}</h2>
+                        <p class="mb-0 text-muted small">Blocking billing readiness</p>
+                    </div>
+                </div>
+            </a>
+        </div>
     </div>
 
     <div class="row g-4 mb-4">

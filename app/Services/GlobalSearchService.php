@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CredentialingCase;
 use App\Models\Payer;
+use App\Models\Practice;
 use App\Models\ProviderDetails;
 use Illuminate\Support\Collection;
 
@@ -16,6 +17,7 @@ class GlobalSearchService
         if (strlen($query) < 2) {
             return [
                 'providers' => collect(),
+                'practices' => collect(),
                 'cases' => collect(),
                 'payers' => collect(),
             ];
@@ -25,6 +27,7 @@ class GlobalSearchService
 
         return [
             'providers' => $this->searchProviders($like, $limitPerGroup),
+            'practices' => $this->searchPractices($like, $limitPerGroup),
             'cases' => $this->searchCases($like, $limitPerGroup),
             'payers' => $this->searchPayers($like, $limitPerGroup),
         ];
@@ -35,7 +38,11 @@ class GlobalSearchService
         $query = ProviderDetails::with('user')
             ->where(function ($q) use ($like) {
                 $q->where('npi', 'like', $like)
-                    ->orWhereHas('user', fn ($q) => $q->where('name', 'like', $like));
+                    ->orWhere('caqh_id', 'like', $like)
+                    ->orWhere('practice', 'like', $like)
+                    ->orWhereHas('user', fn ($q) => $q->where('name', 'like', $like))
+                    ->orWhereHas('practices', fn ($q) => $q->where('legal_name', 'like', $like)
+                        ->orWhere('dba_name', 'like', $like));
             });
         $admin = auth()->guard('admin')->user();
         if ($admin) {
@@ -45,22 +52,62 @@ class GlobalSearchService
         return $query
             ->limit($limit)
             ->get()
-            ->map(fn (ProviderDetails $provider) => [
-                'id' => $provider->id,
-                'label' => $provider->user->name ?? 'Provider #' . $provider->id,
-                'meta' => $provider->npi ? 'NPI: ' . $provider->npi : null,
-                'url' => route('admin.providers.show', $provider),
+            ->map(function (ProviderDetails $provider) {
+                $metaParts = array_filter([
+                    $provider->npi ? 'NPI: ' . $provider->npi : null,
+                    $provider->caqh_id ? 'CAQH: ' . $provider->caqh_id : null,
+                ]);
+
+                return [
+                    'id' => $provider->id,
+                    'label' => $provider->user->name ?? 'Provider #' . $provider->id,
+                    'meta' => $metaParts ? implode(' · ', $metaParts) : null,
+                    'url' => route('admin.providers.show', $provider),
+                ];
+            });
+    }
+
+    protected function searchPractices(string $like, int $limit): Collection
+    {
+        $query = Practice::query()
+            ->where(function ($q) use ($like) {
+                $q->where('legal_name', 'like', $like)
+                    ->orWhere('dba_name', 'like', $like)
+                    ->orWhere('ein_tin', 'like', $like)
+                    ->orWhere('group_npi', 'like', $like)
+                    ->orWhere('client_code', 'like', $like);
+            });
+        $admin = auth()->guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopePractices($query, $admin);
+        }
+
+        return $query
+            ->limit($limit)
+            ->get()
+            ->map(fn (Practice $practice) => [
+                'id' => $practice->id,
+                'label' => $practice->legal_name,
+                'meta' => trim(($practice->ein_tin ? 'Tax ID: ' . $practice->ein_tin : '') . ($practice->group_npi ? ' · NPI: ' . $practice->group_npi : ''), ' ·') ?: null,
+                'url' => route('admin.practices.show', $practice),
             ]);
     }
 
     protected function searchCases(string $like, int $limit): Collection
     {
-        $query = CredentialingCase::with(['provider.user', 'payer'])
+        $query = CredentialingCase::with(['provider.user', 'payer', 'practice', 'status'])
             ->where(function ($q) use ($like) {
                 $q->where('case_number', 'like', $like)
                     ->orWhereHas('provider.user', fn ($q) => $q->where('name', 'like', $like))
-                    ->orWhereHas('provider', fn ($q) => $q->where('npi', 'like', $like))
-                    ->orWhereHas('payer', fn ($q) => $q->where('name', 'like', $like));
+                    ->orWhereHas('provider', fn ($q) => $q->where('npi', 'like', $like)
+                        ->orWhere('caqh_id', 'like', $like))
+                    ->orWhereHas('payer', fn ($q) => $q->where('name', 'like', $like))
+                    ->orWhereHas('practice', fn ($q) => $q->where('legal_name', 'like', $like)
+                        ->orWhere('dba_name', 'like', $like)
+                        ->orWhere('ein_tin', 'like', $like)
+                        ->orWhere('group_npi', 'like', $like)
+                        ->orWhere('client_code', 'like', $like))
+                    ->orWhereHas('status', fn ($q) => $q->where('name', 'like', $like));
             });
         $admin = auth()->guard('admin')->user();
         if ($admin) {
@@ -74,7 +121,7 @@ class GlobalSearchService
             ->map(fn (CredentialingCase $case) => [
                 'id' => $case->id,
                 'label' => $case->case_number,
-                'meta' => ($case->provider->user->name ?? '') . ' · ' . ($case->payer->name ?? ''),
+                'meta' => ($case->provider->user->name ?? '') . ' · ' . ($case->payer->name ?? '') . ($case->status?->name ? ' (' . $case->status->name . ')' : ''),
                 'url' => route('admin.credentials', ['search' => $case->case_number]),
             ]);
     }

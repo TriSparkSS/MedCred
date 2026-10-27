@@ -3,7 +3,7 @@
         <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
             <div>
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-edit me-2"></i>Edit Payer</h4>
-                <p class="text-muted mb-0">Update payer configuration and document requirements.</p>
+                <p class="text-muted mb-0">Update payer configuration, contact people, and document requirements.</p>
             </div>
             <a href="{{ route('admin.payers') }}" class="btn btn-outline-secondary"><i class="ti tabler-arrow-left me-1"></i>Back</a>
         </div>

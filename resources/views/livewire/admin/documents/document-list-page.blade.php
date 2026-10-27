@@ -6,11 +6,23 @@
                 <h4 class="fw-bold text-primary mb-1"><i class="ti tabler-files me-2"></i>Document Repository</h4>
                 <p class="text-muted mb-0">Upload, version, and track provider, practice, and case documents.</p>
             </div>
-            @if(auth('admin')->user()?->can('admin.documents.upload'))
-                <button type="button" wire:click="openUploadModal" class="btn btn-primary">
-                    <i class="ti tabler-upload me-1"></i>Upload Document
-                </button>
-            @endif
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="btn-group" role="group" aria-label="View mode">
+                    <button type="button" wire:click="setViewMode('table')"
+                        class="btn btn-sm {{ $viewMode === 'table' ? 'btn-primary' : 'btn-outline-primary' }}">
+                        <i class="ti tabler-table me-1"></i>Table View
+                    </button>
+                    <button type="button" wire:click="setViewMode('folders')"
+                        class="btn btn-sm {{ $viewMode === 'folders' ? 'btn-primary' : 'btn-outline-primary' }}">
+                        <i class="ti tabler-folders me-1"></i>Folder View
+                    </button>
+                </div>
+                @if(auth('admin')->user()?->can('admin.documents.upload'))
+                    <button type="button" wire:click="openUploadModal" class="btn btn-primary">
+                        <i class="ti tabler-upload me-1"></i>Upload Document
+                    </button>
+                @endif
+            </div>
         </div>
     </div>
 
@@ -117,6 +129,94 @@
         </div>
     </div>
 
+    @if ($viewMode === 'folders')
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-semibold"><i class="ti tabler-folders me-2 text-primary"></i>Document Folders (Provider / Practice → Type → Version)</h6>
+                <small class="text-muted">{{ count($folderTree) }} owner folders</small>
+            </div>
+            <div class="card-body">
+                @forelse ($folderTree as $ownerName => $typesMap)
+                    <div class="border rounded-3 mb-3 p-3" x-data="{ openOwner: true }">
+                        <div class="d-flex justify-content-between align-items-center cursor-pointer" x-on:click="openOwner = !openOwner">
+                            <div class="fw-bold text-primary">
+                                <i class="ti tabler-folder-filled me-2 text-warning"></i>{{ $ownerName }}
+                            </div>
+                            <span class="badge bg-label-secondary">{{ count($typesMap) }} {{ Str::plural('type', count($typesMap)) }}</span>
+                        </div>
+                        <div x-show="openOwner" class="mt-3 ps-3 border-start">
+                            @foreach ($typesMap as $typeName => $typeDocs)
+                                <div class="mb-3" x-data="{ openType: true }">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 cursor-pointer" x-on:click="openType = !openType">
+                                        <span class="fw-semibold">
+                                            <i class="ti tabler-folder me-1 text-info"></i>{{ $typeName }}
+                                        </span>
+                                        <span class="badge bg-label-info">{{ count($typeDocs) }} {{ Str::plural('document', count($typeDocs)) }}</span>
+                                    </div>
+                                    <div x-show="openType" class="ps-3">
+                                        @foreach ($typeDocs as $doc)
+                                            <div class="border rounded p-2 mb-2 bg-light">
+                                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                                    <div>
+                                                        <span class="fw-semibold"><i class="ti tabler-file-text me-1"></i>{{ $doc->title }}</span>
+                                                        @if ($doc->state)
+                                                            <span class="badge bg-label-primary ms-1">{{ $doc->state }}</span>
+                                                        @endif
+                                                        @if ($doc->visibility === 'restricted')
+                                                            <span class="badge bg-label-danger ms-1"><i class="ti tabler-lock me-1"></i>Restricted</span>
+                                                        @endif
+                                                        @if ($doc->document_number)
+                                                            <small class="text-muted ms-2">#{{ $doc->document_number }}</small>
+                                                        @endif
+                                                    </div>
+                                                    <div class="btn-group btn-group-sm">
+                                                        @if (auth('admin')->user()?->can('admin.documents.upload'))
+                                                            <button type="button" wire:click="openVersionModal({{ $doc->id }})" class="btn btn-outline-primary btn-sm" title="Upload New Version">
+                                                                <i class="ti tabler-versions"></i>
+                                                            </button>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                @if ($doc->versions->isNotEmpty())
+                                                    <div class="mt-2 ps-3 small">
+                                                        @foreach ($doc->versions as $ver)
+                                                            <div class="d-flex justify-content-between align-items-center py-1 {{ ! $loop->last ? 'border-bottom' : '' }}">
+                                                                <div>
+                                                                    <span class="badge {{ $ver->is_current ? 'bg-success' : 'bg-secondary' }} me-1">
+                                                                        v{{ $ver->version_number }}{{ $ver->is_current ? ' (Current)' : '' }}
+                                                                    </span>
+                                                                    <span>{{ $ver->original_name }}</span>
+                                                                    @if ($ver->is_encrypted)
+                                                                        <span class="badge bg-label-info ms-1" title="Encrypted at rest"><i class="ti tabler-shield-lock"></i> Encrypted</span>
+                                                                    @endif
+                                                                    @if ($ver->notes)
+                                                                        <span class="text-muted ms-2">— {{ $ver->notes }}</span>
+                                                                    @endif
+                                                                </div>
+                                                                <a href="{{ route('admin.documents.download', ['document' => $doc->id, 'version' => $ver->id]) }}"
+                                                                    class="btn btn-xs btn-outline-secondary">
+                                                                    <i class="ti tabler-download me-1"></i>Download v{{ $ver->version_number }}
+                                                                </a>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center text-muted py-5">
+                        <i class="ti tabler-folders-off d-block mb-2" style="font-size:2rem"></i>
+                        No document folders match the current filters.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    @else
     <div class="card shadow-sm border-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -144,13 +244,20 @@
                                 <div class="fw-semibold">
                                     <i class="ti tabler-file-text me-1 text-muted"></i>
                                     {{ $document->title }}
+                                    @if ($document->visibility === 'restricted')
+                                        <span class="badge bg-label-danger ms-1"><i class="ti tabler-lock"></i> Restricted</span>
+                                    @endif
                                 </div>
                                 @if ($document->document_number)
                                     <small class="text-muted d-block">#{{ $document->document_number }}</small>
                                 @endif
                                 @if ($version)
                                     <small class="text-muted">v{{ $version->version_number }} ·
-                                        {{ $version->original_name }}</small>
+                                        {{ $version->original_name }}
+                                        @if ($version->is_encrypted)
+                                            · <span class="text-info"><i class="ti tabler-shield-lock"></i> Encrypted</span>
+                                        @endif
+                                    </small>
                                 @endif
                             </td>
                             <td>{{ $document->documentType->name ?? '—' }}</td>
@@ -252,6 +359,7 @@
         </div>
         <div class="card-footer bg-white">{{ $documents->links('livewire::bootstrap') }}</div>
     </div>
+    @endif
 
     @if ($showModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5); z-index: 10850; position: fixed; inset: 0;">
@@ -354,6 +462,37 @@
                                         <small class="text-muted">Required for {{ $selectedType->name }}. One current file per provider, type, and state.</small>
                                     @endif
                                 </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Visibility</label>
+                                    <select wire:model.live="formData.visibility" class="form-select">
+                                        <option value="standard">Standard (Scoped Staff)</option>
+                                        <option value="restricted">Restricted (Role-gated)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" wire:model="formData.encrypt_at_rest" id="encryptAtRestCheck">
+                                        <label class="form-check-label" for="encryptAtRestCheck">
+                                            Encrypt file at rest (AES-256)
+                                        </label>
+                                    </div>
+                                </div>
+                                @if (($formData['visibility'] ?? 'standard') === 'restricted')
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold">Allowed Roles for Restricted Document</label>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            @foreach ($availableRoles as $roleOption)
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" value="{{ $roleOption->value }}"
+                                                        wire:model="formData.allowed_roles" id="role-{{ $roleOption->value }}">
+                                                    <label class="form-check-label small" for="role-{{ $roleOption->value }}">
+                                                        {{ $roleOption->label() }}
+                                                    </label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
                                 @if ($selectedType?->is_state_specific)
                                     <div class="col-12">
                                         <div class="form-check">
@@ -366,12 +505,22 @@
                                 @endif
                                 <div class="col-12">
                                     <label class="form-label">File @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>
-                                    <input type="file" wire:model="uploadFile"
-                                        class="form-control @error('uploadFile') is-invalid @enderror"
-                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                    @error('uploadFile')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
+                                    <div x-data="{ dragging: false }"
+                                        x-on:dragover.prevent="dragging = true"
+                                        x-on:dragleave.prevent="dragging = false"
+                                        x-on:drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $refs.fileInput.dispatchEvent(new Event('change', { bubbles: true }))"
+                                        :class="dragging ? 'border-primary bg-light' : 'border-secondary-subtle'"
+                                        class="border border-2 border-dashed rounded-3 p-3 text-center">
+                                        <p class="small text-muted mb-2">
+                                            <i class="ti tabler-cloud-upload me-1"></i>Drag &amp; drop file here, or click to browse
+                                        </p>
+                                        <input type="file" x-ref="fileInput" wire:model="uploadFile"
+                                            class="form-control @error('uploadFile') is-invalid @enderror"
+                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                        @error('uploadFile')
+                                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                                        @enderror
+                                    </div>
                                     <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">
                                         Uploading...</div>
                                     @if ($modalMode === 'edit')

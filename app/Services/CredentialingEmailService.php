@@ -6,6 +6,8 @@ use App\Data\SentEmailResult;
 use App\Mail\CredentialingTemplateMail;
 use App\Models\AuditLog;
 use App\Models\CredentialingCase;
+use App\Models\EmailCaseLink;
+use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -69,6 +71,9 @@ class CredentialingEmailService
         }
 
         $messageId = $this->generateMessageId();
+        $ccAddresses = [];
+        $success = true;
+        $errorMessage = null;
 
         try {
             $pendingMail = Mail::to($toAddress);
@@ -93,10 +98,46 @@ class CredentialingEmailService
                 $fromName,
             ));
         } catch (\Throwable $e) {
+            $success = false;
+            $errorMessage = $e->getMessage();
+        }
+
+        if ($case || ! $success) {
+            try {
+                EmailMessage::create([
+                    'credentialing_case_id' => $case?->id,
+                    'provider_id' => $case?->provider_id,
+                    'payer_id' => $case?->payer_id,
+                    'direction' => 'outbound',
+                    'from_address' => $from,
+                    'to_address' => $toAddress,
+                    'to_addresses' => [$toAddress],
+                    'cc_address' => $ccAddresses !== [] ? implode(', ', $ccAddresses) : $ccAddress,
+                    'cc_addresses' => $ccAddresses,
+                    'subject' => $subject,
+                    'body' => $body,
+                    'body_text' => strip_tags($body),
+                    'body_html' => $body,
+                    'message_id' => $messageId,
+                    'thread_id' => $threadId,
+                    'in_reply_to' => $inReplyTo,
+                    'status' => $success ? 'sent' : 'failed',
+                    'is_unlinked' => $case === null,
+                    'sent_at' => now(),
+                    'sent_by_admin_id' => $adminId,
+                    'notification_template_id' => $template?->id,
+                    'error_message' => $errorMessage,
+                ]);
+            } catch (\Throwable) {
+                // DB logging must never break mail sending.
+            }
+        }
+
+        if (! $success) {
             return new SentEmailResult(
                 success: false,
                 messageId: $messageId,
-                errorMessage: $e->getMessage(),
+                errorMessage: $errorMessage,
                 caseId: $case?->id,
             );
         }
@@ -126,9 +167,107 @@ class CredentialingEmailService
         );
     }
 
-    public function linkMessageToCase(string $messageId, CredentialingCase $case, ?int $adminId = null): void
-    {
+    public function linkMessageToCase(
+        string $messageId,
+        CredentialingCase $case,
+        ?int $adminId = null,
+        array $messageMeta = [],
+    ): void {
         $this->caseLinks->link($messageId, $case->id);
+
+        try {
+            $normalizedId = EmailCaseLink::normalizeMessageId($messageId) ?? $messageId;
+            $existing = EmailMessage::whereIn('message_id', array_values(array_unique(array_filter([$messageId, $normalizedId]))))->first();
+
+            if ($messageMeta === []) {
+                $graph = app(GraphMailboxService::class);
+                if ($graph->isConfigured()) {
+                    $dto = null;
+                    try {
+                        $dto = $graph->getMessage($messageId, null, false);
+                    } catch (\Throwable) {
+                        try {
+                            $page = $graph->listFolder('inbox', 1, 25);
+                            $dto = $page->items->first(function ($item) use ($messageId, $normalizedId) {
+                                return $item->id === $messageId
+                                    || $item->internetMessageId === $messageId
+                                    || $item->normalizedMessageId() === $normalizedId;
+                            });
+                        } catch (\Throwable) {
+                            $dto = null;
+                        }
+                    }
+
+                    if ($dto) {
+                        $messageMeta = [
+                            'external_message_id' => $dto->id,
+                            'direction' => $dto->direction,
+                            'from_address' => $dto->fromAddress,
+                            'to_address' => $dto->toAddress,
+                            'cc_address' => $dto->ccAddress,
+                            'subject' => $dto->subject,
+                            'body' => $dto->bodyHtml ?? $dto->bodyText ?? '',
+                            'thread_id' => $dto->conversationId,
+                            'in_reply_to' => $dto->inReplyTo,
+                            'references' => $dto->references,
+                            'received_at' => $dto->direction === 'inbound' ? ($dto->date ?? now()) : null,
+                            'sent_at' => $dto->direction === 'outbound' ? ($dto->date ?? now()) : null,
+                            'status' => 'received',
+                        ];
+                    }
+                }
+            }
+
+            $toAddress = $messageMeta['to_address'] ?? null;
+            if ($toAddress === null && isset($messageMeta['to_addresses'])) {
+                $toAddress = is_array($messageMeta['to_addresses'])
+                    ? implode(', ', $messageMeta['to_addresses'])
+                    : (string) $messageMeta['to_addresses'];
+            }
+            $toAddress = $toAddress ?? $existing?->to_address ?? (string) config('services.microsoft_graph.mailbox', 'credentialing@revantagehbs.com');
+
+            $ccAddress = $messageMeta['cc_address'] ?? null;
+            if ($ccAddress === null && isset($messageMeta['cc_addresses'])) {
+                $ccAddress = is_array($messageMeta['cc_addresses'])
+                    ? implode(', ', $messageMeta['cc_addresses'])
+                    : (string) $messageMeta['cc_addresses'];
+            }
+            $ccAddress = $ccAddress ?? $existing?->cc_address;
+
+            $body = $messageMeta['body']
+                ?? $messageMeta['body_html']
+                ?? $messageMeta['body_text']
+                ?? $existing?->body
+                ?? '';
+
+            $lookupId = $existing?->message_id ?? $messageId;
+
+            EmailMessage::updateOrCreate(
+                ['message_id' => $lookupId],
+                [
+                    'credentialing_case_id' => $case->id,
+                    'provider_id' => $case->provider_id,
+                    'payer_id' => $case->payer_id,
+                    'is_unlinked' => false,
+                    'direction' => $messageMeta['direction'] ?? $existing?->direction ?? 'inbound',
+                    'from_address' => $messageMeta['from_address'] ?? $existing?->from_address ?? 'unknown@example.com',
+                    'to_address' => $toAddress,
+                    'cc_address' => $ccAddress,
+                    'subject' => $messageMeta['subject'] ?? $existing?->subject ?? '(linked email)',
+                    'body' => $body,
+                    'status' => $messageMeta['status'] ?? $existing?->status ?? 'received',
+                    'received_at' => $messageMeta['received_at'] ?? $existing?->received_at ?? now(),
+                    'sent_at' => $messageMeta['sent_at'] ?? $existing?->sent_at,
+                    'thread_id' => $messageMeta['thread_id'] ?? $existing?->thread_id,
+                    'in_reply_to' => $messageMeta['in_reply_to'] ?? $existing?->in_reply_to,
+                    'references' => $messageMeta['references'] ?? $existing?->references,
+                    'external_message_id' => $messageMeta['external_message_id'] ?? $existing?->external_message_id,
+                ]
+            );
+        } catch (\Throwable) {
+            // Never let EmailMessage persistence break case linking.
+        }
+
         $case->addActivity('email', 'Email linked to case (Message-ID '.$messageId.')', $adminId);
         AuditLog::record('email_linked', $case, $adminId, [
             'case_id' => $case->id,

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Documents;
 
+use App\Enums\AdminRole;
 use App\Models\CredentialingCase;
 use App\Models\Document;
 use App\Models\DocumentType;
@@ -11,11 +12,13 @@ use App\Models\ProviderDetails;
 use App\Models\Task;
 use App\Services\AdminScopeService;
 use App\Services\DocumentService;
+use App\Services\FileMalwareScanner;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -24,6 +27,9 @@ use Livewire\WithPagination;
 class DocumentListPage extends Component
 {
     use WithFileUploads, WithPagination;
+
+    #[Url(as: 'view', history: true)]
+    public string $viewMode = 'table';
 
     public $search = '';
 
@@ -63,6 +69,11 @@ class DocumentListPage extends Component
     #[Locked]
     public ?int $rejectDocumentId = null;
 
+    public function setViewMode(string $mode): void
+    {
+        $this->viewMode = in_array($mode, ['table', 'folders'], true) ? $mode : 'table';
+    }
+
     protected function rules(): array
     {
         $type = DocumentType::find($this->formData['document_type_id'] ?? null);
@@ -80,6 +91,10 @@ class DocumentListPage extends Component
             'formData.state' => $stateSpecific
                 ? ['required', 'string', 'size:2', Rule::in(UsStates::codes())]
                 : 'nullable|string|max:50',
+            'formData.visibility' => 'nullable|in:standard,restricted',
+            'formData.allowed_roles' => 'nullable|array',
+            'formData.allowed_roles.*' => 'string',
+            'formData.encrypt_at_rest' => 'nullable|boolean',
             'formData.sync_credential' => 'boolean',
             'uploadFile' => ($this->modalMode === 'edit' ? 'nullable' : 'required').'|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ];
@@ -116,10 +131,14 @@ class DocumentListPage extends Component
         $admin = Auth::guard('admin')->user();
         abort_unless($admin, 403);
 
+        $scope = app(AdminScopeService::class);
         $query = Document::query();
-        app(AdminScopeService::class)->scopeDocuments($query, $admin);
+        $scope->scopeDocuments($query, $admin);
 
-        return $query->findOrFail($id);
+        $document = $query->findOrFail($id);
+        abort_unless($scope->canViewRestrictedDocument($admin, $document), 403);
+
+        return $document;
     }
 
     public function openUploadModal(): void
@@ -158,6 +177,9 @@ class DocumentListPage extends Component
             'effective_date' => $document->effective_date?->format('Y-m-d'),
             'expiry_date' => $document->expiry_date?->format('Y-m-d'),
             'state' => $document->state,
+            'visibility' => $document->visibility ?? 'standard',
+            'allowed_roles' => $document->allowed_roles ?? [],
+            'encrypt_at_rest' => false,
             'sync_credential' => (bool) $document->provider_id,
         ];
         $this->resetValidation();
@@ -166,6 +188,10 @@ class DocumentListPage extends Component
 
     public function mount(): void
     {
+        if (! in_array($this->viewMode, ['table', 'folders'], true)) {
+            $this->viewMode = 'table';
+        }
+
         if ($providerId = request()->query('provider')) {
             $this->filterProvider = $providerId;
             $this->formData['provider_id'] = $providerId;
@@ -257,8 +283,11 @@ class DocumentListPage extends Component
             'versionNotes' => 'nullable|string|max:500',
         ]);
 
+        $adminId = Auth::guard('admin')->id();
+        app(FileMalwareScanner::class)->assertClean($this->versionFile, $adminId);
+
         $document = $this->findScopedDocument((int) $this->selectedDocumentId);
-        $document->addVersion($this->versionFile, Auth::guard('admin')->id(), $this->versionNotes);
+        $document->addVersion($this->versionFile, $adminId, $this->versionNotes);
 
         $this->showVersionModal = false;
         flash()->success('New version uploaded.');
@@ -296,11 +325,11 @@ class DocumentListPage extends Component
         flash()->success('Document rejected.');
     }
 
-    public function deleteDocument(int $id): void
+    public function deleteDocument(int $id, DocumentService $documentService): void
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.documents.delete'), 403);
 
-        $this->findScopedDocument($id)->delete();
+        $documentService->delete($this->findScopedDocument($id), Auth::guard('admin')->id());
         flash()->info('Document deleted.');
     }
 
@@ -336,6 +365,9 @@ class DocumentListPage extends Component
         $this->formData = [
             'sync_credential' => true,
             'document_number' => '',
+            'visibility' => 'standard',
+            'allowed_roles' => [],
+            'encrypt_at_rest' => false,
         ];
         $this->uploadFile = null;
         $this->autoFilledPracticeId = null;
@@ -352,7 +384,9 @@ class DocumentListPage extends Component
             'practice',
             'payer',
             'credentialingCase.payer',
-            'versions' => fn ($q) => $q->where('is_current', true),
+            'versions' => fn ($q) => $this->viewMode === 'folders'
+                ? $q->orderByDesc('version_number')
+                : $q->where('is_current', true),
         ]);
         if ($admin) {
             $scope->scopeDocuments($query, $admin);
@@ -408,6 +442,22 @@ class DocumentListPage extends Component
             });
         }
 
+        $folderTree = [];
+        if ($this->viewMode === 'folders') {
+            $allScopedDocs = (clone $query)->orderBy('state')->latest()->get()
+                ->filter(fn (Document $doc) => ! $admin || $scope->canViewRestrictedDocument($admin, $doc));
+
+            foreach ($allScopedDocs as $doc) {
+                $ownerName = $doc->provider?->user?->name
+                    ? 'Provider: '.$doc->provider->user->name
+                    : ($doc->practice?->legal_name
+                        ? 'Practice: '.$doc->practice->legal_name
+                        : 'General / Unassigned');
+                $typeName = $doc->documentType?->name ?? 'Uncategorized';
+                $folderTree[$ownerName][$typeName][] = $doc;
+            }
+        }
+
         $documents = $query->orderBy('state')->latest()->paginate(15);
 
         $statsBase = Document::query();
@@ -429,6 +479,7 @@ class DocumentListPage extends Component
 
         return view('livewire.admin.documents.document-list-page', [
             'documents' => $documents,
+            'folderTree' => $folderTree,
             'stats' => $stats,
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
             'providers' => $providerQuery->get(),
@@ -436,6 +487,7 @@ class DocumentListPage extends Component
             'payers' => Payer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'cases' => $caseQuery->limit(50)->get(),
             'states' => UsStates::all(),
+            'availableRoles' => AdminRole::cases(),
             'selectedType' => DocumentType::find($this->formData['document_type_id'] ?? null),
             'canUpload' => (bool) $admin?->can('admin.documents.upload'),
         ]);

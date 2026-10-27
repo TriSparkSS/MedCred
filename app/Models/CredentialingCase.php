@@ -50,6 +50,8 @@ class CredentialingCase extends Model
         'notes',
         'is_escalated',
         'do_not_automate',
+        'automation_paused',
+        'automation_pause_reason',
         'last_action_at',
     ];
 
@@ -64,6 +66,7 @@ class CredentialingCase extends Model
         'billing_notified' => 'boolean',
         'ready_to_bill' => 'boolean',
         'do_not_automate' => 'boolean',
+        'automation_paused' => 'boolean',
         'termination_date' => 'date',
         'revalidation_due_date' => 'date',
         'next_follow_up_date' => 'date',

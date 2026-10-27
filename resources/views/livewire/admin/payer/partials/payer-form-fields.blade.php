@@ -117,3 +117,61 @@
         </div>
     </div>
 @endforeach
+
+@if (isset($contacts))
+    <div class="mt-4 mb-3 pb-3 border-bottom">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="text-primary fw-semibold mb-1"><i class="ti tabler-address-book me-2"></i>Payer Contact People</h6>
+                <p class="text-muted small mb-0">Manage escalation reps, regional contacts, and provider relations contacts.</p>
+            </div>
+            <button type="button" wire:click="addContact" class="btn btn-sm btn-outline-primary">
+                <i class="ti tabler-plus me-1"></i>Add Contact
+            </button>
+        </div>
+    </div>
+
+    @foreach ($contacts as $index => $contact)
+        <div class="border rounded-3 p-3 mb-3 bg-light bg-opacity-50" wire:key="payer-contact-{{ $index }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">Contact Name</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.name" class="form-control @error('contacts.' . $index . '.name') is-invalid @enderror" placeholder="Full Name">
+                    @error('contacts.' . $index . '.name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">Role</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.role" class="form-control @error('contacts.' . $index . '.role') is-invalid @enderror" placeholder="e.g. Escalation Rep">
+                    @error('contacts.' . $index . '.role')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">Email</label>
+                    <input type="email" wire:model="contacts.{{ $index }}.email" class="form-control @error('contacts.' . $index . '.email') is-invalid @enderror" placeholder="rep@payer.com">
+                    @error('contacts.' . $index . '.email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">Phone</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.phone" class="form-control @error('contacts.' . $index . '.phone') is-invalid @enderror" placeholder="Phone / Ext">
+                    @error('contacts.' . $index . '.phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">State / Region</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.state_region" class="form-control" placeholder="e.g. TX, Southwest">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-medium">Escalation Level</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.escalation_level" class="form-control" placeholder="e.g. Level 1, Supervisor">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-medium">Notes</label>
+                    <input type="text" wire:model="contacts.{{ $index }}.notes" class="form-control" placeholder="Direct line hours, notes...">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" wire:click="removeContact({{ $index }})" class="btn btn-outline-danger w-100">
+                        <i class="ti tabler-trash me-1"></i>Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endforeach
+@endif

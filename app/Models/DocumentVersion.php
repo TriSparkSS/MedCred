@@ -18,10 +18,12 @@ class DocumentVersion extends Model
         'uploaded_by_user_id',
         'notes',
         'is_current',
+        'is_encrypted',
     ];
 
     protected $casts = [
         'is_current' => 'boolean',
+        'is_encrypted' => 'boolean',
     ];
 
     public function document(): BelongsTo

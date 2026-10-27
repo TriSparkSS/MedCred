@@ -48,6 +48,11 @@ class DashboardService
 
         $activeCases = $caseQuery()->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories));
 
+        $revenueStuckCount = $caseQuery()
+            ->where('ready_to_bill', false)
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', ['closed']))
+            ->count();
+
         $documentQuery = Document::expiringSoon(30);
         if ($admin) {
             $this->scope->scopeDocuments($documentQuery, $admin);
@@ -66,6 +71,7 @@ class DashboardService
             'overdue_followups' => $this->scopedCategoryCount('overdue', $admin) + $taskOverdueQuery->count(),
             'expiring_documents' => $documentQuery->count(),
             'rush_cases' => $rushCount,
+            'revenue_stuck' => $revenueStuckCount,
         ];
     }
 

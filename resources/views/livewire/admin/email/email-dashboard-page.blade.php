@@ -66,7 +66,7 @@
     </div>
 
     <div class="mb-3">
-        <ul class="nav nav-pills gap-2">
+        <ul class="nav nav-pills flex-wrap gap-2">
             <li class="nav-item">
                 <button type="button" wire:click="setFilter('inbox')" class="nav-link {{ $filter === 'inbox' ? 'active' : '' }}">
                     <i class="ti tabler-inbox me-1"></i>Inbox
@@ -74,8 +74,23 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button type="button" wire:click="setFilter('unread')" class="nav-link {{ $filter === 'unread' ? 'active' : '' }}">
+                    <i class="ti tabler-mail-Opened me-1"></i>Unread Priority
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" wire:click="setFilter('unlinked')" class="nav-link {{ $filter === 'unlinked' ? 'active' : '' }}">
+                    <i class="ti tabler-unlink me-1"></i>Unlinked
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" wire:click="setFilter('bounced')" class="nav-link {{ $filter === 'bounced' ? 'active' : '' }}">
+                    <i class="ti tabler-alert-octagon me-1"></i>Bounced / Failed
+                </button>
+            </li>
+            <li class="nav-item">
                 <button type="button" wire:click="setFilter('sent')" class="nav-link {{ $filter === 'sent' ? 'active' : '' }}">
-                    <i class="ti tabler-send me-1"></i>Sent Items
+                    <i class="ti tabler-send me-1"></i>Sent
                     <span class="badge bg-label-{{ $filter === 'sent' ? 'light' : 'primary' }} ms-1">{{ $stats['total_sent'] }}</span>
                 </button>
             </li>
@@ -101,11 +116,11 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th style="width: 28%">From / To</th>
+                        <th style="width: 26%">From / To</th>
                         <th>Subject</th>
                         <th style="width: 140px">Date</th>
-                        <th style="width: 120px">Case</th>
-                        <th class="text-end" style="width: 160px">Actions</th>
+                        <th style="width: 180px">Case</th>
+                        <th class="text-end" style="width: 180px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -115,17 +130,31 @@
                             $normalizedId = $email->normalizedMessageId();
                             $caseId = $normalizedId ? ($caseMap[$normalizedId] ?? null) : null;
                             $linkedCase = $caseId ? ($linkedCases[$caseId] ?? null) : null;
+                            $suggestion = ! $linkedCase ? ($suggestions[$email->id] ?? ($normalizedId ? ($suggestions[$normalizedId] ?? null) : null)) : null;
+                            $suggestedCase = $suggestion['case'] ?? null;
+                            $isBounced = $bouncedMap[$email->id] ?? false;
                             $viewUrl = route('admin.email.show', ['folder' => $filter === 'sent' ? 'sent' : 'inbox', 'messageId' => $encodedId]);
                         @endphp
-                        <tr wire:key="graph-mail-{{ $email->id }}">
+                        <tr wire:key="graph-mail-{{ $email->id }}" class="{{ ! $email->isRead ? 'table-light fw-bold' : '' }}">
                             <td>
-                                <div class="fw-semibold">{{ $email->direction === 'inbound' ? $email->fromName : $email->toAddress }}</div>
+                                <div class="d-flex align-items-center gap-1">
+                                    @if (! $email->isRead)
+                                        <span class="badge badge-dot bg-primary" title="Unread"></span>
+                                    @endif
+                                    <span class="fw-semibold">{{ $email->direction === 'inbound' ? $email->fromName : $email->toAddress }}</span>
+                                </div>
                                 <small class="text-muted">{{ $email->direction === 'inbound' ? $email->fromAddress : $email->fromAddress }}</small>
                             </td>
                             <td>
                                 <a href="{{ $viewUrl }}" class="fw-semibold text-decoration-none">
                                     {{ $email->subject }}
                                 </a>
+                                @if ($isBounced)
+                                    <span class="badge bg-label-danger ms-1">Bounced / Failed</span>
+                                @endif
+                                @if (! $email->isRead)
+                                    <span class="badge bg-label-info ms-1">Unread</span>
+                                @endif
                                 @if ($email->hasAttachments)
                                     <i class="ti tabler-paperclip text-muted ms-1" title="Has attachments"></i>
                                 @endif
@@ -136,6 +165,23 @@
                             <td>
                                 @if ($linkedCase)
                                     <span class="badge bg-label-success">{{ $linkedCase->case_number }}</span>
+                                @elseif ($suggestedCase)
+                                    <div class="d-flex flex-wrap align-items-center gap-1">
+                                        <span class="badge bg-label-warning" title="Smart-tag suggestion ({{ $suggestion['confidence'] ?? 'medium' }} confidence)">
+                                            Suggested: {{ $suggestedCase->case_number }}
+                                        </span>
+                                        @if (($canLink ?? false) && $email->internetMessageId)
+                                            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1"
+                                                wire:click="quickLinkCase({{ json_encode($email->internetMessageId) }}, {{ $suggestedCase->id }})"
+                                                title="Quick link to {{ $suggestedCase->case_number }}">
+                                                <i class="ti tabler-check"></i> Quick Link
+                                            </button>
+                                        @endif
+                                    </div>
+                                @elseif ($suggestion && (! empty($suggestion['provider']) || ! empty($suggestion['practice'])))
+                                    <span class="badge bg-label-info">
+                                        Suggested: {{ $suggestion['provider']?->user?->name ?? $suggestion['practice']?->legal_name }}
+                                    </span>
                                 @else
                                     <span class="text-muted small">—</span>
                                 @endif

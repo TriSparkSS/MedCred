@@ -2,12 +2,16 @@
 
 namespace App\Livewire\Admin\Email;
 
+use App\Data\MailMessageDto;
 use App\Models\CredentialingCase;
+use App\Models\EmailCaseLink;
+use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
 use App\Models\ProviderDetails;
 use App\Services\AdminScopeService;
 use App\Services\CredentialingEmailService;
 use App\Services\EmailCaseLinkService;
+use App\Services\EmailMatchingService;
 use App\Services\GraphMailboxService;
 use App\Services\MailSettingsService;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +22,8 @@ use Livewire\Component;
 #[Layout('layouts::admin', ['title' => 'Email Center'])]
 class EmailDashboardPage extends Component
 {
+    public const ALLOWED_FILTERS = ['inbox', 'unread', 'unlinked', 'bounced', 'sent'];
+
     #[Url(as: 'folder', history: true)]
     public string $filter = 'inbox';
 
@@ -72,7 +78,7 @@ class EmailDashboardPage extends Component
     public function mount(): void
     {
         $this->resetComposeForm();
-        if (! in_array($this->filter, ['inbox', 'sent'], true)) {
+        if (! in_array($this->filter, self::ALLOWED_FILTERS, true)) {
             $this->filter = 'inbox';
         }
     }
@@ -106,7 +112,7 @@ class EmailDashboardPage extends Component
 
     public function setFilter(string $filter): void
     {
-        $this->filter = in_array($filter, ['inbox', 'sent'], true) ? $filter : 'inbox';
+        $this->filter = in_array($filter, self::ALLOWED_FILTERS, true) ? $filter : 'inbox';
         $this->page = 1;
     }
 
@@ -209,6 +215,10 @@ class EmailDashboardPage extends Component
         }
 
         $caseLinks->unlink($targetMessageId);
+        $normalized = EmailCaseLink::normalizeMessageId($targetMessageId);
+        EmailMessage::whereIn('message_id', array_values(array_unique(array_filter([$targetMessageId, $normalized]))))
+            ->update(['credentialing_case_id' => null, 'is_unlinked' => true]);
+
         $this->notify('info', 'Email unlinked from case.');
     }
 
@@ -388,6 +398,33 @@ class EmailDashboardPage extends Component
         $this->sendEmail($emailService);
     }
 
+    protected function localMessageToDto(EmailMessage $msg): MailMessageDto
+    {
+        $date = $msg->received_at ?? $msg->sent_at ?? $msg->created_at;
+        $rawId = $msg->message_id ?: ('local-'.$msg->id.'@revantage.local');
+
+        return new MailMessageDto(
+            id: (string) ($msg->external_message_id ?: ('local-'.$msg->id)),
+            folder: $msg->direction === 'outbound' ? 'sentitems' : 'inbox',
+            direction: $msg->direction ?? 'inbound',
+            internetMessageId: MailMessageDto::normalizeMessageId($rawId),
+            conversationId: $msg->thread_id,
+            inReplyTo: $msg->in_reply_to,
+            references: $msg->references,
+            subject: (string) ($msg->subject ?? '(no subject)'),
+            fromAddress: (string) ($msg->from_address ?? ''),
+            fromName: $msg->fromDisplayName(),
+            toAddress: (string) ($msg->to_address ?? ''),
+            ccAddress: $msg->cc_address,
+            bodyHtml: $msg->body,
+            bodyText: $msg->displayBody(),
+            hasAttachments: false,
+            attachments: [],
+            date: $date,
+            isRead: $msg->status !== 'unread',
+        );
+    }
+
     public function render(
         CredentialingEmailService $emailService,
         MailSettingsService $mailSettings,
@@ -396,7 +433,8 @@ class EmailDashboardPage extends Component
     ) {
         $admin = Auth::guard('admin')->user();
         $scope = app(AdminScopeService::class);
-        $folder = $graph->normalizeFolder($this->filter);
+        $matching = app(EmailMatchingService::class);
+        $folder = $graph->normalizeFolder($this->filter === 'sent' ? 'sent' : 'inbox');
         $this->mailboxError = null;
         $emails = collect();
         $total = 0;
@@ -420,8 +458,110 @@ class EmailDashboardPage extends Component
                 $caseMap = $caseLinks->caseIdsForMessageIds(
                     $emails->map(fn ($m) => $m->internetMessageId)->all()
                 );
+
+                if ($this->filter === 'unread') {
+                    $emails = $emails
+                        ->filter(fn (MailMessageDto $m) => ! $m->isRead)
+                        ->sortByDesc(fn (MailMessageDto $m) => $m->date?->timestamp ?? 0)
+                        ->values();
+                    $total = $emails->count();
+                } elseif ($this->filter === 'unlinked') {
+                    $emails = $emails
+                        ->filter(function (MailMessageDto $m) use ($caseMap): bool {
+                            $norm = $m->normalizedMessageId();
+
+                            return ! $norm || ! isset($caseMap[$norm]);
+                        })
+                        ->values();
+                    $total = $emails->count();
+                } elseif ($this->filter === 'bounced') {
+                    $emails = $emails
+                        ->filter(fn (MailMessageDto $m) => $matching->isBounceOrFailure($m->subject, $m->fromAddress, $m->displayBody()))
+                        ->values();
+
+                    $localBounced = EmailMessage::whereIn('status', ['failed', 'bounced'])
+                        ->latest('id')
+                        ->limit($perPage)
+                        ->get();
+
+                    foreach ($localBounced as $localMsg) {
+                        $dto = $this->localMessageToDto($localMsg);
+                        if (! $emails->contains(fn (MailMessageDto $m) => $m->normalizedMessageId() === $dto->normalizedMessageId())) {
+                            $emails->push($dto);
+                            if ($localMsg->credentialing_case_id && $dto->normalizedMessageId()) {
+                                $caseMap[$dto->normalizedMessageId()] = $localMsg->credentialing_case_id;
+                            }
+                        }
+                    }
+
+                    $total = $emails->count();
+                }
             } catch (\Throwable $e) {
                 $this->mailboxError = $e->getMessage();
+            }
+        } else {
+            $localQuery = EmailMessage::query();
+
+            if ($this->search !== '') {
+                $term = $this->search;
+                $localQuery->where(function ($q) use ($term) {
+                    $q->where('subject', 'like', "%{$term}%")
+                        ->orWhere('from_address', 'like', "%{$term}%")
+                        ->orWhere('to_address', 'like', "%{$term}%");
+                });
+            }
+
+            if ($this->filter === 'sent') {
+                $localItems = (clone $localQuery)
+                    ->where('direction', 'outbound')
+                    ->where('status', 'sent')
+                    ->latest('sent_at')
+                    ->latest('id')
+                    ->get();
+            } elseif ($this->filter === 'unread') {
+                $localItems = (clone $localQuery)
+                    ->where('direction', 'inbound')
+                    ->where('status', 'unread')
+                    ->latest('received_at')
+                    ->latest('id')
+                    ->get();
+            } elseif ($this->filter === 'unlinked') {
+                $localItems = (clone $localQuery)
+                    ->where(function ($q) {
+                        $q->where('is_unlinked', true)
+                            ->orWhereNull('credentialing_case_id');
+                    })
+                    ->latest('id')
+                    ->get();
+            } elseif ($this->filter === 'bounced') {
+                $localItems = (clone $localQuery)
+                    ->latest('id')
+                    ->get()
+                    ->filter(fn (EmailMessage $m) => in_array($m->status, ['failed', 'bounced'], true)
+                        || $matching->isBounceOrFailure((string) $m->subject, $m->from_address, (string) $m->body))
+                    ->values();
+            } else {
+                $localItems = (clone $localQuery)
+                    ->where('direction', 'inbound')
+                    ->latest('received_at')
+                    ->latest('id')
+                    ->get();
+            }
+
+            $emails = $localItems->map(fn (EmailMessage $m) => $this->localMessageToDto($m))->values();
+            $total = $emails->count();
+
+            $caseMap = $caseLinks->caseIdsForMessageIds(
+                $emails->map(fn ($m) => $m->internetMessageId)->all()
+            );
+
+            foreach ($localItems as $localMsg) {
+                if ($localMsg->credentialing_case_id && ! $localMsg->is_unlinked) {
+                    $norm = EmailCaseLink::normalizeMessageId($localMsg->message_id ?: ('local-'.$localMsg->id.'@revantage.local'));
+                    if ($norm) {
+                        $caseMap[$norm] = $localMsg->credentialing_case_id;
+                    }
+                }
             }
         }
 
@@ -434,6 +574,30 @@ class EmailDashboardPage extends Component
             $linkedCases = $linkedCasesQuery
                 ->get(['id', 'case_number'])
                 ->keyBy('id');
+        }
+
+        $suggestions = [];
+        $bouncedMap = [];
+        foreach ($emails as $email) {
+            $normId = $email->normalizedMessageId();
+            $isLinked = $normId && isset($caseMap[$normId]);
+
+            if ($matching->isBounceOrFailure($email->subject, $email->fromAddress, $email->displayBody()) || $this->filter === 'bounced') {
+                $bouncedMap[$email->id] = true;
+            }
+
+            if (! $isLinked) {
+                $match = $matching->match($email->subject, $email->displayBody(), $email->fromAddress);
+                if (($match['confidence'] ?? 'none') !== 'none' && (! empty($match['case']) || ! empty($match['provider']) || ! empty($match['practice']))) {
+                    if (! empty($match['case']) && $admin && ! $scope->canAccessCase($admin, $match['case'])) {
+                        continue;
+                    }
+                    $suggestions[$email->id] = $match;
+                    if ($normId) {
+                        $suggestions[$normId] = $match;
+                    }
+                }
+            }
         }
 
         $casesQuery = CredentialingCase::with('provider.user')->latest();
@@ -451,6 +615,8 @@ class EmailDashboardPage extends Component
             'stats' => $stats,
             'caseMap' => $caseMap,
             'linkedCases' => $linkedCases,
+            'suggestions' => $suggestions,
+            'bouncedMap' => $bouncedMap,
             'templates' => NotificationTemplate::where('is_active', true)->orderBy('name')->get(),
             'cases' => $casesQuery->limit(100)->get(['id', 'case_number', 'provider_id']),
             'providers' => $providersQuery->limit(100)->get(['id', 'user_id', 'npi']),
@@ -463,3 +629,4 @@ class EmailDashboardPage extends Component
         ]);
     }
 }
+

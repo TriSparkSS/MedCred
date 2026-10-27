@@ -4,20 +4,15 @@ namespace App\Services;
 
 use App\Enums\AdminRole;
 use App\Enums\TaskType;
-use App\Mail\CredentialingTemplateMail;
 use App\Models\Admin;
 use App\Models\CaseSlaEvent;
 use App\Models\CaseSlaTimer;
 use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
-use App\Models\EmailMessage;
-use App\Models\NotificationTemplate;
 use App\Models\SlaRule;
 use App\Models\Status;
 use App\Models\Task;
 use App\Support\BusinessDayCalculator;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class SlaEngineService
 {
@@ -26,11 +21,67 @@ class SlaEngineService
         protected CredentialingEmailService $emailService,
     ) {}
 
+    public function resolveRuleForCase(CredentialingCase $case, string $ruleKey): ?SlaRule
+    {
+        $candidates = SlaRule::where('rule_key', $ruleKey)
+            ->where(function ($q) use ($case) {
+                $q->whereNull('payer_id');
+                if ($case->payer_id) {
+                    $q->orWhere('payer_id', $case->payer_id);
+                }
+            })
+            ->where(function ($q) use ($case) {
+                $q->whereNull('practice_id');
+                if ($case->practice_id) {
+                    $q->orWhere('practice_id', $case->practice_id);
+                }
+            })
+            ->where(function ($q) use ($case) {
+                $q->whereNull('case_type_id');
+                if ($case->case_type_id) {
+                    $q->orWhere('case_type_id', $case->case_type_id);
+                }
+            })
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        $best = $candidates->sort(function (SlaRule $a, SlaRule $b): int {
+            $specA = ($a->payer_id !== null ? 1 : 0) + ($a->practice_id !== null ? 1 : 0) + ($a->case_type_id !== null ? 1 : 0);
+            $specB = ($b->payer_id !== null ? 1 : 0) + ($b->practice_id !== null ? 1 : 0) + ($b->case_type_id !== null ? 1 : 0);
+
+            if ($specA !== $specB) {
+                return $specB <=> $specA;
+            }
+
+            $weightA = ($a->payer_id !== null ? 4 : 0) + ($a->practice_id !== null ? 2 : 0) + ($a->case_type_id !== null ? 1 : 0);
+            $weightB = ($b->payer_id !== null ? 4 : 0) + ($b->practice_id !== null ? 2 : 0) + ($b->case_type_id !== null ? 1 : 0);
+
+            if ($weightA !== $weightB) {
+                return $weightB <=> $weightA;
+            }
+
+            return $b->id <=> $a->id;
+        })->first();
+
+        if (! $best || ! $best->is_active) {
+            return null;
+        }
+
+        return $best;
+    }
+
     public function syncTimersForCase(CredentialingCase $case, Status $status): void
     {
         CaseSlaTimer::where('credentialing_case_id', $case->id)
             ->where('status', 'active')
             ->update(['status' => 'completed', 'completed_at' => now()]);
+
+        if ($case->automation_paused || $case->do_not_automate || $this->caseIsClosed($case)) {
+            return;
+        }
 
         $category = $status->dashboard_category;
 
@@ -48,7 +99,11 @@ class SlaEngineService
 
     public function startTimer(CredentialingCase $case, string $ruleKey): ?CaseSlaTimer
     {
-        $rule = SlaRule::where('rule_key', $ruleKey)->where('is_active', true)->first();
+        if ($case->automation_paused || $case->do_not_automate || $this->caseIsClosed($case)) {
+            return null;
+        }
+
+        $rule = $this->resolveRuleForCase($case, $ruleKey);
         if (! $rule) {
             return null;
         }
@@ -73,6 +128,8 @@ class SlaEngineService
 
         $timers = CaseSlaTimer::with([
             'credentialingCase.status',
+            'credentialingCase.delayOwner',
+            'credentialingCase.delayOverrides',
             'credentialingCase.assignedAdmin',
             'credentialingCase.provider.user',
             'credentialingCase.payer',
@@ -82,14 +139,24 @@ class SlaEngineService
             ->get();
 
         foreach ($timers as $timer) {
-            $rule = SlaRule::where('rule_key', $timer->rule_key)->where('is_active', true)->first();
+            $case = $timer->credentialingCase;
+            if (! $case || $this->caseIsClosed($case) || $case->automation_paused || $case->do_not_automate) {
+                $timer->markCompleted();
+                continue;
+            }
+
+            $rule = $this->resolveRuleForCase($case, $timer->rule_key);
             if (! $rule) {
                 $timer->markCompleted();
                 continue;
             }
 
-            $case = $timer->credentialingCase;
-            if (! $case || $this->caseIsClosed($case)) {
+            if ($this->hasConflictingDelayOverride($case, $rule)) {
+                $timer->markCompleted();
+                continue;
+            }
+
+            if ($rule->action === 'reminder' && $this->hasDuplicateReminderEvent($case, $rule, $timer)) {
                 $timer->markCompleted();
                 continue;
             }
@@ -111,6 +178,12 @@ class SlaEngineService
 
     protected function executeRuleAction(CredentialingCase $case, SlaRule $rule, CaseSlaTimer $timer): void
     {
+        if ($rule->action === 'reminder') {
+            $this->sendReminder($case, $rule, $timer);
+
+            return;
+        }
+
         CaseSlaEvent::create([
             'credentialing_case_id' => $case->id,
             'rule_key' => $rule->rule_key,
@@ -119,16 +192,34 @@ class SlaEngineService
         ]);
 
         match ($rule->action) {
-            'reminder' => $this->sendReminder($case, $rule),
             'escalate' => $this->escalateCase($case, $rule),
             'task' => $this->createFollowUpTask($case, $rule),
-            'shift_delay' => $this->shiftDelayOwner($case, $rule),
+            'shift_delay', 'shift_delay_owner' => $this->shiftDelayOwner($case, $rule),
             default => null,
         };
     }
 
-    protected function sendReminder(CredentialingCase $case, SlaRule $rule): void
+    protected function sendReminder(CredentialingCase $case, SlaRule $rule, ?CaseSlaTimer $timer = null): void
     {
+        if ($case->automation_paused || $case->do_not_automate || $this->caseIsClosed($case)) {
+            return;
+        }
+
+        if ($this->hasConflictingDelayOverride($case, $rule)) {
+            return;
+        }
+
+        if ($this->hasDuplicateReminderEvent($case, $rule, $timer)) {
+            return;
+        }
+
+        CaseSlaEvent::create([
+            'credentialing_case_id' => $case->id,
+            'rule_key' => $rule->rule_key,
+            'event_type' => 'reminder',
+            'metadata' => $timer ? ['timer_id' => $timer->id] : [],
+        ]);
+
         if (! $rule->notification_template_id) {
             return;
         }
@@ -154,6 +245,90 @@ class SlaEngineService
         );
 
         $case->addActivity('system', 'Auto-reminder sent: ' . $rule->name);
+    }
+
+    protected function hasDuplicateReminderEvent(CredentialingCase $case, SlaRule $rule, ?CaseSlaTimer $timer = null): bool
+    {
+        $recentExists = CaseSlaEvent::where('credentialing_case_id', $case->id)
+            ->where('rule_key', $rule->rule_key)
+            ->where('event_type', 'reminder')
+            ->where('created_at', '>=', now()->subHours(24))
+            ->exists();
+
+        if ($recentExists) {
+            return true;
+        }
+
+        if ($timer) {
+            $events = CaseSlaEvent::where('credentialing_case_id', $case->id)
+                ->where('rule_key', $rule->rule_key)
+                ->where('event_type', 'reminder')
+                ->get();
+
+            foreach ($events as $event) {
+                if (($event->metadata['timer_id'] ?? null) == $timer->id) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    protected function hasConflictingDelayOverride(CredentialingCase $case, SlaRule $rule): bool
+    {
+        $hasManualOverride = filled($case->delay_override_reason ?? null)
+            || ($case->relationLoaded('delayOverrides') ? $case->delayOverrides->isNotEmpty() : $case->delayOverrides()->exists());
+
+        if (! $hasManualOverride) {
+            return false;
+        }
+
+        $ruleCategory = $rule->dashboard_category ?: $this->inferCategoryFromRuleKey($rule->rule_key);
+        if (! $ruleCategory) {
+            return false;
+        }
+
+        $case->loadMissing('delayOwner');
+        $ownerCategory = $this->categoryForDelayOwner($case->delayOwner);
+
+        return $ownerCategory !== $ruleCategory;
+    }
+
+    protected function inferCategoryFromRuleKey(string $ruleKey): ?string
+    {
+        $lower = strtolower($ruleKey);
+        if (str_starts_with($lower, 'provider')) {
+            return 'provider';
+        }
+        if (str_starts_with($lower, 'payer')) {
+            return 'payer';
+        }
+        if (str_starts_with($lower, 'internal')) {
+            return 'internal';
+        }
+
+        return null;
+    }
+
+    protected function categoryForDelayOwner(?DelayOwner $owner): ?string
+    {
+        if (! $owner || blank($owner->name)) {
+            return null;
+        }
+
+        $name = strtolower($owner->name);
+        if (str_contains($name, 'provider') || str_contains($name, 'practice')) {
+            return 'provider';
+        }
+        if (str_contains($name, 'payer')) {
+            return 'payer';
+        }
+        if (str_contains($name, 'revantage') || str_contains($name, 'internal') || str_contains($name, 'team')) {
+            return 'internal';
+        }
+
+        return null;
     }
 
     protected function escalateCase(CredentialingCase $case, SlaRule $rule): void

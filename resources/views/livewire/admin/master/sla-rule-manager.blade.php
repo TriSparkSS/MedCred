@@ -28,6 +28,7 @@
                     <tr>
                         <th>Name</th>
                         <th>Rule Key</th>
+                        <th>Payer / Practice / Case Type</th>
                         <th>Category</th>
                         <th>Business Days</th>
                         <th>Action</th>
@@ -41,6 +42,13 @@
                         <tr>
                             <td class="fw-semibold">{{ $record->name }}</td>
                             <td><code>{{ $record->rule_key }}</code></td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <span class="badge bg-label-primary">{{ $record->payer->name ?? 'All Payers' }}</span>
+                                    <span class="badge bg-label-secondary">{{ $record->practice->legal_name ?? 'All Practices' }}</span>
+                                    <span class="badge bg-label-dark">{{ $record->caseType->name ?? 'All Case Types' }}</span>
+                                </div>
+                            </td>
                             <td><span
                                     class="badge bg-label-info">{{ $dashboardCategories[$record->dashboard_category] ?? ($record->dashboard_category ?: 'N/A') }}</span>
                             </td>
@@ -62,7 +70,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center py-5 text-muted">No SLA rules found.</td>
+                            <td colspan="9" class="text-center py-5 text-muted">No SLA rules found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -96,6 +104,45 @@
                                     <input type="text" wire:model="formData.rule_key"
                                         class="form-control @error('formData.rule_key') is-invalid @enderror">
                                     @error('formData.rule_key')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Payer (Optional / All)</label>
+                                    <select wire:model="formData.payer_id"
+                                        class="form-select @error('formData.payer_id') is-invalid @enderror">
+                                        <option value="">All Payers</option>
+                                        @foreach ($payers as $payer)
+                                            <option value="{{ $payer->id }}">{{ $payer->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('formData.payer_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Practice (Optional / All)</label>
+                                    <select wire:model="formData.practice_id"
+                                        class="form-select @error('formData.practice_id') is-invalid @enderror">
+                                        <option value="">All Practices</option>
+                                        @foreach ($practices as $practice)
+                                            <option value="{{ $practice->id }}">{{ $practice->legal_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('formData.practice_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Case Type (Optional / All)</label>
+                                    <select wire:model="formData.case_type_id"
+                                        class="form-select @error('formData.case_type_id') is-invalid @enderror">
+                                        <option value="">All Case Types</option>
+                                        @foreach ($caseTypes as $caseType)
+                                            <option value="{{ $caseType->id }}">{{ $caseType->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('formData.case_type_id')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
                                 </div>

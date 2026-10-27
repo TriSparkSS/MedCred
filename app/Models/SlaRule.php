@@ -12,6 +12,9 @@ class SlaRule extends Model
     protected $fillable = [
         'name',
         'rule_key',
+        'payer_id',
+        'practice_id',
+        'case_type_id',
         'dashboard_category',
         'business_days',
         'action',
@@ -23,6 +26,21 @@ class SlaRule extends Model
         'business_days' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    public function payer(): BelongsTo
+    {
+        return $this->belongsTo(Payer::class);
+    }
+
+    public function practice(): BelongsTo
+    {
+        return $this->belongsTo(Practice::class);
+    }
+
+    public function caseType(): BelongsTo
+    {
+        return $this->belongsTo(CaseType::class);
+    }
 
     public function notificationTemplate(): BelongsTo
     {

@@ -278,8 +278,18 @@
                             @endif
                             <div class="col-12">
                                 <label class="form-label">File @if ($modalMode !== 'edit')<span class="text-danger">*</span>@endif</label>
-                                <input type="file" wire:model="uploadFile" class="form-control @error('uploadFile') is-invalid @enderror" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                @error('uploadFile')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div x-data="{ dragging: false }"
+                                    x-on:dragover.prevent="dragging = true"
+                                    x-on:dragleave.prevent="dragging = false"
+                                    x-on:drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $refs.fileInput.dispatchEvent(new Event('change', { bubbles: true }))"
+                                    :class="dragging ? 'border-primary bg-light' : 'border-secondary-subtle'"
+                                    class="border border-2 border-dashed rounded-3 p-3 text-center">
+                                    <p class="small text-muted mb-2">
+                                        <i class="ti tabler-cloud-upload me-1"></i>Drag &amp; drop file here, or click to browse
+                                    </p>
+                                    <input type="file" x-ref="fileInput" wire:model="uploadFile" class="form-control @error('uploadFile') is-invalid @enderror" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                    @error('uploadFile')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                </div>
                                 <div wire:loading wire:target="uploadFile" class="text-muted small mt-1">Uploading...</div>
                                 @if ($modalMode === 'edit')
                                     <div class="form-text">Leave empty to keep the current file. Upload a file to replace it.</div>

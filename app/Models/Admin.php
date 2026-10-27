@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'username', 'avatar', 'phone', 'email', 'status', 'is_two_factor', 'email_verified_at', 'password', 'remember_token'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'username', 'avatar', 'phone', 'email', 'status', 'is_two_factor', 'two_factor_code', 'two_factor_expires_at', 'failed_login_attempts', 'locked_until', 'email_verified_at', 'password', 'password_changed_at', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'two_factor_code'])]
 class Admin extends Authenticatable
 {
     use HasRoles, Notifiable, SoftDeletes;
@@ -23,8 +23,17 @@ class Admin extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'is_two_factor' => 'boolean',
+            'two_factor_expires_at' => 'datetime',
+            'failed_login_attempts' => 'integer',
+            'locked_until' => 'datetime',
             'password' => 'hashed',
+            'password_changed_at' => 'datetime',
         ];
+    }
+
+    public function isLockedOut(): bool
+    {
+        return $this->locked_until !== null && $this->locked_until->isFuture();
     }
 
     public function scopeActive($query)

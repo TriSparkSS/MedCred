@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\CredentialingCase;
 use App\Models\Document;
+use App\Models\EmailMessage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -73,11 +75,27 @@ class ReportExportService
                 'type' => 'Operational',
                 'link' => route('admin.credentials'),
             ],
+            'approval_denial_trends' => [
+                'name' => 'Approval & Denial Trends',
+                'description' => 'Approval rates, denied counts, and turnaround breakdown by payer and state.',
+                'type' => 'Analytics',
+            ],
+            'panel_closed_summary' => [
+                'name' => 'Panel-Closed & Rejection Report',
+                'description' => 'Applications closed due to closed payer panels or denials by payer, state, and specialty.',
+                'type' => 'Analytics',
+            ],
         ];
     }
 
     public function export(string $type): StreamedResponse
     {
+        if (! array_key_exists($type, self::definitions())) {
+            abort(404, 'Report not found.');
+        }
+
+        AuditLog::record('report.exported', null, auth('admin')->id(), ['report_type' => $type]);
+
         return match ($type) {
             'open_applications' => $this->exportOpenApplications(),
             'practice_credentialing_status' => $this->exportPracticeCredentialingStatus(),
@@ -89,18 +107,31 @@ class ReportExportService
             'recredentialing_upcoming' => $this->exportRecredentialingUpcoming(),
             'email_operations' => $this->exportEmailOperations(),
             'delay_ownership' => $this->exportDelayOwnership(),
+            'approval_denial_trends' => $this->exportApprovalDenialTrends(),
+            'panel_closed_summary' => $this->exportPanelClosedSummary(),
             default => abort(404, 'Report not found.'),
         };
     }
 
     /**
      * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
-     * @return array{filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|null>>}
+     * @return array{filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|float|null>>}
      */
     public function rowsFor(string $type, array $filters = []): array
     {
         return match ($type) {
+            'open_applications' => $this->openApplicationsData(),
             'practice_credentialing_status' => $this->practiceCredentialingStatusData($filters),
+            'document_compliance' => $this->documentComplianceData(),
+            'case_aging' => $this->caseAgingData(),
+            'expiring_documents' => $this->expiringDocumentsData(),
+            'productivity_by_executive' => $this->productivityByExecutiveData(),
+            'turnaround_by_payer' => $this->turnaroundByPayerData(),
+            'recredentialing_upcoming' => $this->recredentialingUpcomingData(),
+            'email_operations' => $this->emailOperationsData(),
+            'delay_ownership' => $this->delayOwnershipData(),
+            'approval_denial_trends' => $this->approvalDenialTrendsData(),
+            'panel_closed_summary' => $this->panelClosedSummaryData(),
             default => throw new \InvalidArgumentException("CSV email is not supported for report [{$type}]."),
         };
     }
@@ -147,6 +178,8 @@ class ReportExportService
      */
     public function streamPracticeCredentialingXlsx(array $filters = []): StreamedResponse
     {
+        AuditLog::record('report.exported', null, auth('admin')->id(), ['report_type' => 'practice_credentialing_xlsx']);
+
         $filename = 'total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx';
         $contents = $this->buildPracticeCredentialingSpreadsheet($filters);
 
@@ -717,7 +750,148 @@ class ReportExportService
         return $contents;
     }
 
-    protected function exportOpenApplications(): StreamedResponse
+    public function delayManagementBreakdown(): array
+    {
+        $query = CredentialingCase::active()
+            ->with(['delayOwner', 'assignedAdmin', 'provider.user', 'payer', 'status']);
+        $this->applyAdminScope($query);
+        $cases = $query->get();
+
+        $totalActive = $cases->count();
+
+        $buildDimension = function (Collection $grouped, array $defaultLabels = []) use ($totalActive): array {
+            $labels = collect($defaultLabels)
+                ->merge($grouped->keys())
+                ->unique()
+                ->values();
+
+            return $labels->map(function (string $label) use ($grouped, $totalActive) {
+                /** @var Collection<int, CredentialingCase> $groupCases */
+                $groupCases = $grouped->get($label, collect());
+                $count = $groupCases->count();
+                $percent = $totalActive > 0 ? round(($count / $totalActive) * 100, 1) : 0.0;
+                $avgAging = $count > 0
+                    ? (int) round($groupCases->avg(fn (CredentialingCase $c) => $c->aging_days))
+                    : 0;
+
+                return [
+                    'label' => $label,
+                    'count' => $count,
+                    'percent' => $percent,
+                    'share_percent' => $percent,
+                    'avg_aging_days' => $avgAging,
+                ];
+            })
+                ->sortByDesc('count')
+                ->values()
+                ->all();
+        };
+
+        $byOwnerGrouped = $cases->groupBy(function (CredentialingCase $case): string {
+            $raw = trim((string) ($case->delayOwner->name ?? ''));
+            if ($raw === '' || strtolower($raw) === 'unassigned') {
+                return 'Unassigned';
+            }
+            if ($raw === 'Provider') {
+                return 'Provider/Practice';
+            }
+            if ($raw === 'Internal') {
+                return 'Revantage Team';
+            }
+
+            return $raw;
+        });
+
+        $byTeamGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->assignedAdmin->name ?? 'Unassigned'));
+        $byProviderGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->provider->user->name ?? 'Unknown'));
+        $byPayerGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->payer->name ?? 'Unknown'));
+
+        return [
+            'total_active' => $totalActive,
+            'by_owner' => $buildDimension($byOwnerGrouped, ['Provider/Practice', 'Revantage Team', 'Payer', 'Unassigned']),
+            'by_team' => $buildDimension($byTeamGrouped),
+            'by_provider' => $buildDimension($byProviderGrouped),
+            'by_payer' => $buildDimension($byPayerGrouped),
+        ];
+    }
+
+    public function approvalDenialSummary(): array
+    {
+        $query = CredentialingCase::query()
+            ->with(['payer', 'status', 'provider.specialty']);
+        $this->applyAdminScope($query);
+        $cases = $query->get();
+
+        $isApproved = fn (CredentialingCase $c): bool => ($c->status?->dashboard_category === 'approved')
+            || str_contains(strtolower((string) ($c->status?->name ?? '')), 'approved');
+
+        $isPanelClosed = fn (CredentialingCase $c): bool => str_contains(strtolower((string) ($c->status?->name ?? '')), 'panel closed');
+
+        $isDenied = function (CredentialingCase $c) use ($isPanelClosed): bool {
+            if ($isPanelClosed($c)) {
+                return false;
+            }
+            $name = strtolower((string) ($c->status?->name ?? ''));
+
+            return str_contains($name, 'denied')
+                || str_contains($name, 'rejected')
+                || str_contains($name, 'not eligible');
+        };
+
+        $totalCases = $cases->count();
+        $approvedCount = $cases->filter($isApproved)->count();
+        $deniedCount = $cases->filter($isDenied)->count();
+        $panelClosedCount = $cases->filter($isPanelClosed)->count();
+        $approvalRatePercent = $totalCases > 0 ? round(($approvedCount / $totalCases) * 100, 1) : 0.0;
+
+        $byPayer = $cases->groupBy(fn (CredentialingCase $c) => (string) ($c->payer->name ?? 'Unknown'))
+            ->map(function (Collection $payerCases, string $payerName) use ($isApproved, $isDenied, $isPanelClosed) {
+                $total = $payerCases->count();
+                $approved = $payerCases->filter($isApproved)->count();
+                $denied = $payerCases->filter($isDenied)->count();
+                $panelClosed = $payerCases->filter($isPanelClosed)->count();
+                $rate = $total > 0 ? round(($approved / $total) * 100, 1) : 0.0;
+
+                $approvedWithDates = $payerCases->filter(fn (CredentialingCase $c) => $isApproved($c) && ($c->submission_date || $c->intake_date) && ($c->effective_date || $c->approval_date));
+                $avgTurnaround = $approvedWithDates->isNotEmpty()
+                    ? (int) round($approvedWithDates->avg(function (CredentialingCase $c) {
+                        $start = $c->submission_date ?? $c->intake_date;
+                        $end = $c->effective_date ?? $c->approval_date;
+
+                        return $start && $end ? abs($start->diffInDays($end)) : 0;
+                    }))
+                    : null;
+
+                return [
+                    'payer' => $payerName,
+                    'payer_name' => $payerName,
+                    'total_cases' => $total,
+                    'approved_count' => $approved,
+                    'approval_rate_percent' => $rate,
+                    'Approval_rate_percent' => $rate,
+                    'denied_count' => $denied,
+                    'panel_closed_count' => $panelClosed,
+                    'avg_turnaround_days' => $avgTurnaround,
+                ];
+            })
+            ->sortByDesc('total_cases')
+            ->values()
+            ->all();
+
+        return [
+            'total_cases' => $totalCases,
+            'approved_count' => $approvedCount,
+            'approval_rate_percent' => $approvalRatePercent,
+            'Approval_rate_percent' => $approvalRatePercent,
+            'denied_count' => $deniedCount,
+            'panel_closed_count' => $panelClosedCount,
+            'by_payer' => $byPayer,
+            'payers' => $byPayer,
+            'rows' => $byPayer,
+        ];
+    }
+
+    protected function openApplicationsData(): array
     {
         $cases = CredentialingCase::active()
             ->with(['provider.user', 'payer', 'status', 'assignedAdmin', 'delayOwner', 'practice'])
@@ -725,25 +899,36 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('open_applications_'.now()->format('Ymd').'.csv', [
-            'Case Number', 'Provider', 'NPI', 'Payer', 'Practice', 'State', 'Status',
-            'Assigned To', 'Delay Owner', 'Intake Date', 'Next Follow-up',
-        ], $cases->map(fn ($case) => [
-            $case->case_number,
-            $case->provider->user->name ?? '',
-            $case->provider->npi ?? '',
-            $case->payer->name ?? '',
-            $case->practice->legal_name ?? '',
-            $case->state ?? '',
-            $case->status->name ?? '',
-            $case->assignedAdmin->name ?? '',
-            $case->delayOwner->name ?? '',
-            $case->intake_date?->format('Y-m-d') ?? '',
-            $case->next_follow_up_date?->format('Y-m-d') ?? '',
-        ]));
+        return [
+            'filename' => 'open_applications_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Provider', 'NPI', 'Payer', 'Practice', 'State', 'Status',
+                'Assigned To', 'Delay Owner', 'Intake Date', 'Next Follow-up',
+            ],
+            'rows' => $cases->map(fn ($case) => [
+                $case->case_number,
+                $case->provider->user->name ?? '',
+                $case->provider->npi ?? '',
+                $case->payer->name ?? '',
+                $case->practice->legal_name ?? '',
+                $case->state ?? '',
+                $case->status->name ?? '',
+                $case->assignedAdmin->name ?? '',
+                $case->delayOwner->name ?? '',
+                $case->intake_date?->format('Y-m-d') ?? '',
+                $case->next_follow_up_date?->format('Y-m-d') ?? '',
+            ])->values()->all(),
+        ];
     }
 
-    protected function exportDocumentCompliance(): StreamedResponse
+    protected function exportOpenApplications(): StreamedResponse
+    {
+        $data = $this->openApplicationsData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function documentComplianceData(): array
     {
         $cases = CredentialingCase::with([
             'provider.user', 'payer', 'documentItems',
@@ -751,23 +936,34 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('document_compliance_'.now()->format('Ymd').'.csv', [
-            'Case Number', 'Provider', 'Payer', 'Required Docs', 'Received', 'Completion %',
-        ], $cases->map(function ($case) {
-            $checklist = $case->checklist_completion;
+        return [
+            'filename' => 'document_compliance_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Provider', 'Payer', 'Required Docs', 'Received', 'Completion %',
+            ],
+            'rows' => $cases->map(function ($case) {
+                $checklist = $case->checklist_completion;
 
-            return [
-                $case->case_number,
-                $case->provider->user->name ?? '',
-                $case->payer->name ?? '',
-                $checklist['total'],
-                $checklist['received'],
-                $checklist['percent'],
-            ];
-        }));
+                return [
+                    $case->case_number,
+                    $case->provider->user->name ?? '',
+                    $case->payer->name ?? '',
+                    $checklist['total'],
+                    $checklist['received'],
+                    $checklist['percent'],
+                ];
+            })->values()->all(),
+        ];
     }
 
-    protected function exportCaseAging(): StreamedResponse
+    protected function exportDocumentCompliance(): StreamedResponse
+    {
+        $data = $this->documentComplianceData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function caseAgingData(): array
     {
         $cases = CredentialingCase::active()
             ->with(['provider.user', 'payer', 'status'])
@@ -775,20 +971,31 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('case_aging_'.now()->format('Ymd').'.csv', [
-            'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days',
-        ], $cases->map(fn ($case) => [
-            $case->case_number,
-            $case->provider->user->name ?? '',
-            $case->payer->name ?? '',
-            $case->status->name ?? '',
-            $case->intake_date?->format('Y-m-d') ?? '',
-            $case->submission_date?->format('Y-m-d') ?? '',
-            $case->aging_days,
-        ]));
+        return [
+            'filename' => 'case_aging_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days',
+            ],
+            'rows' => $cases->map(fn ($case) => [
+                $case->case_number,
+                $case->provider->user->name ?? '',
+                $case->payer->name ?? '',
+                $case->status->name ?? '',
+                $case->intake_date?->format('Y-m-d') ?? '',
+                $case->submission_date?->format('Y-m-d') ?? '',
+                $case->aging_days,
+            ])->values()->all(),
+        ];
     }
 
-    protected function exportExpiringDocuments(): StreamedResponse
+    protected function exportCaseAging(): StreamedResponse
+    {
+        $data = $this->caseAgingData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function expiringDocumentsData(): array
     {
         $documents = Document::expiringSoon(30)
             ->with(['provider.user', 'documentType', 'credentialingCase'])
@@ -799,55 +1006,99 @@ class ReportExportService
         }
         $documents = $documents->get();
 
-        return $this->streamCsv('expiring_documents_'.now()->format('Ymd').'.csv', [
-            'Title', 'Type', 'Provider', 'Case Number', 'Expiry Date', 'State',
-        ], $documents->map(fn ($doc) => [
-            $doc->title,
-            $doc->documentType->name ?? '',
-            $doc->provider->user->name ?? '',
-            $doc->credentialingCase->case_number ?? '',
-            $doc->expiry_date?->format('Y-m-d') ?? '',
-            $doc->state ?? '',
-        ]));
+        return [
+            'filename' => 'expiring_documents_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Title', 'Type', 'Provider', 'Case Number', 'Expiry Date', 'State',
+            ],
+            'rows' => $documents->map(fn ($doc) => [
+                $doc->title,
+                $doc->documentType->name ?? '',
+                $doc->provider->user->name ?? '',
+                $doc->credentialingCase->case_number ?? '',
+                $doc->expiry_date?->format('Y-m-d') ?? '',
+                $doc->state ?? '',
+            ])->values()->all(),
+        ];
+    }
+
+    protected function exportExpiringDocuments(): StreamedResponse
+    {
+        $data = $this->expiringDocumentsData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function productivityByExecutiveData(): array
+    {
+        $rows = app(ProductivityDashboardService::class)->executiveMetrics();
+
+        return [
+            'filename' => 'productivity_by_executive_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Executive', 'Active Cases', 'Approved', 'Overdue', 'Open Tasks', 'Avg Turnaround Days',
+            ],
+            'rows' => $rows->map(fn ($r) => [
+                $r['name'], $r['active_cases'], $r['approved_cases'], $r['overdue_cases'], $r['open_tasks'], $r['avg_turnaround_days'] ?? '',
+            ])->values()->all(),
+        ];
     }
 
     protected function exportProductivityByExecutive(): StreamedResponse
     {
-        $rows = app(ProductivityDashboardService::class)->executiveMetrics();
+        $data = $this->productivityByExecutiveData();
 
-        return $this->streamCsv('productivity_by_executive_'.now()->format('Ymd').'.csv', [
-            'Executive', 'Active Cases', 'Approved', 'Overdue', 'Open Tasks', 'Avg Turnaround Days',
-        ], $rows->map(fn ($r) => [
-            $r['name'], $r['active_cases'], $r['approved_cases'], $r['overdue_cases'], $r['open_tasks'], $r['avg_turnaround_days'] ?? '',
-        ]));
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function turnaroundByPayerData(): array
+    {
+        $rows = app(ProductivityDashboardService::class)->payerTurnaround();
+
+        return [
+            'filename' => 'turnaround_by_payer_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Payer', 'Approved Count', 'Avg Days',
+            ],
+            'rows' => $rows->map(fn ($r) => [$r['payer'], $r['approved_count'], $r['avg_days']])->values()->all(),
+        ];
     }
 
     protected function exportTurnaroundByPayer(): StreamedResponse
     {
-        $rows = app(ProductivityDashboardService::class)->payerTurnaround();
+        $data = $this->turnaroundByPayerData();
 
-        return $this->streamCsv('turnaround_by_payer_'.now()->format('Ymd').'.csv', [
-            'Payer', 'Approved Count', 'Avg Days',
-        ], $rows->map(fn ($r) => [$r['payer'], $r['approved_count'], $r['avg_days']]));
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function recredentialingUpcomingData(): array
+    {
+        $cases = app(ProductivityDashboardService::class)->recredentialingUpcoming();
+
+        return [
+            'filename' => 'recredentialing_upcoming_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Provider', 'Payer', 'Revalidation Due',
+            ],
+            'rows' => $cases->map(fn ($case) => [
+                $case->case_number,
+                $case->provider->user->name ?? '',
+                $case->payer->name ?? '',
+                $case->revalidation_due_date?->format('Y-m-d') ?? '',
+            ])->values()->all(),
+        ];
     }
 
     protected function exportRecredentialingUpcoming(): StreamedResponse
     {
-        $cases = app(ProductivityDashboardService::class)->recredentialingUpcoming();
+        $data = $this->recredentialingUpcomingData();
 
-        return $this->streamCsv('recredentialing_upcoming_'.now()->format('Ymd').'.csv', [
-            'Case Number', 'Provider', 'Payer', 'Revalidation Due',
-        ], $cases->map(fn ($case) => [
-            $case->case_number,
-            $case->provider->user->name ?? '',
-            $case->payer->name ?? '',
-            $case->revalidation_due_date?->format('Y-m-d') ?? '',
-        ]));
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
     }
 
-    protected function exportEmailOperations(): StreamedResponse
+    protected function emailOperationsData(): array
     {
-        $query = \App\Models\EmailMessage::query()
+        $query = EmailMessage::query()
             ->with(['credentialingCase.practice', 'provider.user'])
             ->latest();
 
@@ -869,23 +1120,34 @@ class ReportExportService
 
         $messages = $query->get();
 
-        return $this->streamCsv('email_operations_'.now()->format('Ymd').'.csv', [
-            'Subject', 'Direction', 'From', 'To', 'Status', 'Case Number', 'Provider', 'Unlinked', 'Pending Attachments', 'Date',
-        ], $messages->map(fn ($msg) => [
-            $msg->subject ?? '',
-            $msg->direction ?? '',
-            $msg->from_address ?? '',
-            $msg->to_address ?? '',
-            $msg->status ?? '',
-            $msg->credentialingCase->case_number ?? '',
-            $msg->provider->user->name ?? '',
-            $msg->is_unlinked ? 'Yes' : 'No',
-            $msg->has_pending_attachments ? 'Yes' : 'No',
-            ($msg->received_at ?? $msg->sent_at ?? $msg->created_at)?->format('Y-m-d H:i') ?? '',
-        ]));
+        return [
+            'filename' => 'email_operations_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Subject', 'Direction', 'From', 'To', 'Status', 'Case Number', 'Provider', 'Unlinked', 'Pending Attachments', 'Date',
+            ],
+            'rows' => $messages->map(fn ($msg) => [
+                $msg->subject ?? '',
+                $msg->direction ?? '',
+                $msg->from_address ?? '',
+                $msg->to_address ?? '',
+                $msg->status ?? '',
+                $msg->credentialingCase->case_number ?? '',
+                $msg->provider->user->name ?? '',
+                $msg->is_unlinked ? 'Yes' : 'No',
+                $msg->has_pending_attachments ? 'Yes' : 'No',
+                ($msg->received_at ?? $msg->sent_at ?? $msg->created_at)?->format('Y-m-d H:i') ?? '',
+            ])->values()->all(),
+        ];
     }
 
-    protected function exportDelayOwnership(): StreamedResponse
+    protected function exportEmailOperations(): StreamedResponse
+    {
+        $data = $this->emailOperationsData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function delayOwnershipData(): array
     {
         $cases = CredentialingCase::active()
             ->with(['provider.user', 'payer', 'status', 'delayOwner', 'assignedAdmin', 'practice'])
@@ -893,18 +1155,145 @@ class ReportExportService
         $this->applyAdminScope($cases);
         $cases = $cases->get();
 
-        return $this->streamCsv('delay_ownership_'.now()->format('Ymd').'.csv', [
-            'Case Number', 'Practice', 'Provider', 'Payer', 'Status', 'Delay Owner', 'Assigned Executive', 'Aging Days',
-        ], $cases->map(fn ($case) => [
-            $case->case_number,
-            $case->practice->legal_name ?? '',
-            $case->provider->user->name ?? '',
-            $case->payer->name ?? '',
-            $case->status->name ?? '',
-            $case->delayOwner->name ?? 'Unassigned',
-            $case->assignedAdmin->name ?? '',
-            $case->aging_days,
-        ]));
+        return [
+            'filename' => 'delay_ownership_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Practice', 'Provider', 'Payer', 'Status', 'Delay Owner', 'Assigned Executive', 'Aging Days',
+            ],
+            'rows' => $cases->map(fn ($case) => [
+                $case->case_number,
+                $case->practice->legal_name ?? '',
+                $case->provider->user->name ?? '',
+                $case->payer->name ?? '',
+                $case->status->name ?? '',
+                $case->delayOwner->name ?? 'Unassigned',
+                $case->assignedAdmin->name ?? '',
+                $case->aging_days,
+            ])->values()->all(),
+        ];
+    }
+
+    protected function exportDelayOwnership(): StreamedResponse
+    {
+        $data = $this->delayOwnershipData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function approvalDenialTrendsData(): array
+    {
+        $query = CredentialingCase::query()
+            ->with(['payer', 'status']);
+        $this->applyAdminScope($query);
+        $cases = $query->get();
+
+        $rows = $cases->groupBy(fn (CredentialingCase $c) => ($c->payer->name ?? 'Unknown').'|'.($c->state ?: 'N/A'))
+            ->map(function (Collection $group) {
+                /** @var CredentialingCase $first */
+                $first = $group->first();
+                $payerName = $first->payer->name ?? 'Unknown';
+                $state = $first->state ?: 'N/A';
+                $total = $group->count();
+
+                $approvedCases = $group->filter(fn (CredentialingCase $c) => ($c->status?->dashboard_category === 'approved')
+                    || str_contains(strtolower((string) ($c->status?->name ?? '')), 'approved'));
+                $approved = $approvedCases->count();
+
+                $panelClosed = $group->filter(fn (CredentialingCase $c) => str_contains(strtolower((string) ($c->status?->name ?? '')), 'panel closed'))->count();
+
+                $denied = $group->filter(function (CredentialingCase $c) {
+                    $name = strtolower((string) ($c->status?->name ?? ''));
+                    if (str_contains($name, 'panel closed')) {
+                        return false;
+                    }
+
+                    return str_contains($name, 'denied')
+                        || str_contains($name, 'rejected')
+                        || str_contains($name, 'not eligible');
+                })->count();
+
+                $rate = $total > 0 ? round(($approved / $total) * 100, 1).'%' : '0%';
+
+                $withDates = $approvedCases->filter(fn (CredentialingCase $c) => ($c->submission_date || $c->intake_date) && ($c->effective_date || $c->approval_date));
+                $avgTurnaround = $withDates->isNotEmpty()
+                    ? (string) round($withDates->avg(function (CredentialingCase $c) {
+                        $start = $c->submission_date ?? $c->intake_date;
+                        $end = $c->effective_date ?? $c->approval_date;
+
+                        return $start && $end ? abs($start->diffInDays($end)) : 0;
+                    }))
+                    : '';
+
+                return [
+                    $payerName,
+                    $state,
+                    $total,
+                    $approved,
+                    $rate,
+                    $denied,
+                    $panelClosed,
+                    $avgTurnaround,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'filename' => 'approval_denial_trends_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Payer', 'State', 'Total Cases', 'Approved', 'Approval Rate %', 'Denied / Rejected', 'Panel Closed', 'Avg Turnaround Days',
+            ],
+            'rows' => $rows,
+        ];
+    }
+
+    protected function exportApprovalDenialTrends(): StreamedResponse
+    {
+        $data = $this->approvalDenialTrendsData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
+    }
+
+    protected function panelClosedSummaryData(): array
+    {
+        $query = CredentialingCase::query()
+            ->with(['practice', 'provider.user', 'provider.specialty', 'payer', 'status', 'latestActivity'])
+            ->whereHas('status', function ($q) {
+                $q->where('dashboard_category', 'closed')
+                    ->orWhere('name', 'like', '%Panel Closed%')
+                    ->orWhere('name', 'like', '%Denied%')
+                    ->orWhere('name', 'like', '%Rejected%');
+            })
+            ->orderBy('case_number');
+
+        $this->applyAdminScope($query);
+        $cases = $query->get();
+
+        return [
+            'filename' => 'panel_closed_summary_'.now()->format('Ymd').'.csv',
+            'headers' => [
+                'Case Number', 'Practice', 'Provider', 'Specialty', 'Payer', 'State', 'Status', 'Intake Date', 'Last Updated', 'Notes',
+            ],
+            'rows' => $cases->map(fn (CredentialingCase $case) => [
+                $case->case_number,
+                $case->practice->legal_name ?? '',
+                $case->provider->user->name ?? '',
+                $case->provider->specialty->name ?? 'General',
+                $case->payer->name ?? '',
+                $case->state ?? '',
+                $case->status->name ?? '',
+                $case->intake_date?->format('Y-m-d') ?? '',
+                $case->last_action_at?->format('Y-m-d') ?? '',
+                (string) ($case->latestActivity?->summary ?? $case->notes ?? ''),
+            ])->values()->all(),
+        ];
+    }
+
+    protected function exportPanelClosedSummary(): StreamedResponse
+    {
+        $data = $this->panelClosedSummaryData();
+
+        return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
     }
 
     protected function streamCsv(string $filename, array $headers, iterable $rows): StreamedResponse

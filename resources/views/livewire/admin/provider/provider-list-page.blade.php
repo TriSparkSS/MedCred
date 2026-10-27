@@ -90,7 +90,7 @@
                         <div class="input-group">
                             <span class="input-group-text bg-white border-end-0"><i class="ti tabler-search"></i></span>
                             <input type="search" wire:model.live="search" class="form-control border-start-0"
-                                placeholder="Search by provider name, NPI, or practice...">
+                                placeholder="Search by provider name, NPI, CAQH, or practice...">
                         </div>
                     </div>
 
@@ -128,14 +128,44 @@
 
                     <div class="col-md-2">
                         <label class="form-label small text-muted mb-1">Status</label>
+                        <select wire:model.live="filterStatus" class="form-select">
+                            <option value="">All Statuses</option>
+                            @foreach (ProviderStatus::cases() as $status)
+                                <option value="{{ $status->value }}">{{ $status->label() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">State</label>
+                        <select wire:model.live="filterState" class="form-select">
+                            <option value="">All States</option>
+                            @foreach ($usStates ?? [] as $code => $stateName)
+                                <option value="{{ $code }}">{{ $stateName }} ({{ $code }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Payer</label>
+                        <select wire:model.live="filterPayer" class="form-select">
+                            <option value="">All Payers</option>
+                            @foreach ($payers ?? [] as $payer)
+                                <option value="{{ $payer->id }}">{{ $payer->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1">Document / Expiry Filter</label>
                         <div class="d-flex gap-2">
-                            <select wire:model.live="filterStatus" class="form-select">
-                                <option value="">All Statuses</option>
-                                @foreach (ProviderStatus::cases() as $status)
-                                    <option value="{{ $status->value }}">{{ $status->label() }}</option>
-                                @endforeach
+                            <select wire:model.live="filterCompliance" class="form-select">
+                                <option value="">All Compliance States</option>
+                                <option value="missing_docs">Missing Documents</option>
+                                <option value="expiring_soon">Expiring Soon (30 Days)</option>
+                                <option value="expired">Expired Credentials / Docs</option>
                             </select>
-                            @if ($search || $filterSpecialty || $filterStatus || $filterPractice || $filterLocation)
+                            @if ($search || $filterSpecialty || $filterStatus || $filterPractice || $filterLocation || $filterState || $filterPayer || $filterCompliance)
                                 <button type="button" wire:click="clearFilters" class="btn btn-outline-secondary" title="Clear">
                                     <i class="ti tabler-x"></i>
                                 </button>
@@ -165,6 +195,9 @@
                             <th scope="col">NPI</th>
                             <th scope="col">Specialty</th>
                             <th scope="col">Practice</th>
+                            <th scope="col">Credentialing Status</th>
+                            <th scope="col">Pending Payers</th>
+                            <th scope="col">Expiry Alerts</th>
                             <th scope="col">Applications</th>
                             <th scope="col" class="text-end">Actions</th>
                         </tr>
@@ -174,6 +207,31 @@
                             @php
                                 $isExpanded = isset($expandedProviders[$provider->id]);
                                 $apps = $provider->credentialingCases ?? collect();
+                                $docs = $provider->documents ?? collect();
+                                $creds = $provider->credentials ?? collect();
+
+                                $approvedCount = $apps->filter(fn ($c) => ($c->status->dashboard_category ?? '') === 'approved')->count();
+                                $closedCount = $apps->filter(fn ($c) => ($c->status->dashboard_category ?? '') === 'closed')->count();
+                                $pendingPayersCount = $apps->filter(fn ($c) => ! in_array($c->status->dashboard_category ?? '', ['approved', 'closed'], true))->count();
+
+                                if ($apps->isEmpty()) {
+                                    $credStatusLabel = 'No Cases';
+                                    $credStatusBadge = 'secondary';
+                                } elseif ($pendingPayersCount > 0) {
+                                    $credStatusLabel = 'In Progress';
+                                    $credStatusBadge = 'info';
+                                } elseif ($approvedCount > 0) {
+                                    $credStatusLabel = 'Approved';
+                                    $credStatusBadge = 'success';
+                                } else {
+                                    $credStatusLabel = 'Denied / Closed';
+                                    $credStatusBadge = 'danger';
+                                }
+
+                                $expiredCount = $docs->filter(fn ($d) => $d->isExpired())->count()
+                                    + $creds->filter(fn ($c) => $c->isExpired())->count();
+                                $expiringSoonCount = $docs->filter(fn ($d) => $d->isExpiringSoon(30))->count()
+                                    + $creds->filter(fn ($c) => $c->isExpiringSoon(30))->count();
                             @endphp
                             <tr wire:key="provider-{{ $provider->id }}">
                                 <td>
@@ -215,6 +273,23 @@
                                     @endif
                                 </td>
                                 <td>
+                                    <span class="badge bg-label-{{ $credStatusBadge }}">{{ $credStatusLabel }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-label-{{ $pendingPayersCount > 0 ? 'warning' : 'secondary' }}">
+                                        {{ $pendingPayersCount }} pending
+                                    </span>
+                                </td>
+                                <td>
+                                    @if ($expiredCount > 0)
+                                        <span class="badge bg-label-danger">{{ $expiredCount }} Expired</span>
+                                    @elseif ($expiringSoonCount > 0)
+                                        <span class="badge bg-label-warning">{{ $expiringSoonCount }} Expiring</span>
+                                    @else
+                                        <span class="badge bg-label-success">Clear</span>
+                                    @endif
+                                </td>
+                                <td>
                                     <span class="badge bg-label-primary">{{ $apps->count() }}
                                         app{{ $apps->count() === 1 ? '' : 's' }}</span>
                                 </td>
@@ -239,47 +314,9 @@
                                     </div>
                                 </td>
                             </tr>
-                            {{-- @if ($isExpanded)
-                                <tr wire:key="provider-apps-{{ $provider->id }}" class="bg-light">
-                                    <td></td>
-                                    <td colspan="6" class="py-3">
-                                        <div class="fw-semibold small mb-2">Payer applications</div>
-                                        @if ($apps->isEmpty())
-                                            <p class="text-muted small mb-0">No credentialing applications yet for this provider.</p>
-                                        @else
-                                            <div class="table-responsive">
-                                                <table class="table table-sm mb-0 bg-white border">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Case #</th>
-                                                            <th>Payer</th>
-                                                            <th>Status</th>
-                                                            <th></th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach ($apps as $app)
-                                                            <tr>
-                                                                <td class="fw-semibold"><a href="{{ route('admin.credentials.show', $app) }}">{{ $app->case_number }}</a></td>
-                                                                <td>{{ $app->payer->name ?? 'N/A' }}</td>
-                                                                <td>
-                                                                    <span class="badge bg-label-secondary">{{ $app->status->name ?? 'N/A' }}</span>
-                                                                </td>
-                                                                <td class="text-end">
-                                                                    <a href="{{ route('admin.credentials.show', $app) }}" class="btn btn-sm btn-outline-primary">Open</a>
-                                                                </td>
-                                                            </tr>
-                                                        @endforeach
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endif --}}
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="d-flex flex-column align-items-center gap-2">
                                         <i class="ti tabler-inbox" style="font-size: 2rem; color: #ccc;"></i>
                                         <p class="text-muted mb-0">No providers found</p>

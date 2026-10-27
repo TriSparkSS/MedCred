@@ -7,29 +7,46 @@ use App\Events\DocumentVerified;
 use App\Models\AuditLog;
 use App\Models\Document;
 use App\Models\DocumentType;
+use App\Models\DocumentVersion;
+use App\Models\Setting;
 use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentService
 {
     public function upload(array $data, UploadedFile $file, ?int $adminId = null, ?int $userId = null): Document
     {
+        app(FileMalwareScanner::class)->assertClean($file, $adminId);
+
         return DB::transaction(function () use ($data, $file, $adminId, $userId) {
             $syncCredential = (bool) ($data['sync_credential'] ?? false);
-            unset($data['sync_credential']);
+            $encryptAtRest = (bool) ($data['encrypt_at_rest'] ?? false);
+            unset($data['sync_credential'], $data['encrypt_at_rest']);
             $data = $this->normalizePayload($data);
 
             $data['state'] = UsStates::normalize($data['state'] ?? null);
+            $visibility = $data['visibility'] ?? 'standard';
+            $data['visibility'] = in_array($visibility, ['standard', 'restricted'], true)
+                ? $visibility
+                : 'standard';
+            if (isset($data['allowed_roles']) && is_array($data['allowed_roles'])) {
+                $data['allowed_roles'] = array_values(array_filter($data['allowed_roles']));
+            }
 
             $existing = $this->findExistingStateDocument($data);
             if ($existing) {
-                $existing->addVersion($file, $adminId, 'Replacement for same type and state', $userId);
+                $version = $existing->addVersion($file, $adminId, 'Replacement for same type and state', $userId);
+                $this->encryptVersionIfEnabled($version, $encryptAtRest);
                 $existing->update([
                     'title' => $data['title'] ?? $existing->title,
                     'document_number' => $data['document_number'] ?? $existing->document_number,
                     'effective_date' => $data['effective_date'] ?? $existing->effective_date,
                     'expiry_date' => $data['expiry_date'] ?? $existing->expiry_date,
+                    'visibility' => $data['visibility'] ?? $existing->visibility,
+                    'allowed_roles' => array_key_exists('allowed_roles', $data) ? $data['allowed_roles'] : $existing->allowed_roles,
                     'verification_status' => DocumentVerificationStatus::Uploaded->value,
                     'verified_at' => null,
                     'verified_by_admin_id' => null,
@@ -42,6 +59,11 @@ class DocumentService
                     ...$data,
                     'verification_status' => DocumentVerificationStatus::Uploaded->value,
                 ], $file, $adminId, $userId);
+
+                $currentVersion = $document->versions()->where('is_current', true)->first();
+                if ($currentVersion) {
+                    $this->encryptVersionIfEnabled($currentVersion, $encryptAtRest);
+                }
             }
 
             if ($document->credentialing_case_id) {
@@ -89,9 +111,14 @@ class DocumentService
 
     public function update(Document $document, array $data, ?UploadedFile $file = null, ?int $adminId = null): Document
     {
+        if ($file) {
+            app(FileMalwareScanner::class)->assertClean($file, $adminId);
+        }
+
         return DB::transaction(function () use ($document, $data, $file, $adminId) {
             $syncCredential = (bool) ($data['sync_credential'] ?? false);
-            unset($data['sync_credential']);
+            $encryptAtRest = (bool) ($data['encrypt_at_rest'] ?? false);
+            unset($data['sync_credential'], $data['encrypt_at_rest']);
             $data = $this->normalizePayload($data);
 
             $data['state'] = UsStates::normalize($data['state'] ?? null);
@@ -106,10 +133,17 @@ class DocumentService
                 'effective_date' => $data['effective_date'] ?? null,
                 'expiry_date' => $data['expiry_date'] ?? null,
                 'state' => array_key_exists('state', $data) ? $data['state'] : $document->state,
+                'visibility' => isset($data['visibility']) && in_array($data['visibility'], ['standard', 'restricted'], true)
+                    ? $data['visibility']
+                    : $document->visibility,
+                'allowed_roles' => array_key_exists('allowed_roles', $data)
+                    ? (is_array($data['allowed_roles']) ? array_values(array_filter($data['allowed_roles'])) : null)
+                    : $document->allowed_roles,
             ]);
 
             if ($file) {
-                $document->addVersion($file, $adminId, 'Updated file');
+                $version = $document->addVersion($file, $adminId, 'Updated file');
+                $this->encryptVersionIfEnabled($version, $encryptAtRest);
                 $document->update([
                     'verification_status' => DocumentVerificationStatus::Uploaded->value,
                     'verified_at' => null,
@@ -170,9 +204,12 @@ class DocumentService
 
     public function supersede(Document $document, UploadedFile $file, ?int $adminId = null): Document
     {
+        app(FileMalwareScanner::class)->assertClean($file, $adminId);
+
         return DB::transaction(function () use ($document, $file, $adminId) {
             $document->update(['verification_status' => DocumentVerificationStatus::Superseded->value]);
-            $document->addVersion($file, $adminId, 'Superseded by new version');
+            $version = $document->addVersion($file, $adminId, 'Superseded by new version');
+            $this->encryptVersionIfEnabled($version, false);
 
             $document->update([
                 'verification_status' => DocumentVerificationStatus::Uploaded->value,
@@ -187,11 +224,37 @@ class DocumentService
         });
     }
 
+    public function delete(Document $document, ?int $adminId = null): void
+    {
+        AuditLog::record('document.deleted', $document, $adminId, [
+            'title' => $document->title,
+        ]);
+
+        $document->delete();
+    }
+
     public function markExpired(Document $document): Document
     {
         $document->update(['verification_status' => DocumentVerificationStatus::Expired->value]);
 
         return $document->fresh();
+    }
+
+    protected function encryptVersionIfEnabled(DocumentVersion $version, bool $forceEncrypt = false): void
+    {
+        $shouldEncrypt = $forceEncrypt || (bool) Setting::where('key', 'encrypt_documents_at_rest')->value('value');
+        if (! $shouldEncrypt || ! $version->file_path) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($version->file_path)) {
+            return;
+        }
+
+        $encrypted = Crypt::encryptString($disk->get($version->file_path));
+        $disk->put($version->file_path, $encrypted);
+        $version->update(['is_encrypted' => true]);
     }
 
     /**

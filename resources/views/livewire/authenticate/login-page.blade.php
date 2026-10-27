@@ -12,48 +12,74 @@
                         </a>
                     </div>
 
-                    {{-- <h4 class="mb-1">Admin Login</h4> --}}
-                    <p class="mb-6">Sign in to your admin panel</p>
+                    @if ($awaitingTwoFactor)
+                        <h5 class="mb-2 fw-bold">Two-Factor Verification</h5>
+                        <p class="mb-4 text-muted small">Enter the 6-digit verification code sent to your email address.</p>
 
-                    <form class="mb-4" wire:submit.prevent="authenticate">
-                        <div class="mb-6 form-control-validation">
-                            <label for="login" class="form-label">Email or Username</label>
-                            <input type="text" class="form-control @error('login') is-invalid @enderror"
-                                wire:model.defer="login" placeholder="Enter your email or username" autofocus />
-                            @error('login')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-6 form-password-toggle form-control-validation">
-                            <label class="form-label" for="password"> Password</label>
-                            <div class="input-group input-group-merge">
-                                <input type="password" class="form-control @error('password') is-invalid @enderror"
-                                    wire:model.defer="password" placeholder="*********" aria-describedby="password" />
-                                <span class="input-group-text cursor-pointer">
-                                    <i class="icon-base ti tabler-eye-off"></i>
-                                </span>
-                                @error('password')
+                        <form class="mb-4" wire:submit.prevent="verifyTwoFactor">
+                            <div class="mb-4 form-control-validation">
+                                <label for="twoFactorCode" class="form-label">Verification Code</label>
+                                <input type="text" id="twoFactorCode" maxlength="6"
+                                    class="form-control text-center fs-5 letter-spacing-2 @error('twoFactorCode') is-invalid @enderror"
+                                    wire:model="twoFactorCode" placeholder="000000" autofocus />
+                                @error('twoFactorCode')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
-                        </div>
 
-                        <div class="my-8">
-                            <div class="form-check mb-0 ms-2">
-                                <input class="form-check-input" type="checkbox" id="remember-me"
-                                    wire:model="remember" />
-                                <label class="form-check-label" for="remember-me"> Remember Me</label>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" type="submit" wire:loading.attr="disabled">
+                                    <span wire:loading.remove>Verify & Sign In</span>
+                                    <span wire:loading>Verifying...</span>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" wire:click="cancelTwoFactor">
+                                    Back to Login
+                                </button>
                             </div>
-                        </div>
+                        </form>
+                    @else
+                        <p class="mb-6">Sign in to your admin panel</p>
 
-                        <div class="mb-6">
-                            <button class="btn btn-primary d-grid w-100" type="submit" wire:loading.attr="disabled">
-                                <span wire:loading.remove>Login</span>
-                                <span wire:loading>Please wait...</span>
-                            </button>
-                        </div>
-                    </form>
+                        <form class="mb-4" wire:submit.prevent="authenticate">
+                            <div class="mb-6 form-control-validation">
+                                <label for="login" class="form-label">Email or Username</label>
+                                <input type="text" class="form-control @error('login') is-invalid @enderror"
+                                    wire:model.defer="login" placeholder="Enter your email or username" autofocus />
+                                @error('login')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-6 form-password-toggle form-control-validation">
+                                <label class="form-label" for="password"> Password</label>
+                                <div class="input-group input-group-merge">
+                                    <input type="password" class="form-control @error('password') is-invalid @enderror"
+                                        wire:model.defer="password" placeholder="*********" aria-describedby="password" />
+                                    <span class="input-group-text cursor-pointer">
+                                        <i class="icon-base ti tabler-eye-off"></i>
+                                    </span>
+                                    @error('password')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="my-8">
+                                <div class="form-check mb-0 ms-2">
+                                    <input class="form-check-input" type="checkbox" id="remember-me"
+                                        wire:model="remember" />
+                                    <label class="form-check-label" for="remember-me"> Remember Me</label>
+                                </div>
+                            </div>
+
+                            <div class="mb-6">
+                                <button class="btn btn-primary d-grid w-100" type="submit" wire:loading.attr="disabled">
+                                    <span wire:loading.remove>Login</span>
+                                    <span wire:loading>Please wait...</span>
+                                </button>
+                            </div>
+                        </form>
+                    @endif
                     <div class="mt-5">
                         <div class="p-3 rounded-2" style="border: 1px solid #f5c2c7; background-color: #fff5f5;">
                             
