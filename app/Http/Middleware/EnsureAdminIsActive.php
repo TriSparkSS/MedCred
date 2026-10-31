@@ -23,12 +23,12 @@ class EnsureAdminIsActive
             abort(403, 'Unauthorized.');
         }
 
-        if ($admin->status !== 'active') {
+        if (! in_array($admin->status, ['active', 1, '1', true], true)) {
             Auth::guard('admin')->logout();
             flash()->error('Your admin account is inactive. Please contact support.');
 
             return redirect()
-                ->route('tenant.login')
+                ->route('login')
                 ->withErrors([
                     'account' => 'Your admin account is inactive. Please contact support.',
                 ]);

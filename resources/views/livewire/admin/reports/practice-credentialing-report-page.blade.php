@@ -575,6 +575,9 @@
                                     <li>
                                         <button type="button" class="dropdown-item" wire:click="downloadCsv">Download CSV</button>
                                     </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item" wire:click="downloadPdf">Download PDF</button>
+                                    </li>
                                 </ul>
                             </div>
                         @endif

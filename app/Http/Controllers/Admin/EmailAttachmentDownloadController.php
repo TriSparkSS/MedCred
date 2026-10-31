@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Models\CredentialingCase;
 use App\Models\EmailAttachment;
 use App\Models\EmailMessage;
+use App\Models\ProviderDetails;
 use App\Services\AdminScopeService;
 use App\Services\EmailCaseLinkService;
 use App\Services\GraphMailboxService;
@@ -26,9 +27,17 @@ class EmailAttachmentDownloadController
 
         $admin = auth('admin')->user();
         if ($admin) {
+            $scope = app(AdminScopeService::class);
             $linkedCase = $this->resolveLinkedCase($decodedMessageId, $decodedAttachmentId);
-            if ($linkedCase && ! app(AdminScopeService::class)->canAccessCase($admin, $linkedCase)) {
+            if ($linkedCase && ! $scope->canAccessCase($admin, $linkedCase)) {
                 abort(403, 'You do not have access to this attachment.');
+            }
+
+            if (! $linkedCase) {
+                $linkedProvider = $this->resolveLinkedProvider($decodedMessageId, $decodedAttachmentId);
+                if ($linkedProvider && ! $scope->canAccessProvider($admin, $linkedProvider)) {
+                    abort(403, 'You do not have access to this attachment.');
+                }
             }
         }
 
@@ -65,8 +74,10 @@ class EmailAttachmentDownloadController
         }
 
         $emailMessage = EmailMessage::with('credentialingCase')
-            ->where('external_message_id', $decodedMessageId)
-            ->orWhere('message_id', $decodedMessageId)
+            ->where(function ($q) use ($decodedMessageId) {
+                $q->where('external_message_id', $decodedMessageId)
+                    ->orWhere('message_id', $decodedMessageId);
+            })
             ->first();
 
         if ($emailMessage?->credentialingCase) {
@@ -77,6 +88,29 @@ class EmailAttachmentDownloadController
             $attachment = EmailAttachment::with('emailMessage.credentialingCase')->find((int) $decodedAttachmentId);
             if ($attachment?->emailMessage?->credentialingCase) {
                 return $attachment->emailMessage->credentialingCase;
+            }
+        }
+
+        return null;
+    }
+
+    protected function resolveLinkedProvider(string $decodedMessageId, string $decodedAttachmentId): ?ProviderDetails
+    {
+        $emailMessage = EmailMessage::with('provider.practices')
+            ->where(function ($q) use ($decodedMessageId) {
+                $q->where('external_message_id', $decodedMessageId)
+                    ->orWhere('message_id', $decodedMessageId);
+            })
+            ->first();
+
+        if ($emailMessage?->provider) {
+            return $emailMessage->provider;
+        }
+
+        if (ctype_digit($decodedAttachmentId)) {
+            $attachment = EmailAttachment::with('emailMessage.provider.practices')->find((int) $decodedAttachmentId);
+            if ($attachment?->emailMessage?->provider) {
+                return $attachment->emailMessage->provider;
             }
         }
 

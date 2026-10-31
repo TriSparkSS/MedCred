@@ -151,18 +151,14 @@ class PracticeCredentialingReportPage extends Component
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.reports.export'), 403);
 
-        $data = $reports->practiceCredentialingStatusData($this->appliedFilters());
+        return $reports->export('practice_credentialing_status', 'csv', $this->appliedFilters());
+    }
 
-        return response()->streamDownload(function () use ($data) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, $data['headers']);
-            foreach ($data['rows'] as $row) {
-                fputcsv($handle, $row);
-            }
-            fclose($handle);
-        }, $data['filename'], [
-            'Content-Type' => 'text/csv',
-        ]);
+    public function downloadPdf(ReportExportService $reports): StreamedResponse
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.reports.export'), 403);
+
+        return $reports->export('practice_credentialing_status', 'pdf', $this->appliedFilters());
     }
 
     /**
@@ -199,12 +195,16 @@ class PracticeCredentialingReportPage extends Component
 
         $payers = Payer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']);
 
-        $providers = $this->draftPracticeId
-            ? ProviderDetails::query()
+        $providers = collect();
+        if ($this->draftPracticeId && (! $admin || $scope->canAccessPractice($admin, (int) $this->draftPracticeId))) {
+            $providerQuery = ProviderDetails::query()
                 ->whereHas('practices', fn ($q) => $q->where('practices.id', (int) $this->draftPracticeId))
-                ->with('user:id,name')
-                ->get()
-            : collect();
+                ->with('user:id,name');
+            if ($admin) {
+                $scope->scopeProviders($providerQuery, $admin);
+            }
+            $providers = $providerQuery->get();
+        }
 
         $states = CredentialingCase::query()
             ->when($admin, fn ($q) => $scope->scopeCredentialingCases($q, $admin))

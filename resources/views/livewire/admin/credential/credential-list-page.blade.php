@@ -12,11 +12,18 @@
                             : 'Track payer enrollment applications, status, and follow-ups.' }}
                     </p>
                 </div>
-                @if ($canCreateCredentials)
-                    <a href="{{ route('admin.credentials.create') }}" class="btn btn-primary">
-                        <i class="ti tabler-file-plus me-1"></i> New Application
-                    </a>
-                @endif
+                <div class="d-flex flex-wrap gap-2">
+                    @if ($canManageTasks ?? false)
+                        <button type="button" wire:click="openCreateTaskModal" class="btn btn-outline-primary">
+                            <i class="ti tabler-plus me-1"></i> New Task
+                        </button>
+                    @endif
+                    @if ($canCreateCredentials)
+                        <a href="{{ route('admin.credentials.create') }}" class="btn btn-primary">
+                            <i class="ti tabler-file-plus me-1"></i> New Application
+                        </a>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -245,6 +252,7 @@
                             <th>Assigned To</th>
                             <th>Delay Type</th>
                             <th>Aging</th>
+                            <th>Last Action</th>
                             <th>Next Follow-up</th>
                             <th>Tasks</th>
                             <th class="text-end">Actions</th>
@@ -314,6 +322,13 @@
                                 </td>
                                 <td><span class="fw-semibold">{{ $case->aging_days }}d</span></td>
                                 <td>
+                                    @if($case->last_action_at)
+                                        <small>{{ $case->last_action_at->format('m/d/Y') }}</small>
+                                    @else
+                                        <small class="text-muted">—</small>
+                                    @endif
+                                </td>
+                                <td>
                                     @if($case->next_follow_up_date)
                                         <small class="{{ $isOverdue ? 'text-danger fw-bold' : '' }}">{{ $case->next_follow_up_date->format('m/d/Y') }}</small>
                                     @else
@@ -332,6 +347,14 @@
                                 </td>
                                 <td class="text-end text-nowrap">
                                     <div class="d-inline-flex gap-1">
+                                        @if ($canManageTasks ?? false)
+                                            <button type="button"
+                                                wire:click="openCreateTaskModal({{ $case->id }})"
+                                                class="btn btn-sm btn-outline-primary"
+                                                title="Create task for this case">
+                                                <i class="ti tabler-plus me-1"></i>New Task
+                                            </button>
+                                        @endif
                                         <a href="{{ route('admin.credentials.show', $case) }}"
                                             class="btn btn-sm btn-outline-primary"
                                             title="View application details">
@@ -362,7 +385,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $canAssignCredentials ? 11 : 10 }}" class="text-center py-5 text-muted">
+                                <td colspan="{{ $canAssignCredentials ? 13 : 12 }}" class="text-center py-5 text-muted">
                                     <i class="ti tabler-clipboard-off d-block mb-2" style="font-size:2rem"></i>
                                     No applications found. Create applications from a Practice or Provider detail page.
                                 </td>
@@ -375,5 +398,57 @@
                 <div class="card-footer bg-white py-2">{{ $cases->withQueryString()->links('livewire::bootstrap') }}</div>
             @endif
         </div>
+
+        @if ($showTaskModal)
+            <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">New Task</h5>
+                            <button type="button" class="btn-close" wire:click="$set('showTaskModal', false)"></button>
+                        </div>
+                        <form wire:submit.prevent="saveTask">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                                    <input type="text" wire:model="taskForm.title" class="form-control">
+                                    @error('taskForm.title')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <textarea wire:model="taskForm.description" rows="2" class="form-control"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Provider</label>
+                                    <select wire:model="taskForm.provider_id" class="form-select">
+                                        <option value="">Select Provider (optional)</option>
+                                        @foreach ($providers as $provider)
+                                            <option value="{{ $provider->id }}">{{ $provider->user->name ?? 'Provider #'.$provider->id }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Assign To (Revantage Staff)</label>
+                                    <select wire:model="taskForm.assigned_admin_id" class="form-select">
+                                        <option value="">Unassigned</option>
+                                        @foreach ($admins as $admin)
+                                            <option value="{{ $admin->id }}">{{ $admin->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Due Date</label>
+                                    <input type="date" wire:model="taskForm.due_date" class="form-control">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" wire:click="$set('showTaskModal', false)">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Create</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
     </div>
 </div>

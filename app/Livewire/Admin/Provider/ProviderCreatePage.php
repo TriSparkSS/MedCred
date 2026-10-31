@@ -72,7 +72,7 @@ class ProviderCreatePage extends Component
             'formData.specialty_id' => 'nullable|exists:specialties,id',
             'formData.degree' => 'nullable|string|max:100',
             'formData.provider_type' => 'nullable|string|max:100',
-            'formData.npi' => 'required|string|max:50',
+            'formData.npi' => 'required|string|max:50|unique:provider_details,npi',
             'formData.caqh_id' => 'nullable|numeric|digits_between:1,15',
             'formData.taxonomy_code' => 'nullable|string|max:50',
             'formData.pecos_id' => 'nullable|string|max:50',

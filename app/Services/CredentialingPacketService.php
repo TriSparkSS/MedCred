@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\CredentialingCase;
 use App\Models\Document;
-use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
 class CredentialingPacketService
@@ -20,41 +19,51 @@ class CredentialingPacketService
             'documents.currentVersion',
         ]);
 
+        $documentService = app(DocumentService::class);
         $files = collect();
 
         foreach ($case->documents as $document) {
             $version = $document->current_version;
-            if ($version && Storage::disk('public')->exists($version->file_path)) {
-                $files->push([
-                    'path' => Storage::disk('public')->path($version->file_path),
-                    'name' => $this->sanitizeFilename($document->title . '_v' . $version->version_number . '_' . $version->original_name),
-                ]);
+            if ($version) {
+                $contents = $documentService->getDecryptedContents($document, $version);
+                if ($contents !== null) {
+                    $files->push([
+                        'contents' => $contents,
+                        'name' => $this->sanitizeFilename($document->title.'_v'.$version->version_number.'_'.$version->original_name),
+                    ]);
+                }
             }
         }
 
         foreach ($case->documentItems as $item) {
             if ($item->document?->current_version) {
                 $version = $item->document->current_version;
-                if (Storage::disk('public')->exists($version->file_path)) {
+                $contents = $documentService->getDecryptedContents($item->document, $version);
+                if ($contents !== null) {
                     $files->push([
-                        'path' => Storage::disk('public')->path($version->file_path),
-                        'name' => $this->sanitizeFilename(($item->documentType->name ?? 'doc') . '_' . $version->original_name),
+                        'contents' => $contents,
+                        'name' => $this->sanitizeFilename(($item->documentType->name ?? 'doc').'_'.$version->original_name),
                     ]);
                 }
             }
         }
 
         $providerDocs = Document::where('provider_id', $case->provider_id)
+            ->where(fn ($q) => $q->whereNull('practice_id')->orWhere('practice_id', $case->practice_id))
+            ->where(fn ($q) => $q->whereNull('credentialing_case_id')->orWhere('credentialing_case_id', $case->id))
             ->with('currentVersion')
             ->get();
 
         foreach ($providerDocs as $document) {
             $version = $document->current_version;
-            if ($version && Storage::disk('public')->exists($version->file_path)) {
-                $files->push([
-                    'path' => Storage::disk('public')->path($version->file_path),
-                    'name' => $this->sanitizeFilename('provider_' . $document->title . '_' . $version->original_name),
-                ]);
+            if ($version) {
+                $contents = $documentService->getDecryptedContents($document, $version);
+                if ($contents !== null) {
+                    $files->push([
+                        'contents' => $contents,
+                        'name' => $this->sanitizeFilename('provider_'.$document->title.'_'.$version->original_name),
+                    ]);
+                }
             }
         }
 
@@ -64,18 +73,18 @@ class CredentialingPacketService
             return null;
         }
 
-        $zipFileName = storage_path('app/temp/' . $case->case_number . '_packet_' . now()->format('Ymd_His') . '.zip');
+        $zipFileName = storage_path('app/temp/'.$case->case_number.'_packet_'.now()->format('Ymd_His').'.zip');
         if (! is_dir(dirname($zipFileName))) {
             mkdir(dirname($zipFileName), 0755, true);
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($zipFileName, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             return null;
         }
 
         foreach ($files as $file) {
-            $zip->addFile($file['path'], $file['name']);
+            $zip->addFromString($file['name'], $file['contents']);
         }
 
         $readme = $this->buildReadme($case);
@@ -89,13 +98,13 @@ class CredentialingPacketService
     {
         return implode("\n", [
             'Revantage Credentialing Packet',
-            'Case Number: ' . $case->case_number,
-            'Provider: ' . ($case->provider->user->name ?? 'N/A'),
-            'NPI: ' . ($case->provider->npi ?? 'N/A'),
-            'Practice: ' . ($case->practice->legal_name ?? 'N/A'),
-            'Payer: ' . ($case->payer->name ?? 'N/A'),
-            'State: ' . ($case->state ?? 'N/A'),
-            'Generated: ' . now()->format('Y-m-d H:i:s'),
+            'Case Number: '.$case->case_number,
+            'Provider: '.($case->provider->user->name ?? 'N/A'),
+            'NPI: '.($case->provider->npi ?? 'N/A'),
+            'Practice: '.($case->practice->legal_name ?? 'N/A'),
+            'Payer: '.($case->payer->name ?? 'N/A'),
+            'State: '.($case->state ?? 'N/A'),
+            'Generated: '.now()->format('Y-m-d H:i:s'),
         ]);
     }
 

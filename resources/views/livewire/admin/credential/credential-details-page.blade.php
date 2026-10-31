@@ -92,6 +92,11 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                @if ($canManageTasks)
+                    <button type="button" wire:click="openCreateTaskModal" class="btn btn-outline-primary">
+                        <i class="ti tabler-plus me-1"></i>New Task
+                    </button>
+                @endif
                 @if ($canEditCredentials)
                     <a href="{{ route('admin.credentials.edit', $case) }}" class="btn btn-outline-primary">
                         <i class="ti tabler-edit me-1"></i>Edit Application
@@ -808,6 +813,49 @@
                             <p class="text-muted small mb-0">No status history yet.</p>
                         @endforelse
                     </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($showTaskModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">New Task — {{ $case->case_number }}</h5>
+                        <button type="button" class="btn-close" wire:click="$set('showTaskModal', false)"></button>
+                    </div>
+                    <form wire:submit.prevent="saveTask">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Title <span class="text-danger">*</span></label>
+                                <input type="text" wire:model="taskForm.title" class="form-control">
+                                @error('taskForm.title')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea wire:model="taskForm.description" rows="2" class="form-control"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Assign To (Revantage Staff)</label>
+                                <select wire:model="taskForm.assigned_admin_id" class="form-select">
+                                    <option value="">Unassigned</option>
+                                    @foreach ($admins as $admin)
+                                        <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" wire:model="taskForm.due_date" class="form-control">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="$set('showTaskModal', false)">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

@@ -44,6 +44,8 @@ new class extends Component {
         $counts = $this->notifications;
 
         return ($counts['expiring_documents'] ?? 0)
+            + ($counts['missing_documents'] ?? 0)
+            + ($counts['revalidation_reminders'] ?? 0)
             + ($counts['overdue_tasks'] ?? 0)
             + ($counts['overdue_cases'] ?? 0)
             + ($counts['task_assignments'] ?? 0);
@@ -157,6 +159,13 @@ new class extends Component {
 
     <div class="navbar-nav-right d-flex align-items-center justify-content-end" id="navbar-collapse">
         <ul class="navbar-nav flex-row align-items-center ms-md-auto">
+            @if ($admin && ($admin->roles()->count() === 0 || $admin->can('admin.emails.view')))
+                <li class="nav-item me-2">
+                    <a class="nav-link" href="{{ route('admin.email.dashboard') }}" title="Email Center">
+                        <i class="icon-base ti tabler-mail icon-md"></i>
+                    </a>
+                </li>
+            @endif
             <li class="nav-item dropdown me-2">
                 <a class="nav-link dropdown-toggle hide-arrow position-relative" href="javascript:void(0);"
                     data-bs-toggle="dropdown">
@@ -175,28 +184,44 @@ new class extends Component {
                             href="{{ route('admin.documents', ['filterExpiry' => 'expiring']) }}">
                             <span><i class="ti tabler-file-alert me-2"></i>Expiring documents</span>
                             <span
-                                class="badge bg-label-warning">{{ $this->notifications['expiring_documents'] }}</span>
+                                class="badge bg-label-warning">{{ $this->notifications['expiring_documents'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.credentials', ['category' => 'provider']) }}">
+                            <span><i class="ti tabler-file-unknown me-2"></i>Missing documents</span>
+                            <span
+                                class="badge bg-label-warning">{{ $this->notifications['missing_documents'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex justify-content-between"
+                            href="{{ route('admin.credentials', ['revalidation' => '90']) }}">
+                            <span><i class="ti tabler-calendar-time me-2"></i>Revalidation reminders</span>
+                            <span
+                                class="badge bg-label-info">{{ $this->notifications['revalidation_reminders'] ?? 0 }}</span>
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex justify-content-between"
                             href="{{ route('admin.tasks.kanban') }}">
                             <span><i class="ti tabler-user-check me-2"></i>New task assignments</span>
-                            <span class="badge bg-label-primary">{{ $this->notifications['task_assignments'] }}</span>
+                            <span class="badge bg-label-primary">{{ $this->notifications['task_assignments'] ?? 0 }}</span>
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex justify-content-between"
                             href="{{ route('admin.tasks.kanban') }}">
                             <span><i class="ti tabler-checklist me-2"></i>Overdue tasks</span>
-                            <span class="badge bg-label-danger">{{ $this->notifications['overdue_tasks'] }}</span>
+                            <span class="badge bg-label-danger">{{ $this->notifications['overdue_tasks'] ?? 0 }}</span>
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex justify-content-between"
                             href="{{ route('admin.credentials', ['category' => 'overdue']) }}">
                             <span><i class="ti tabler-clock-exclamation me-2"></i>Overdue follow-ups</span>
-                            <span class="badge bg-label-danger">{{ $this->notifications['overdue_cases'] }}</span>
+                            <span class="badge bg-label-danger">{{ $this->notifications['overdue_cases'] ?? 0 }}</span>
                         </a>
                     </li>
                 </ul>

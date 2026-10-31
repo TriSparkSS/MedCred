@@ -66,6 +66,11 @@
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                @if (auth('admin')->user()?->can('admin.tasks.manage'))
+                <button type="button" wire:click="openCreateTaskModal" class="btn btn-outline-primary">
+                    <i class="ti tabler-plus me-1"></i> New Task
+                </button>
+                @endif
                 @if (auth('admin')->user()?->can('admin.credentials.create'))
                 <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-outline-primary">
                     <i class="ti tabler-plus me-1"></i> New Application
@@ -101,8 +106,8 @@
             </button>
         </li>
         <li class="nav-item">
-            <button type="button" class="nav-link {{ $activeTab === 'payer_applications' ? 'active' : '' }}" wire:click="setTab('payer_applications')">
-                Payer Applications
+            <button type="button" class="nav-link {{ in_array($activeTab, ['payer_applications', 'credentialing'], true) ? 'active' : '' }}" wire:click="setTab('payer_applications')">
+                Credentialing / Payer Applications
                 @if ($openCasesCount)
                     <span class="badge bg-primary ms-1">{{ $openCasesCount }}</span>
                 @endif
@@ -111,7 +116,12 @@
         <li class="nav-item">
             <button type="button" class="nav-link {{ $activeTab === 'communication' ? 'active' : '' }}" wire:click="setTab('communication')">
                 Communication
-                @if ($emails->count())
+                @php
+                    $commCount = ($emailMessages->count() ?? 0) + ($communicationActivities->count() ?? 0);
+                @endphp
+                @if ($commCount)
+                    <span class="badge bg-label-primary ms-1">{{ $commCount }}</span>
+                @elseif ($emails->count())
                     <span class="badge bg-label-primary ms-1">{{ $emails->count() }}</span>
                 @endif
             </button>
@@ -515,16 +525,23 @@
             :key="'provider-docs-'.$provider->id" />
     </div>
 
-    {{-- 5. Payer Applications --}}
-    @if ($activeTab === 'payer_applications')
+    {{-- 5. Credentialing / Payer Applications --}}
+    @if (in_array($activeTab, ['payer_applications', 'credentialing'], true))
         <div class="card shadow-sm border-0">
             <div class="card-body pb-0 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Payer Applications</h5>
-                @if (auth('admin')->user()?->can('admin.credentials.create'))
-                    <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-sm btn-primary">
-                        <i class="ti tabler-plus me-1"></i>New
-                    </a>
-                @endif
+                <div class="d-flex gap-2">
+                    @if (auth('admin')->user()?->can('admin.tasks.manage'))
+                        <button type="button" wire:click="openCreateTaskModal" class="btn btn-sm btn-outline-primary">
+                            <i class="ti tabler-plus me-1"></i>New Task
+                        </button>
+                    @endif
+                    @if (auth('admin')->user()?->can('admin.credentials.create'))
+                        <a href="{{ route('admin.credentials.create') }}?provider={{ $provider->id }}" class="btn btn-sm btn-primary">
+                            <i class="ti tabler-plus me-1"></i>New
+                        </a>
+                    @endif
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -569,56 +586,195 @@
 
     {{-- 6. Communication --}}
     @if ($activeTab === 'communication')
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-0 fw-semibold">Email Correspondence</h6>
-                    <small class="text-muted">Inbound and outbound messages linked to this provider</small>
+        <div class="row g-4">
+            @if (auth('admin')->user()?->can('admin.credentials.edit') && $cases->isNotEmpty())
+                <div class="col-lg-5">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0 fw-semibold">Log Communication / Activity</h6>
+                            <small class="text-muted">Record notes, phone calls, faxes, portal checks, or follow-ups</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2 mb-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Application Case</label>
+                                    <select wire:model="commCaseId" class="form-select form-select-sm">
+                                        @foreach ($cases as $c)
+                                            <option value="{{ $c->id }}">{{ $c->case_number }} ({{ $c->payer->name ?? 'N/A' }})</option>
+                                        @endforeach
+                                    </select>
+                                    @error('commCaseId')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Channel / Type</label>
+                                    <select wire:model="commType" class="form-select form-select-sm">
+                                        <option value="note">Internal Note</option>
+                                        <option value="call_log">Phone Call Log</option>
+                                        <option value="fax_log">Fax Log</option>
+                                        <option value="portal_check">Payer Portal Check</option>
+                                        <option value="follow_up">Follow-up Log</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Contact / Rep</label>
+                                    <input type="text" wire:model="commContactPerson" class="form-control form-control-sm" placeholder="Rep name">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Reference / Ticket #</label>
+                                    <input type="text" wire:model="commReferenceNumber" class="form-control form-control-sm" placeholder="Ref / Ticket #">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Phone / Fax / Portal</label>
+                                    <input type="text" wire:model="commPhoneOrFax" class="form-control form-control-sm" placeholder="800-555-0199 / Availity">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small text-muted mb-1">Next Follow-up Date</label>
+                                    <input type="date" wire:model="commNextFollowUpDate" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small text-muted mb-1">Outcome</label>
+                                    <input type="text" wire:model="commOutcome" class="form-control form-control-sm" placeholder="In process / Pending document">
+                                </div>
+                            </div>
+                            <textarea wire:model="commSummary" rows="3" class="form-control form-control-sm mb-2" placeholder="Enter communication summary..."></textarea>
+                            @error('commSummary')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                            <button type="button" wire:click="addCommunicationLog" class="btn btn-sm btn-primary">
+                                <i class="ti tabler-notebook me-1"></i>Save Communication Log
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <a href="{{ route('admin.email.dashboard') }}" class="btn btn-sm btn-outline-primary">
-                    <i class="ti tabler-mail me-1"></i>Email Center
-                </a>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Direction</th>
-                            <th>Subject</th>
-                            <th>Case</th>
-                            <th>From / To</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($emails as $email)
-                            <tr>
-                                <td>
-                                    <span class="badge bg-label-secondary">Linked</span>
-                                </td>
-                                <td class="fw-semibold text-break"><code class="small">{{ $email->message_id }}</code></td>
-                                <td>
-                                    @if ($email->credentialingCase)
-                                        <small>{{ $email->credentialingCase->case_number }}</small>
-                                    @else
-                                        <span class="badge bg-label-warning">Unlinked</span>
+            @endif
+            <div class="{{ auth('admin')->user()?->can('admin.credentials.edit') && $cases->isNotEmpty() ? 'col-lg-7' : 'col-12' }}">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0 fw-semibold">Communication &amp; Follow-up History</h6>
+                        <small class="text-muted">Internal notes, call logs, fax logs, portal checks, and follow-up logs across cases</small>
+                    </div>
+                    <div class="card-body">
+                        @forelse($communicationActivities ?? collect() as $activity)
+                            @php
+                                $typeLabel = match ($activity->activity_type) {
+                                    'call_log' => 'Call Log',
+                                    'fax_log' => 'Fax Log',
+                                    'portal_check' => 'Portal Check',
+                                    'follow_up' => 'Follow-up',
+                                    'email', 'email_sent', 'email_received' => 'Email',
+                                    'reminder_sent' => 'Reminder',
+                                    'escalation' => 'Escalation',
+                                    default => 'Note',
+                                };
+                                $meta = (array) ($activity->metadata ?? []);
+                            @endphp
+                            <div class="small border-bottom py-2">
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                    <span class="badge bg-label-primary">{{ $typeLabel }}</span>
+                                    @if ($activity->credentialingCase)
+                                        <a href="{{ route('admin.credentials.show', $activity->credentialingCase->id) }}" class="fw-semibold text-decoration-none">
+                                            {{ $activity->credentialingCase->case_number }}
+                                        </a>
                                     @endif
-                                </td>
-                                <td colspan="2">
-                                    <a href="{{ route('admin.email.dashboard') }}" class="small">Open Email Center to view live message</a>
-                                </td>
-                                <td>
-                                    <small>{{ $email->created_at?->format('m/d/Y g:i A') ?: '—' }}</small>
-                                </td>
-                            </tr>
+                                    <span class="text-muted">{{ $activity->admin->name ?? $activity->user->name ?? 'System' }}</span>
+                                    <span class="text-muted">· {{ $activity->created_at?->format('m/d/Y g:i A') }}</span>
+                                    @if ($activity->reference_number)
+                                        <span class="badge bg-label-dark">Ref: {{ $activity->reference_number }}</span>
+                                    @endif
+                                </div>
+                                @if ($meta !== [])
+                                    <div class="text-muted mb-1">
+                                        @if (! empty($meta['contact_person'])) Rep: {{ $meta['contact_person'] }} · @endif
+                                        @if (! empty($meta['phone_or_fax'])) {{ $meta['phone_or_fax'] }} · @endif
+                                        @if (! empty($meta['outcome'])) Outcome: {{ $meta['outcome'] }} @endif
+                                    </div>
+                                @endif
+                                <div>{{ $activity->summary }}</div>
+                            </div>
                         @empty
-                            <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">No email correspondence on record.</td>
-                            </tr>
+                            <p class="text-muted small mb-0">No communication or follow-up logs recorded yet.</p>
                         @endforelse
-                    </tbody>
-                </table>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0 fw-semibold">Email Correspondence</h6>
+                            <small class="text-muted">Inbound and outbound messages linked to this provider</small>
+                        </div>
+                        <a href="{{ route('admin.email.dashboard') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="ti tabler-mail me-1"></i>Email Center
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Direction</th>
+                                    <th>Subject</th>
+                                    <th>Case</th>
+                                    <th>From / To</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($emailMessages ?? collect() as $msg)
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-label-{{ $msg->direction === 'inbound' ? 'info' : 'primary' }}">
+                                                {{ ucfirst($msg->direction ?? 'Email') }}
+                                            </span>
+                                        </td>
+                                        <td class="fw-semibold">{{ $msg->subject ?: '(No Subject)' }}</td>
+                                        <td>
+                                            @if ($msg->credentialingCase)
+                                                <small>{{ $msg->credentialingCase->case_number }}</small>
+                                            @else
+                                                <span class="badge bg-label-warning">Provider Linked</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <small>{{ $msg->from_address }} → {{ $msg->to_address }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-label-secondary">{{ ucfirst($msg->status ?? 'logged') }}</span>
+                                        </td>
+                                        <td>
+                                            <small>{{ ($msg->received_at ?? $msg->sent_at ?? $msg->created_at)?->format('m/d/Y g:i A') ?: '—' }}</small>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                @forelse($emails as $email)
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-label-secondary">Linked</span>
+                                        </td>
+                                        <td class="fw-semibold text-break"><code class="small">{{ $email->message_id }}</code></td>
+                                        <td>
+                                            @if ($email->credentialingCase)
+                                                <small>{{ $email->credentialingCase->case_number }}</small>
+                                            @else
+                                                <span class="badge bg-label-warning">Unlinked</span>
+                                            @endif
+                                        </td>
+                                        <td colspan="2">
+                                            <a href="{{ route('admin.email.dashboard') }}" class="small">Open Email Center to view live message</a>
+                                        </td>
+                                        <td>
+                                            <small>{{ $email->created_at?->format('m/d/Y g:i A') ?: '—' }}</small>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    @if (($emailMessages ?? collect())->isEmpty())
+                                        <tr>
+                                            <td colspan="6" class="text-center py-5 text-muted">No email correspondence on record.</td>
+                                        </tr>
+                                    @endif
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     @endif
@@ -634,7 +790,7 @@
                 <div class="d-flex gap-2 flex-wrap">
                     @if (auth('admin')->user()?->can('admin.tasks.manage'))
                         <button wire:click="openCreateTaskModal" class="btn btn-sm btn-primary">
-                            <i class="ti tabler-plus me-1"></i>Create Task
+                            <i class="ti tabler-plus me-1"></i>New Task
                         </button>
                     @endif
                     @if (auth('admin')->user()?->can('admin.tasks.view'))
@@ -714,49 +870,6 @@
                 </table>
             </div>
         </div>
-
-        @if ($showTaskModal)
-            <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Create Task</h5>
-                            <button type="button" class="btn-close" wire:click="$set('showTaskModal', false)"></button>
-                        </div>
-                        <form wire:submit.prevent="saveTask">
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label class="form-label">Title <span class="text-danger">*</span></label>
-                                    <input type="text" wire:model="taskForm.title" class="form-control">
-                                    @error('taskForm.title')<div class="text-danger small">{{ $message }}</div>@enderror
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Description</label>
-                                    <textarea wire:model="taskForm.description" rows="2" class="form-control"></textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Assign To (Revantage Staff)</label>
-                                    <select wire:model="taskForm.assigned_admin_id" class="form-select">
-                                        <option value="">Unassigned</option>
-                                        @foreach ($admins as $admin)
-                                            <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Due Date</label>
-                                    <input type="date" wire:model="taskForm.due_date" class="form-control">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-secondary" wire:click="$set('showTaskModal', false)">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Create</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @endif
 
         <livewire:admin.task.task-detail-drawer />
     @endif
@@ -927,6 +1040,60 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+    @endif
+
+    @if ($showTaskModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">New Task</h5>
+                        <button type="button" class="btn-close" wire:click="$set('showTaskModal', false)"></button>
+                    </div>
+                    <form wire:submit.prevent="saveTask">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Title <span class="text-danger">*</span></label>
+                                <input type="text" wire:model="taskForm.title" class="form-control">
+                                @error('taskForm.title')<div class="text-danger small">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea wire:model="taskForm.description" rows="2" class="form-control"></textarea>
+                            </div>
+                            @if ($cases->isNotEmpty())
+                                <div class="mb-3">
+                                    <label class="form-label">Linked Case (optional)</label>
+                                    <select wire:model="taskForm.credentialing_case_id" class="form-select">
+                                        <option value="">None (Provider-level task)</option>
+                                        @foreach ($cases as $c)
+                                            <option value="{{ $c->id }}">{{ $c->case_number }} — {{ $c->payer->name ?? 'N/A' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
+                            <div class="mb-3">
+                                <label class="form-label">Assign To (Revantage Staff)</label>
+                                <select wire:model="taskForm.assigned_admin_id" class="form-select">
+                                    <option value="">Unassigned</option>
+                                    @foreach ($admins as $admin)
+                                        <option value="{{ $admin->id }}">{{ $admin->displayLabel() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" wire:model="taskForm.due_date" class="form-control">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="$set('showTaskModal', false)">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     @endif

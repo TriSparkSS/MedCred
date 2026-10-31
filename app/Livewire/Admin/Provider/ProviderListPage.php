@@ -12,6 +12,7 @@ use App\Services\AdminScopeService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -25,6 +26,7 @@ class ProviderListPage extends Component
 
     public $formData = [];
 
+    #[Locked]
     public $providerId = null;
 
     public $specialties = [];
@@ -110,7 +112,11 @@ class ProviderListPage extends Component
 
     public function delete(int $id): void
     {
-        abort_unless(Auth::guard('admin')->user()?->can('admin.providers.delete'), 403);
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin && ($admin->can('admin.providers.delete') || $admin->can('admin.providers.manage')), 403);
+
+        $provider = ProviderDetails::findOrFail($id);
+        abort_unless(app(AdminScopeService::class)->canAccessProvider($admin, $provider), 403);
 
         $this->providerId = $id;
         sweetalert()
@@ -119,11 +125,15 @@ class ProviderListPage extends Component
     }
 
     #[On('sweetalert:confirmed')]
-    public function onConfirmed(array $payload): void
+    public function onConfirmed(array $payload = []): void
     {
-        abort_unless(Auth::guard('admin')->user()?->can('admin.providers.delete'), 403);
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin && ($admin->can('admin.providers.delete') || $admin->can('admin.providers.manage')), 403);
 
-        $provider = ProviderDetails::findOrFail($this->providerId);
+        $provider = ProviderDetails::with('user')->findOrFail($this->providerId);
+        abort_unless(app(AdminScopeService::class)->canAccessProvider($admin, $provider), 403);
+
+        $provider->user?->update(['status' => 0]);
         $provider->delete();
         $this->providerId = null;
         flash()->info('Provider successfully deleted.');

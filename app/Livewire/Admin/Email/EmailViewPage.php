@@ -3,7 +3,9 @@
 namespace App\Livewire\Admin\Email;
 
 use App\Data\MailMessageDto;
+use App\Models\Admin;
 use App\Models\CredentialingCase;
+use App\Models\EmailMessage;
 use App\Models\NotificationTemplate;
 use App\Services\AdminScopeService;
 use App\Services\CredentialingEmailService;
@@ -236,9 +238,30 @@ class EmailViewPage extends Component
         } elseif ($this->messageId !== '') {
             try {
                 $decodedMessageId = self::decodeId($this->messageId);
-                $anchor = $graph->getMessage($decodedMessageId, $this->folder, true);
+
+                if ($admin) {
+                    $this->assertAdminCanAccessMessage($admin, $scope, $caseLinks, $decodedMessageId);
+                }
+
+                $anchor = $graph->getMessage($decodedMessageId, $this->folder, false);
+
+                if ($admin && filled($anchor->internetMessageId)) {
+                    $this->assertAdminCanAccessMessage($admin, $scope, $caseLinks, (string) $anchor->internetMessageId);
+                }
+
                 $threadMessages = $graph->getConversation($anchor->conversationId, $decodedMessageId, $this->folder);
                 $this->linkMessageId = $anchor->internetMessageId ?? '';
+
+                if ($admin) {
+                    foreach ($threadMessages as $threadMsg) {
+                        if (filled($threadMsg->id)) {
+                            $this->assertAdminCanAccessMessage($admin, $scope, $caseLinks, (string) $threadMsg->id);
+                        }
+                        if (filled($threadMsg->internetMessageId)) {
+                            $this->assertAdminCanAccessMessage($admin, $scope, $caseLinks, (string) $threadMsg->internetMessageId);
+                        }
+                    }
+                }
 
                 $caseMap = $caseLinks->caseIdsForMessageIds(
                     $threadMessages->map(fn (MailMessageDto $m) => $m->internetMessageId)->all()
@@ -251,6 +274,17 @@ class EmailViewPage extends Component
                         abort_unless($scope->canAccessCase($admin, $existingCase), 403);
                     }
                 }
+
+                if ($admin) {
+                    foreach ($caseMap as $mappedCaseId) {
+                        $mappedCase = CredentialingCase::find((int) $mappedCaseId);
+                        if ($mappedCase) {
+                            abort_unless($scope->canAccessCase($admin, $mappedCase), 403);
+                        }
+                    }
+                }
+
+                $anchor = $graph->getMessage($decodedMessageId, $this->folder, true);
 
                 if (! $existingCaseId && $this->linkCaseId === '') {
                     $match = $matching->match($anchor->subject, $anchor->displayBody(), $anchor->fromAddress);
@@ -322,6 +356,35 @@ class EmailViewPage extends Component
         $decoded = base64_decode($padded, true);
 
         return $decoded !== false && $decoded !== '';
+    }
+
+    protected function assertAdminCanAccessMessage(
+        Admin $admin,
+        AdminScopeService $scope,
+        EmailCaseLinkService $caseLinks,
+        string $messageIdentifier,
+    ): void {
+        if ($messageIdentifier === '') {
+            return;
+        }
+
+        $existingCase = $caseLinks->findCase($messageIdentifier);
+        if ($existingCase) {
+            abort_unless($scope->canAccessCase($admin, $existingCase), 403);
+        }
+
+        $emailMessage = EmailMessage::with(['credentialingCase', 'provider.practices'])
+            ->where(function ($q) use ($messageIdentifier) {
+                $q->where('external_message_id', $messageIdentifier)
+                    ->orWhere('message_id', $messageIdentifier);
+            })
+            ->first();
+
+        if ($emailMessage?->credentialingCase) {
+            abort_unless($scope->canAccessCase($admin, $emailMessage->credentialingCase), 403);
+        } elseif ($emailMessage?->provider) {
+            abort_unless($scope->canAccessProvider($admin, $emailMessage->provider), 403);
+        }
     }
 
     protected static function sanitizeUtf8(string $value): string

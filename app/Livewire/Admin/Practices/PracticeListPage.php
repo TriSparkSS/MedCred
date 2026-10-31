@@ -7,6 +7,7 @@ use App\Models\Practice;
 use App\Services\AdminScopeService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -17,7 +18,10 @@ class PracticeListPage extends Component
     use WithPagination;
 
     public $search = '';
+
     public $filterStatus = '';
+
+    #[Locked]
     public $practiceId = null;
 
     public function updated($propertyName)
@@ -29,7 +33,11 @@ class PracticeListPage extends Component
 
     public function delete(int $id): void
     {
-        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.delete'), 403);
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin && ($admin->can('admin.practices.delete') || $admin->can('admin.practices.manage')), 403);
+
+        $practice = Practice::findOrFail($id);
+        abort_unless(app(AdminScopeService::class)->canAccessPractice($admin, (int) $practice->id), 403);
 
         $this->practiceId = $id;
         sweetalert()
@@ -38,15 +46,18 @@ class PracticeListPage extends Component
     }
 
     #[On('sweetalert:confirmed')]
-    public function onConfirmed(array $payload): void
+    public function onConfirmed(array $payload = []): void
     {
-        abort_unless(Auth::guard('admin')->user()?->can('admin.practices.delete'), 403);
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin && ($admin->can('admin.practices.delete') || $admin->can('admin.practices.manage')), 403);
 
         $practice = Practice::with('user')->findOrFail($this->practiceId);
+        abort_unless(app(AdminScopeService::class)->canAccessPractice($admin, (int) $practice->id), 403);
+
         $user = $practice->user;
 
         $practice->delete();
-        $user?->delete();
+        $user?->update(['status' => 0]);
 
         $this->practiceId = null;
         flash()->info('Practice successfully deleted.');
@@ -73,7 +84,7 @@ class PracticeListPage extends Component
         }
 
         if ($this->search) {
-            $search = '%' . $this->search . '%';
+            $search = '%'.$this->search.'%';
 
             $query->where(function ($q) use ($search) {
                 $q->where('legal_name', 'like', $search)

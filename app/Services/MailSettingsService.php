@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\SentEmailResult;
 use App\Models\Setting;
 use Webklex\PHPIMAP\ClientManager;
 
@@ -196,6 +197,11 @@ class MailSettingsService
         $this->setImapLastSync($uid, $uidKey);
     }
 
+    public function applyRuntimeConfig(): void
+    {
+        $this->applyToConfig();
+    }
+
     public function applyToConfig(): void
     {
         $settings = $this->getSettings();
@@ -307,10 +313,10 @@ class MailSettingsService
             return $message;
         }
 
-        return $message . ' — Microsoft 365 often allows SMTP with a password but blocks IMAP password login. '
-            . 'Prefer Microsoft Graph OAuth: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, and GRAPH_MAILBOX in .env '
-            . '(Entra app with Mail.Read application permission + admin consent). '
-            . 'IMAP fallback: enable IMAP under Users → Mail → Manage email apps, or confirm the tenant still allows IMAP basic auth.';
+        return $message.' — Microsoft 365 often allows SMTP with a password but blocks IMAP password login. '
+            .'Prefer Microsoft Graph OAuth: set GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, and GRAPH_MAILBOX in .env '
+            .'(Entra app with Mail.Read application permission + admin consent). '
+            .'IMAP fallback: enable IMAP under Users → Mail → Manage email apps, or confirm the tenant still allows IMAP basic auth.';
     }
 
     public function isImapAuthFailure(string $message): bool
@@ -374,7 +380,7 @@ class MailSettingsService
         ];
     }
 
-    public function sendTestEmail(string $toAddress): \App\Data\SentEmailResult
+    public function sendTestEmail(string $toAddress): SentEmailResult
     {
         $this->assertConfigured();
 

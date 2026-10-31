@@ -11,7 +11,6 @@ use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\SlaRule;
 use App\Models\Status;
-use App\Models\Task;
 use App\Support\BusinessDayCalculator;
 
 class SlaEngineService
@@ -142,22 +141,26 @@ class SlaEngineService
             $case = $timer->credentialingCase;
             if (! $case || $this->caseIsClosed($case) || $case->automation_paused || $case->do_not_automate) {
                 $timer->markCompleted();
+
                 continue;
             }
 
             $rule = $this->resolveRuleForCase($case, $timer->rule_key);
             if (! $rule) {
                 $timer->markCompleted();
+
                 continue;
             }
 
             if ($this->hasConflictingDelayOverride($case, $rule)) {
                 $timer->markCompleted();
+
                 continue;
             }
 
             if ($rule->action === 'reminder' && $this->hasDuplicateReminderEvent($case, $rule, $timer)) {
                 $timer->markCompleted();
+
                 continue;
             }
 
@@ -227,6 +230,7 @@ class SlaEngineService
         $providerEmail = $case->provider->user->email ?? null;
         if (! $providerEmail) {
             $case->addActivity('system', 'SLA reminder skipped — no provider email on file');
+
             return;
         }
 
@@ -241,10 +245,10 @@ class SlaEngineService
         app(DelayOwnershipService::class)->shiftToDelayOwnerByName(
             $case,
             'Provider/Practice',
-            'Auto-shifted after ' . $rule->name,
+            'Auto-shifted after '.$rule->name,
         );
 
-        $case->addActivity('system', 'Auto-reminder sent: ' . $rule->name);
+        $case->addActivity('system', 'Auto-reminder sent: '.$rule->name);
     }
 
     protected function hasDuplicateReminderEvent(CredentialingCase $case, SlaRule $rule, ?CaseSlaTimer $timer = null): bool
@@ -334,14 +338,14 @@ class SlaEngineService
     protected function escalateCase(CredentialingCase $case, SlaRule $rule): void
     {
         $case->update(['is_escalated' => true]);
-        $case->addActivity('system', 'Case escalated — ' . $rule->name);
+        $case->addActivity('system', 'Case escalated — '.$rule->name);
 
         app(TaskService::class)->ensureTask(
-            'sla_escalation:' . $case->id . ':' . $rule->rule_key,
+            'sla_escalation:'.$case->id.':'.$rule->rule_key,
             $case,
             [
                 'task_type' => TaskType::Escalation->value,
-                'title' => 'Manager review: ' . $case->case_number,
+                'title' => 'Manager review: '.$case->case_number,
                 'description' => $rule->name,
                 'assigned_admin_id' => $case->assigned_admin_id,
                 'due_date' => now()->addDay()->toDateString(),
@@ -354,7 +358,7 @@ class SlaEngineService
                 $recipientEmails = Admin::role([
                     AdminRole::CredentialingManager->value,
                     AdminRole::SystemAdmin->value,
-                ])->where('status', 1)->pluck('email')->filter()->unique()->values();
+                ])->where('status', 'active')->pluck('email')->filter()->unique()->values();
             } catch (\Throwable) {
                 $recipientEmails = collect();
             }
@@ -379,11 +383,11 @@ class SlaEngineService
     protected function createFollowUpTask(CredentialingCase $case, SlaRule $rule): void
     {
         app(TaskService::class)->ensureTask(
-            'sla_task:' . $case->id . ':' . $rule->rule_key,
+            'sla_task:'.$case->id.':'.$rule->rule_key,
             $case,
             [
                 'task_type' => TaskType::Sla->value,
-                'title' => $rule->name . ': ' . ($case->payer->name ?? $case->case_number),
+                'title' => $rule->name.': '.($case->payer->name ?? $case->case_number),
                 'assigned_admin_id' => $case->assigned_admin_id,
                 'due_date' => now()->addDays(2)->toDateString(),
                 'description' => 'Auto-generated payer follow-up task',
@@ -396,7 +400,7 @@ class SlaEngineService
             'Internal follow-up after payer SLA',
         );
 
-        $case->addActivity('system', 'Payer follow-up task created: ' . $rule->name);
+        $case->addActivity('system', 'Payer follow-up task created: '.$rule->name);
     }
 
     protected function shiftDelayOwner(CredentialingCase $case, SlaRule $rule): void
@@ -411,7 +415,7 @@ class SlaEngineService
         app(DelayOwnershipService::class)->shiftToDelayOwnerByName(
             $case,
             $ownerName,
-            'SLA delay shift: ' . $rule->name,
+            'SLA delay shift: '.$rule->name,
         );
     }
 

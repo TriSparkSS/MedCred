@@ -189,7 +189,8 @@ class TaskBoardPage extends Component
 
     public function saveTask(TaskService $taskService): void
     {
-        $adminId = Auth::guard('admin')->id();
+        $admin = Auth::guard('admin')->user();
+        $adminId = $admin?->id;
 
         if (! $adminId) {
             abort(403);
@@ -198,6 +199,16 @@ class TaskBoardPage extends Component
         $this->authorize('create', Task::class);
         $this->normalizeFormData();
         $this->validate();
+
+        $scope = app(AdminScopeService::class);
+        if (! empty($this->formData['credentialing_case_id'])) {
+            $case = CredentialingCase::findOrFail((int) $this->formData['credentialing_case_id']);
+            abort_unless($scope->canAccessCase($admin, $case), 403);
+        }
+        if (! empty($this->formData['provider_id'])) {
+            $provider = ProviderDetails::findOrFail((int) $this->formData['provider_id']);
+            abort_unless($scope->canAccessProvider($admin, $provider), 403);
+        }
 
         $taskService->create($this->formData, $adminId);
 
@@ -208,7 +219,8 @@ class TaskBoardPage extends Component
 
     public function updateTask(TaskService $taskService): void
     {
-        $adminId = Auth::guard('admin')->id();
+        $admin = Auth::guard('admin')->user();
+        $adminId = $admin?->id;
 
         if (! $adminId) {
             abort(403);
@@ -218,6 +230,16 @@ class TaskBoardPage extends Component
         $this->authorize('update', $task);
         $this->normalizeFormData();
         $this->validate();
+
+        $scope = app(AdminScopeService::class);
+        if (! empty($this->formData['credentialing_case_id'])) {
+            $case = CredentialingCase::findOrFail((int) $this->formData['credentialing_case_id']);
+            abort_unless($scope->canAccessCase($admin, $case), 403);
+        }
+        if (! empty($this->formData['provider_id'])) {
+            $provider = ProviderDetails::findOrFail((int) $this->formData['provider_id']);
+            abort_unless($scope->canAccessProvider($admin, $provider), 403);
+        }
 
         $taskService->update($task, $this->formData, $adminId);
 
@@ -428,8 +450,12 @@ class TaskBoardPage extends Component
         $repeat = (bool) ($this->followUpForm['repeat'] ?? false);
         $assignee = $this->followUpForm['assigned_admin_id'] ?? null;
 
+        $scopedCasesQuery = CredentialingCase::query()->whereIn('id', array_map('intval', $this->followUpCaseIds));
+        app(AdminScopeService::class)->scopeCredentialingCases($scopedCasesQuery, $admin);
+        $scopedCaseIds = $scopedCasesQuery->pluck('id')->all();
+
         $count = $taskService->createFollowUpsForCases(
-            $this->followUpCaseIds,
+            $scopedCaseIds,
             [
                 'title' => $this->followUpForm['title'],
                 'assigned_admin_id' => $assignee === '' ? null : $assignee,
@@ -483,7 +509,19 @@ class TaskBoardPage extends Component
             return;
         }
 
-        $practice = ProviderDetails::find($value)?->primaryPractice();
+        $provider = ProviderDetails::with('practices')->find($value);
+        if (! $provider) {
+            return;
+        }
+
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+        $practices = $provider->practices;
+        if ($admin) {
+            $practices = $practices->filter(fn (Practice $p) => $scope->canAccessPractice($admin, (int) $p->id));
+        }
+
+        $practice = $practices->sortByDesc(fn (Practice $p) => (int) ($p->pivot->primary_flag ?? 0))->first();
         if ($practice && $this->filterPracticeId === '') {
             $this->filterPracticeId = (string) $practice->id;
         }
@@ -683,9 +721,23 @@ class TaskBoardPage extends Component
 
         $practiceQuery = Practice::orderBy('legal_name');
         $providerQuery = ProviderDetails::with('user')->orderBy('id');
+        $casesQuery = CredentialingCase::whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))
+            ->with('payer')
+            ->latest();
+        $selectedFollowUpCasesQuery = $this->followUpCaseIds === []
+            ? null
+            : CredentialingCase::query()
+                ->with('payer')
+                ->whereIn('id', array_map('intval', $this->followUpCaseIds));
+
         if ($admin) {
-            app(AdminScopeService::class)->scopePractices($practiceQuery, $admin);
-            app(AdminScopeService::class)->scopeProviders($providerQuery, $admin);
+            $scope = app(AdminScopeService::class);
+            $scope->scopePractices($practiceQuery, $admin);
+            $scope->scopeProviders($providerQuery, $admin);
+            $scope->scopeCredentialingCases($casesQuery, $admin);
+            if ($selectedFollowUpCasesQuery) {
+                $scope->scopeCredentialingCases($selectedFollowUpCasesQuery, $admin);
+            }
         }
 
         return view('livewire.admin.task.task-board-page', [
@@ -696,21 +748,14 @@ class TaskBoardPage extends Component
             'admins' => Admin::assignable()->get(['id', 'name', 'username']),
             'providers' => $providerQuery->limit(200)->get(),
             'payers' => Payer::orderBy('name')->get(['id', 'name']),
-            'cases' => CredentialingCase::whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $closedCategories))
-                ->with('payer')
-                ->latest()
-                ->limit(100)
-                ->get(['id', 'case_number', 'payer_id']),
+            'cases' => $casesQuery->limit(100)->get(['id', 'case_number', 'payer_id']),
             'priorities' => Priority::where('is_active', true)->orderBy('sort_order')->get(),
             'statuses' => TaskStatus::cases(),
             'taskTypeLabels' => fn (string $type) => $taskSync->taskTypeLabel($type),
             'followUpCaseResults' => $this->followUpCaseSearchResults(),
-            'selectedFollowUpCases' => $this->followUpCaseIds === []
-                ? collect()
-                : CredentialingCase::query()
-                    ->with('payer')
-                    ->whereIn('id', array_map('intval', $this->followUpCaseIds))
-                    ->get(['id', 'case_number', 'payer_id']),
+            'selectedFollowUpCases' => $selectedFollowUpCasesQuery
+                ? $selectedFollowUpCasesQuery->get(['id', 'case_number', 'payer_id'])
+                : collect(),
             'followUpPreviewCount' => count($this->followUpCaseIds) * ((bool) ($this->followUpForm['repeat'] ?? false)
                 ? max(2, min(12, (int) ($this->followUpForm['occurrences'] ?? 3)))
                 : 1),

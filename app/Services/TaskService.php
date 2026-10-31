@@ -459,6 +459,8 @@ class TaskService
 
     public function attachFile(Task $task, UploadedFile $file, int $adminId): TaskAttachment
     {
+        app(FileMalwareScanner::class)->assertClean($file, $adminId);
+
         $path = $file->store('task-attachments/'.$task->id, 'local');
 
         $attachment = TaskAttachment::create([
@@ -485,7 +487,7 @@ class TaskService
         $existing = Task::query()
             ->where('automation_key', $automationKey)
             ->where('credentialing_case_id', $case->id)
-            ->open()
+            ->latest('id')
             ->first();
 
         if ($existing) {

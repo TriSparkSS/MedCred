@@ -160,7 +160,9 @@ class ProviderEditPage extends Component
             'password' => '',
         ];
 
+        $scope = app(AdminScopeService::class);
         $linked = $providerModel->practices
+            ->filter(fn ($practice) => ! $admin || $scope->canAccessPractice($admin, (int) $practice->id))
             ->sortByDesc(fn ($practice) => (int) ($practice->pivot->primary_flag ?? 0))
             ->values();
         $this->practiceId = (string) ($linked->first()?->id ?? '');
@@ -187,6 +189,7 @@ class ProviderEditPage extends Component
             'name' => $this->userData['name'],
             'email' => $this->userData['email'],
             'phone' => $this->userData['phone'] ?? null,
+            'status' => ($this->formData['status'] ?? null) === ProviderStatus::INACTIVE->value ? 0 : 1,
         ];
 
         if (filled($this->userData['password'])) {
@@ -258,11 +261,13 @@ class ProviderEditPage extends Component
             $scope->scopePractices($practiceQuery, $admin);
         }
 
-        $latestMalpracticeDoc = Document::query()
+        $malpracticeDocQuery = Document::query()
             ->where('provider_id', $this->providerId)
-            ->whereHas('documentType', fn ($q) => $q->where('name', 'Malpractice Insurance'))
-            ->latest('id')
-            ->first();
+            ->whereHas('documentType', fn ($q) => $q->where('name', 'Malpractice Insurance'));
+        if ($admin) {
+            $scope->scopeDocuments($malpracticeDocQuery, $admin);
+        }
+        $latestMalpracticeDoc = $malpracticeDocQuery->latest('id')->first();
 
         return view('livewire.admin.provider.provider-edit-page', [
             'practices' => $practiceQuery->get(['id', 'legal_name', 'client_code']),

@@ -83,8 +83,11 @@ class ProviderPracticeAssignmentPage extends Component
         }
 
         if ($this->formData['primary_flag']) {
+            $admin = Auth::guard('admin')->user();
+            $assignedIds = $admin ? app(AdminScopeService::class)->assignedPracticeIds($admin) : null;
             ProviderPractice::query()
                 ->where('provider_id', $this->formData['provider_id'])
+                ->when($assignedIds !== null, fn ($query) => $query->whereIn('practice_id', $assignedIds ?: [0]))
                 ->when($this->assignmentId, fn ($query) => $query->whereKeyNot($this->assignmentId))
                 ->update(['primary_flag' => false]);
         }
@@ -148,7 +151,7 @@ class ProviderPracticeAssignmentPage extends Component
     }
 
     #[On('sweetalert:confirmed')]
-    public function onConfirmed(array $payload): void
+    public function onConfirmed(array $payload = []): void
     {
         abort_unless(Auth::guard('admin')->user()?->can('admin.practices.manage'), 403);
 
@@ -196,7 +199,7 @@ class ProviderPracticeAssignmentPage extends Component
     }
 
     #[On('sweetalert:denied')]
-    public function onDeny(array $payload): void
+    public function onDeny(array $payload = []): void
     {
         $this->assignmentId = null;
         flash()->info('Deletion cancelled.');
@@ -219,7 +222,8 @@ class ProviderPracticeAssignmentPage extends Component
 
     protected function loadLocationsForPractice(mixed $practiceId): void
     {
-        if (! $practiceId) {
+        $admin = Auth::guard('admin')->user();
+        if (! $practiceId || ($admin && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $practiceId))) {
             $this->availableLocations = [];
 
             return;

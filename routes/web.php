@@ -45,9 +45,11 @@ use App\Livewire\Admin\Setting\PortalAccountManager;
 use App\Livewire\Admin\Setting\SettingPage;
 use App\Livewire\Admin\Setting\Specialty\SpecialtyListPage;
 use App\Livewire\Admin\Task\TaskBoardPage;
+use App\Livewire\Authenticate\ForgotPasswordPage;
 use App\Livewire\Authenticate\LoginPage;
 use App\Livewire\Authenticate\PortalLoginPage;
 use App\Livewire\Authenticate\ProviderLoginPage;
+use App\Livewire\Authenticate\ResetPasswordPage;
 use App\Livewire\Practice\PracticeActionItemsPage;
 use App\Livewire\Practice\PracticeCaseDetailPage;
 use App\Livewire\Practice\PracticeCasesPage;
@@ -68,8 +70,12 @@ Route::get('/', function () {
 });
 
 Route::get('sp/login', LoginPage::class)->name('login');
+Route::get('sp/forgot-password', ForgotPasswordPage::class)->name('password.request');
+Route::get('sp/reset-password/{token}', ResetPasswordPage::class)->name('password.reset');
 
 Route::get('portal/login', PortalLoginPage::class)->name('portal.login');
+Route::get('portal/forgot-password', ForgotPasswordPage::class)->name('portal.password.request');
+Route::get('portal/reset-password/{token}', ResetPasswordPage::class)->name('portal.password.reset');
 Route::get('provider/login', ProviderLoginPage::class)->name('provider.login');
 Route::get('practice/login', PortalLoginPage::class)->name('practice.login');
 
@@ -135,7 +141,7 @@ Route::prefix('admin')->name('admin.')->middleware(['is_auth:admin'])->group(fun
     Route::get('reports/practice-credentialing', PracticeCredentialingReportPage::class)
         ->middleware('admin.permission:admin.reports.view')
         ->name('reports.practice-credentialing');
-    Route::get('reports/export/{type}', [ReportExportController::class, 'download'])->middleware('admin.permission:admin.reports.export')->name('reports.export');
+    Route::get('reports/export/{type}/{format?}', [ReportExportController::class, 'download'])->middleware('admin.permission:admin.reports.export')->name('reports.export');
     Route::get('analytics/productivity', ProductivityDashboardPage::class)->middleware('admin.permission:admin.analytics.view')->name('analytics.productivity');
     Route::get('imports/bulk', BulkImportPage::class)->middleware('admin.permission:admin.imports.manage')->name('imports.bulk');
 

@@ -218,8 +218,22 @@ class EntityDocumentsSection extends Component
         }
 
         if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
+            $existingDoc = $this->documentForOwner((int) $this->selectedDocumentId);
+            $admin = Auth::guard('admin')->user();
+            $scope = app(AdminScopeService::class);
+            if (
+                $existingDoc->visibility === 'restricted'
+                && $admin
+                && ! $scope->isUnrestricted($admin)
+                && ! $admin->can('admin.settings.manage')
+                && ! $admin->hasRole('super_admin')
+            ) {
+                $payload['visibility'] = 'restricted';
+                $payload['allowed_roles'] = $existingDoc->allowed_roles ?? [];
+            }
+
             $document = $documentService->update(
-                $this->documentForOwner((int) $this->selectedDocumentId),
+                $existingDoc,
                 $payload,
                 $this->uploadFile,
                 Auth::guard('admin')->id()
@@ -263,7 +277,7 @@ class EntityDocumentsSection extends Component
         ]);
 
         $document = $this->documentForOwner((int) $this->selectedDocumentId);
-        $document->addVersion($this->versionFile, Auth::guard('admin')->id(), $this->versionNotes);
+        app(DocumentService::class)->uploadVersion($document, $this->versionFile, Auth::guard('admin')->id(), $this->versionNotes);
 
         $this->showVersionModal = false;
         flash()->success('New version uploaded.');
@@ -364,7 +378,18 @@ class EntityDocumentsSection extends Component
             $query->where('practice_id', $this->practiceId);
         }
 
-        return $query->findOrFail($id);
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeDocuments($query, $admin);
+        }
+
+        $document = $query->findOrFail($id);
+
+        if ($admin) {
+            abort_unless(app(AdminScopeService::class)->canAccessDocument($admin, $document), 403);
+        }
+
+        return $document;
     }
 
     private function normalizeEmptyFormValues(): void
@@ -424,6 +449,11 @@ class EntityDocumentsSection extends Component
             $query->where('provider_id', $this->providerId);
         } else {
             $query->where('practice_id', $this->practiceId);
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            app(AdminScopeService::class)->scopeDocuments($query, $admin);
         }
 
         $lockedType = $this->lockedType();

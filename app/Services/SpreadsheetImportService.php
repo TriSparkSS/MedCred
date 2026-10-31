@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\PracticeStatus;
-use App\Enums\ProviderCredentialType;
 use App\Enums\ProviderStatus;
 use App\Models\Admin;
 use App\Models\ImportBatch;
@@ -443,6 +442,7 @@ class SpreadsheetImportService
             'email' => $email,
             'phone' => $this->optional($data, 'phone'),
             'password' => $this->passwordForRow($data),
+            'status' => 1,
         ]);
 
         if (method_exists($user, 'assignRole')) {
@@ -586,6 +586,7 @@ class SpreadsheetImportService
             'email' => $email,
             'phone' => $this->optional($data, 'phone'),
             'password' => $this->passwordForRow($data),
+            'status' => 1,
         ]);
 
         if (method_exists($user, 'assignRole')) {

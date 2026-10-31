@@ -75,6 +75,10 @@ class CredentialDetailsPage extends Component
 
     public array $billingForm = [];
 
+    public bool $showTaskModal = false;
+
+    public array $taskForm = [];
+
     /** @var list<string> */
     protected array $allowedTabs = [
         'details',
@@ -318,6 +322,46 @@ class CredentialDetailsPage extends Component
         $this->newTaskRepeat = $wasRepeating;
     }
 
+    public function openCreateTaskModal(): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
+
+        $this->taskForm = [
+            'title' => '',
+            'description' => '',
+            'credentialing_case_id' => $this->case->id,
+            'provider_id' => $this->case->provider_id,
+            'payer_id' => $this->case->payer_id,
+            'assigned_admin_id' => $this->case->assigned_admin_id ?? Auth::guard('admin')->id(),
+            'due_date' => now()->addDays(3)->toDateString(),
+            'task_type' => 'manual',
+        ];
+        $this->showTaskModal = true;
+    }
+
+    public function saveTask(TaskService $taskService): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
+
+        $this->validate([
+            'taskForm.title' => 'required|string|max:255',
+            'taskForm.description' => 'nullable|string|max:2000',
+            'taskForm.assigned_admin_id' => 'nullable|exists:admins,id',
+            'taskForm.due_date' => 'nullable|date',
+        ]);
+
+        $payload = $this->taskForm;
+        $payload['credentialing_case_id'] = $this->case->id;
+        $payload['provider_id'] = $this->case->provider_id;
+        $payload['payer_id'] = $this->case->payer_id;
+        $payload['task_type'] = $payload['task_type'] ?? 'manual';
+
+        $taskService->create($payload, Auth::guard('admin')->id());
+        $this->showTaskModal = false;
+        $this->case->refresh();
+        flash()->success('Task created.');
+    }
+
     public function completeTask(int $taskId, TaskService $taskService): void
     {
         $task = Task::where('credentialing_case_id', $this->case->id)->findOrFail($taskId);
@@ -434,7 +478,7 @@ class CredentialDetailsPage extends Component
             'statusHistories.status', 'statusHistories.changedByAdmin',
             'activities.admin', 'activities.user',
             'documentItems.documentType', 'documentItems.document.versions',
-            'tasks' => fn ($q) => $q->with('assignedAdmin')->orderByRaw('completed_at IS NOT NULL')->orderBy('due_date'),
+            'tasks' => fn ($q) => $q->with('assignedAdmin')->orderByRaw('CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END')->orderBy('due_date'),
             'emailCaseLinks' => fn ($q) => $q->latest()->limit(20),
             'emailMessages' => fn ($q) => $q->latest()->limit(30),
             'slaTimers' => fn ($q) => $q->where('status', 'active'),

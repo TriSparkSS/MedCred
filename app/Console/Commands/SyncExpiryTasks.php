@@ -13,9 +13,10 @@ class SyncExpiryTasks extends Command
 
     public function handle(FollowUpEngine $engine): int
     {
-        $count = $engine->syncExpiryTasks();
+        $expiryCount = $engine->syncExpiryTasks();
+        $revalCount = $engine->syncRevalidationTasks();
 
-        $this->info("Created {$count} expiry task(s).");
+        $this->info("Created {$expiryCount} expiry task(s) and {$revalCount} revalidation task(s).");
 
         return self::SUCCESS;
     }

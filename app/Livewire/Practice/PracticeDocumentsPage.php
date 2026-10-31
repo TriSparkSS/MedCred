@@ -75,7 +75,12 @@ class PracticeDocumentsPage extends Component
             'outstanding' => $dashboard->outstandingDocuments($practice),
             'cases' => CredentialingCase::where('practice_id', $practice->id)->active()->with(['payer', 'provider.user'])->get(),
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
-            'myDocuments' => $practice->documents()->with('documentType')->latest()->limit(20)->get(),
+            'myDocuments' => $practice->documents()
+                ->where(fn ($q) => $q->whereNull('visibility')->orWhereNotIn('visibility', ['restricted', 'internal']))
+                ->with('documentType')
+                ->latest()
+                ->limit(20)
+                ->get(),
             'canUpload' => can_do('portal.documents.upload'),
             'states' => UsStates::all(),
             'selectedType' => DocumentType::find($this->selectedDocumentTypeId ?: null),

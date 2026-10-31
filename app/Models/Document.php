@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Services\DocumentService;
+use App\Services\FileMalwareScanner;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Document extends Model
 {
@@ -26,6 +31,7 @@ class Document extends Model
         'state',
         'status',
         'visibility',
+        'access_level',
         'allowed_roles',
         'verification_status',
         'rejection_reason',
@@ -97,38 +103,61 @@ class Document extends Model
         return $this->getRelationValue('currentVersion');
     }
 
+    public function getAccessLevelAttribute(): ?string
+    {
+        return $this->attributes['access_level'] ?? $this->attributes['visibility'] ?? null;
+    }
+
+    public function setAccessLevelAttribute(?string $value): void
+    {
+        $this->attributes['visibility'] = $value;
+    }
+
     public function isExpiringSoon(int $days = 30): bool
     {
         if (! $this->expiry_date) {
             return false;
         }
 
-        return $this->expiry_date->isFuture()
-            && $this->expiry_date->lte(now()->addDays($days));
+        return ! $this->isExpired()
+            && $this->expiry_date->lte(now()->addDays($days)->endOfDay());
     }
 
     public function isExpired(): bool
     {
-        return $this->expiry_date && $this->expiry_date->isPast();
+        return (bool) ($this->expiry_date && $this->expiry_date->lt(now()->startOfDay()));
     }
 
     public function scopeExpiringSoon($query, int $days = 30)
     {
         return $query->whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '>', now())
-            ->whereDate('expiry_date', '<=', now()->addDays($days));
+            ->whereDate('expiry_date', '>=', now()->toDateString())
+            ->whereDate('expiry_date', '<=', now()->addDays($days)->toDateString());
     }
 
     public function scopeExpired($query)
     {
-        return $query->whereNotNull('expiry_date')->whereDate('expiry_date', '<', now());
+        return $query->whereNotNull('expiry_date')->whereDate('expiry_date', '<', now()->toDateString());
     }
 
     public function addVersion($file, ?int $adminId = null, ?string $notes = null, ?int $userId = null): DocumentVersion
     {
-        $path = $file->store("documents/{$this->id}", 'public');
+        app(FileMalwareScanner::class)->assertClean($file, $adminId);
 
-        return DB::transaction(function () use ($file, $path, $adminId, $notes, $userId) {
+        $shouldEncrypt = app(DocumentService::class)->encryptionEnabled()
+            || $this->versions()->where('is_encrypted', true)->exists();
+
+        if ($shouldEncrypt) {
+            $extension = $file->getClientOriginalExtension();
+            $filename = Str::uuid()->toString().($extension ? '.'.$extension : '').'.enc';
+            $path = "documents/{$this->id}/{$filename}";
+            $rawContents = file_get_contents($file->getRealPath());
+            Storage::disk('public')->put($path, Crypt::encryptString($rawContents !== false ? $rawContents : ''));
+        } else {
+            $path = $file->store("documents/{$this->id}", 'public');
+        }
+
+        return DB::transaction(function () use ($file, $path, $adminId, $notes, $userId, $shouldEncrypt) {
             self::whereKey($this->id)->lockForUpdate()->first();
 
             $this->versions()->where('is_current', true)->update(['is_current' => false]);
@@ -141,6 +170,7 @@ class Document extends Model
                 'original_name' => $file->getClientOriginalName(),
                 'file_size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
+                'is_encrypted' => $shouldEncrypt,
                 'uploaded_by_admin_id' => $adminId,
                 'uploaded_by_user_id' => $userId,
                 'notes' => $notes,

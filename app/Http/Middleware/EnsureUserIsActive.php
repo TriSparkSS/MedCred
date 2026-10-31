@@ -16,20 +16,20 @@ class EnsureUserIsActive
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $admin = Auth::guard('web')->user();
+        $user = Auth::guard('web')->user();
 
-        if (! $admin) {
+        if (! $user) {
             abort(403, 'Unauthorized.');
         }
 
-        if ($admin->status !== 'active') {
+        if (! in_array($user->status, ['active', 1, '1', true], true)) {
             Auth::guard('web')->logout();
-            flash()->error('Your admin account is inactive. Please contact support.');
+            flash()->error('Your account is inactive. Please contact support.');
 
             return redirect()
-                ->route('tenant.login')
+                ->route('portal.login')
                 ->withErrors([
-                    'account' => 'Your admin account is inactive. Please contact support.',
+                    'account' => 'Your account is inactive. Please contact support.',
                 ]);
         }
 

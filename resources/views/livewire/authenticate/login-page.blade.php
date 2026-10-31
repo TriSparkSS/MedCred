@@ -65,10 +65,15 @@
                             </div>
 
                             <div class="my-8">
-                                <div class="form-check mb-0 ms-2">
-                                    <input class="form-check-input" type="checkbox" id="remember-me"
-                                        wire:model="remember" />
-                                    <label class="form-check-label" for="remember-me"> Remember Me</label>
+                                <div class="d-flex justify-content-between">
+                                    <div class="form-check mb-0 ms-2">
+                                        <input class="form-check-input" type="checkbox" id="remember-me"
+                                            wire:model="remember" />
+                                        <label class="form-check-label" for="remember-me"> Remember Me</label>
+                                    </div>
+                                    <a href="{{ route('password.request') }}" class="small">
+                                        <span>Forgot Password?</span>
+                                    </a>
                                 </div>
                             </div>
 

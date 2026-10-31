@@ -71,7 +71,7 @@ return new class extends Migration
             return;
         }
 
-        ProviderDetails::query()->each(function (ProviderDetails $provider) {
+        ProviderDetails::withoutGlobalScopes()->each(function (ProviderDetails $provider) {
             $this->backfillOne($provider, ProviderCredentialType::License, $provider->license_number, $provider->license_state, true);
             $this->backfillOne($provider, ProviderCredentialType::Dea, $provider->dea, $provider->license_state ?: $provider->state, false);
             $this->backfillOne($provider, ProviderCredentialType::Cds, $provider->cds_number, $provider->cds_state ?: $provider->license_state, false);

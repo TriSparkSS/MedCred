@@ -75,7 +75,12 @@ class ProviderDocumentsPage extends Component
             'outstanding' => $dashboard->outstandingDocuments($provider),
             'cases' => CredentialingCase::where('provider_id', $provider->id)->active()->with('payer')->get(),
             'documentTypes' => DocumentType::where('is_active', true)->orderBy('name')->get(),
-            'myDocuments' => $provider->documents()->with('documentType')->latest()->limit(20)->get(),
+            'myDocuments' => $provider->documents()
+                ->where(fn ($q) => $q->whereNull('visibility')->orWhereNotIn('visibility', ['restricted', 'internal']))
+                ->with('documentType')
+                ->latest()
+                ->limit(20)
+                ->get(),
             'canUpload' => can_do('portal.documents.upload'),
             'states' => UsStates::all(),
             'selectedType' => DocumentType::find($this->selectedDocumentTypeId ?: null),

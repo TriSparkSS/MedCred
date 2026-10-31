@@ -7,7 +7,9 @@ use App\Models\NotificationTemplate;
 use App\Models\Payer;
 use App\Models\Practice;
 use App\Models\SlaRule;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -25,13 +27,16 @@ class SlaRuleManager extends Component
 
     public $formData = [];
 
+    #[Locked]
     public $recordId = null;
 
     public function render()
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         $records = SlaRule::with(['notificationTemplate', 'payer', 'practice', 'caseType'])
-            ->when($this->search, fn ($q) => $q->where('name', 'like', '%' . $this->search . '%')
-                ->orWhere('rule_key', 'like', '%' . $this->search . '%'))
+            ->when($this->search, fn ($q) => $q->where('name', 'like', '%'.$this->search.'%')
+                ->orWhere('rule_key', 'like', '%'.$this->search.'%'))
             ->orderBy('name')
             ->paginate(15);
 
@@ -57,6 +62,8 @@ class SlaRuleManager extends Component
 
     public function openCreateModal(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         $this->resetForm();
         $this->modalMode = 'create';
         $this->formData = [
@@ -72,6 +79,8 @@ class SlaRuleManager extends Component
 
     public function openEditModal(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         $record = SlaRule::findOrFail($id);
         $this->recordId = $id;
         $this->modalMode = 'edit';
@@ -108,6 +117,8 @@ class SlaRuleManager extends Component
 
     public function save(): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         foreach (['payer_id', 'practice_id', 'case_type_id', 'notification_template_id', 'dashboard_category'] as $nullableKey) {
             if (array_key_exists($nullableKey, $this->formData) && $this->formData[$nullableKey] === '') {
                 $this->formData[$nullableKey] = null;
@@ -129,13 +140,17 @@ class SlaRuleManager extends Component
 
     public function delete(int $id): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         $this->recordId = $id;
         sweetalert()->showDenyButton()->info('Are you sure you want to delete this SLA rule?');
     }
 
     #[On('sweetalert:confirmed')]
-    public function onConfirmed(array $payload): void
+    public function onConfirmed(array $payload = []): void
     {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.settings.manage'), 403);
+
         SlaRule::findOrFail($this->recordId)->delete();
         $this->recordId = null;
         flash()->info('SLA rule successfully deleted.');

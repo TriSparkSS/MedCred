@@ -2,19 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'username', 'avatar', 'phone', 'email', 'status', 'is_two_factor', 'two_factor_code', 'two_factor_expires_at', 'failed_login_attempts', 'locked_until', 'email_verified_at', 'password', 'password_changed_at', 'remember_token'])]
 #[Hidden(['password', 'remember_token', 'two_factor_code'])]
 class Admin extends Authenticatable
 {
-    use HasRoles, Notifiable, SoftDeletes;
+    use HasApiTokens, HasRoles, Notifiable, SoftDeletes;
 
     protected string $guard_name = 'admin';
 
@@ -48,7 +49,7 @@ class Admin extends Authenticatable
 
     public function displayLabel(): string
     {
-        return $this->name . ' (' . $this->username . ')';
+        return $this->name.' ('.$this->username.')';
     }
 
     public function practices(): BelongsToMany

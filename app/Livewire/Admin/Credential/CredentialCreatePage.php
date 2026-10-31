@@ -110,6 +110,12 @@ class CredentialCreatePage extends Component
     {
         $this->formData['location_id'] = null;
         $this->formData['provider_practice_location_id'] = null;
+        $admin = Auth::guard('admin')->user();
+        if ($value && $admin && ! app(AdminScopeService::class)->canAccessPractice($admin, (int) $value)) {
+            $this->practiceLocations = [];
+
+            return;
+        }
         $this->practiceLocations = $value
             ? Location::where('practice_id', $value)->orderByDesc('is_primary')->orderBy('name')->get()->toArray()
             : [];
@@ -207,7 +213,16 @@ class CredentialCreatePage extends Component
             return;
         }
 
-        $practice = ProviderDetails::find($providerId)?->primaryPractice();
+        $provider = ProviderDetails::find($providerId);
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+
+        $practice = $provider?->primaryPractice();
+        if ($practice && $admin && ! $scope->canAccessPractice($admin, (int) $practice->id)) {
+            $practiceQuery = $provider->practices()->getQuery();
+            $scope->scopePractices($practiceQuery, $admin);
+            $practice = $practiceQuery->first();
+        }
 
         $isGroup = ($this->formData['enrollment_level'] ?? '') === EnrollmentLevel::Group->value;
         if ($isGroup && ! empty($this->formData['practice_id'])) {
@@ -259,12 +274,16 @@ class CredentialCreatePage extends Component
 
         $practices = $practiceQuery->get(['id', 'legal_name']);
         if (! empty($this->formData['provider_id'])) {
-            $linked = ProviderDetails::find($this->formData['provider_id'])
-                ?->practices()
-                ->orderBy('legal_name')
-                ->get(['practices.id', 'legal_name']);
-            if ($linked?->isNotEmpty()) {
-                $practices = $linked;
+            $provider = ProviderDetails::find($this->formData['provider_id']);
+            if ($provider) {
+                $linkedQuery = $provider->practices()->orderBy('legal_name')->getQuery();
+                if ($admin) {
+                    $scope->scopePractices($linkedQuery, $admin);
+                }
+                $linked = $linkedQuery->get(['practices.id', 'legal_name']);
+                if ($linked->isNotEmpty()) {
+                    $practices = $linked;
+                }
             }
         }
 

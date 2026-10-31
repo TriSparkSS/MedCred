@@ -316,7 +316,7 @@ class CredentialingCase extends Model
             return false;
         }
 
-        return $this->next_follow_up_date->isPast();
+        return $this->next_follow_up_date->lt(now()->startOfDay());
     }
 
     public function scopeActive($query)

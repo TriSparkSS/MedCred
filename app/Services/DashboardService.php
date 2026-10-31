@@ -7,7 +7,6 @@ use App\Enums\TaskStatus;
 use App\Models\Admin;
 use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
-use App\Models\DelayOwner;
 use App\Models\Document;
 use App\Models\ProviderDetails;
 use App\Models\Task;
@@ -221,14 +220,17 @@ class DashboardService
 
         $isOpen = $status !== 'closed';
 
-        $cases = CredentialingCase::query()
+        $caseQuery = CredentialingCase::query()
             ->where('assigned_admin_id', $admin->id)
             ->with(['provider.user', 'payer', 'status'])
             ->whereHas('status', function ($query) use ($isOpen) {
                 $isOpen
                     ? $query->whereNotIn('dashboard_category', $this->closedCategories)
                     : $query->whereIn('dashboard_category', $this->closedCategories);
-            })
+            });
+        $this->scope->scopeCredentialingCases($caseQuery, $admin);
+
+        $cases = $caseQuery
             ->latest()
             ->limit(50)
             ->get()
@@ -244,7 +246,7 @@ class DashboardService
                 'url' => route('admin.credentials.show', $case),
             ]);
 
-        $tasks = Task::query()
+        $taskQuery = Task::query()
             ->where('assigned_admin_id', $admin->id)
             ->with(['provider.user', 'priority'])
             ->when(
@@ -254,7 +256,10 @@ class DashboardService
                     $q->whereNotNull('completed_at')
                         ->orWhereIn('status', [TaskStatus::Completed->value, TaskStatus::Cancelled->value]);
                 })
-            )
+            );
+        $this->scope->scopeTasks($taskQuery, $admin);
+
+        $tasks = $taskQuery
             ->latest()
             ->limit(50)
             ->get()
@@ -283,25 +288,30 @@ class DashboardService
             return ['open' => 0, 'closed' => 0];
         }
 
-        $openCases = CredentialingCase::query()
+        $openCaseQuery = CredentialingCase::query()
             ->where('assigned_admin_id', $admin->id)
-            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories))
-            ->count();
+            ->whereHas('status', fn ($q) => $q->whereNotIn('dashboard_category', $this->closedCategories));
+        $this->scope->scopeCredentialingCases($openCaseQuery, $admin);
+        $openCases = $openCaseQuery->count();
 
-        $closedCases = CredentialingCase::query()
+        $closedCaseQuery = CredentialingCase::query()
             ->where('assigned_admin_id', $admin->id)
-            ->whereHas('status', fn ($q) => $q->whereIn('dashboard_category', $this->closedCategories))
-            ->count();
+            ->whereHas('status', fn ($q) => $q->whereIn('dashboard_category', $this->closedCategories));
+        $this->scope->scopeCredentialingCases($closedCaseQuery, $admin);
+        $closedCases = $closedCaseQuery->count();
 
-        $openTasks = Task::query()->where('assigned_admin_id', $admin->id)->open()->count();
+        $openTaskQuery = Task::query()->where('assigned_admin_id', $admin->id)->open();
+        $this->scope->scopeTasks($openTaskQuery, $admin);
+        $openTasks = $openTaskQuery->count();
 
-        $closedTasks = Task::query()
+        $closedTaskQuery = Task::query()
             ->where('assigned_admin_id', $admin->id)
             ->where(function ($q) {
                 $q->whereNotNull('completed_at')
                     ->orWhereIn('status', [TaskStatus::Completed->value, TaskStatus::Cancelled->value]);
-            })
-            ->count();
+            });
+        $this->scope->scopeTasks($closedTaskQuery, $admin);
+        $closedTasks = $closedTaskQuery->count();
 
         return [
             'open' => $openCases + $openTasks,
@@ -320,15 +330,22 @@ class DashboardService
         $documentQuery = Document::expiringSoon(30);
         $taskOverdueQuery = Task::open()->forColumn('overdue');
         $overdueCasesQuery = CredentialingCase::filterCategory('overdue');
+        $missingDocsQuery = CredentialingCase::filterCategory('provider');
+        $revalidationQuery = CredentialingCase::query()
+            ->whereBetween('revalidation_due_date', [now()->toDateString(), now()->addDays(90)->toDateString()]);
 
         if ($admin) {
             $this->scope->scopeDocuments($documentQuery, $admin);
             $this->scope->scopeTasks($taskOverdueQuery, $admin);
             $this->scope->scopeCredentialingCases($overdueCasesQuery, $admin);
+            $this->scope->scopeCredentialingCases($missingDocsQuery, $admin);
+            $this->scope->scopeCredentialingCases($revalidationQuery, $admin);
         }
 
         return [
             'expiring_documents' => $documentQuery->count(),
+            'missing_documents' => $missingDocsQuery->count(),
+            'revalidation_reminders' => $revalidationQuery->count(),
             'overdue_tasks' => $taskOverdueQuery->count(),
             'overdue_cases' => $overdueCasesQuery->count(),
             'task_assignments' => $taskNotifications,
@@ -339,6 +356,11 @@ class DashboardService
     {
         $counts = $this->notificationCounts();
 
-        return $counts['expiring_documents'] + $counts['overdue_tasks'] + $counts['overdue_cases'] + $counts['task_assignments'];
+        return $counts['expiring_documents']
+            + ($counts['missing_documents'] ?? 0)
+            + ($counts['revalidation_reminders'] ?? 0)
+            + $counts['overdue_tasks']
+            + $counts['overdue_cases']
+            + $counts['task_assignments'];
     }
 }

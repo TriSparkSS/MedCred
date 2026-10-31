@@ -64,20 +64,6 @@ class TaskPolicy
 
     private function canAccessTask(Admin $admin, Task $task): bool
     {
-        $scope = app(AdminScopeService::class);
-
-        if ($scope->isUnrestricted($admin)) {
-            return true;
-        }
-
-        if ($task->credentialing_case_id && $task->credentialingCase && $scope->canAccessCase($admin, $task->credentialingCase)) {
-            return true;
-        }
-
-        if ($task->provider_id && $task->provider && $scope->canAccessProvider($admin, $task->provider)) {
-            return true;
-        }
-
-        return false;
+        return app(AdminScopeService::class)->canAccessTask($admin, $task);
     }
 }

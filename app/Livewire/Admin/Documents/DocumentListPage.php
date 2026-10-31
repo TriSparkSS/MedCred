@@ -12,7 +12,6 @@ use App\Models\ProviderDetails;
 use App\Models\Task;
 use App\Services\AdminScopeService;
 use App\Services\DocumentService;
-use App\Services\FileMalwareScanner;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -113,7 +112,19 @@ class DocumentListPage extends Component
             return;
         }
 
-        $practice = ProviderDetails::find($value)?->primaryPractice();
+        $provider = ProviderDetails::with('practices')->find($value);
+        if (! $provider) {
+            return;
+        }
+
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+        $practices = $provider->practices;
+        if ($admin) {
+            $practices = $practices->filter(fn (Practice $p) => $scope->canAccessPractice($admin, (int) $p->id));
+        }
+
+        $practice = $practices->sortByDesc(fn (Practice $p) => (int) ($p->pivot->primary_flag ?? 0))->first();
 
         if (! $practice) {
             return;
@@ -235,8 +246,19 @@ class DocumentListPage extends Component
         $adminId = $admin->id;
 
         if ($this->modalMode === 'edit' && $this->selectedDocumentId) {
+            $existingDoc = $this->findScopedDocument((int) $this->selectedDocumentId);
+            if (
+                $existingDoc->visibility === 'restricted'
+                && ! $scope->isUnrestricted($admin)
+                && ! $admin->can('admin.settings.manage')
+                && ! $admin->hasRole('super_admin')
+            ) {
+                $this->formData['visibility'] = 'restricted';
+                $this->formData['allowed_roles'] = $existingDoc->allowed_roles ?? [];
+            }
+
             $documentService->update(
-                $this->findScopedDocument((int) $this->selectedDocumentId),
+                $existingDoc,
                 $this->formData,
                 $this->uploadFile,
                 $adminId
@@ -244,11 +266,6 @@ class DocumentListPage extends Component
             flash()->success('Document updated successfully.');
         } else {
             $document = $documentService->upload($this->formData, $this->uploadFile, $adminId);
-
-            if ($document->credentialing_case_id) {
-                $case = CredentialingCase::find($document->credentialing_case_id);
-                $case?->syncChecklistFromDocument($document);
-            }
 
             if ($document->expiry_date && $document->expiry_date->lte(now()->addDays(30))) {
                 $this->createExpiryTask($document);
@@ -284,10 +301,8 @@ class DocumentListPage extends Component
         ]);
 
         $adminId = Auth::guard('admin')->id();
-        app(FileMalwareScanner::class)->assertClean($this->versionFile, $adminId);
-
         $document = $this->findScopedDocument((int) $this->selectedDocumentId);
-        $document->addVersion($this->versionFile, $adminId, $this->versionNotes);
+        app(DocumentService::class)->uploadVersion($document, $this->versionFile, $adminId, $this->versionNotes);
 
         $this->showVersionModal = false;
         flash()->success('New version uploaded.');
@@ -335,20 +350,23 @@ class DocumentListPage extends Component
 
     protected function createExpiryTask(Document $document): void
     {
-        Task::firstOrCreate(
-            [
-                'task_type' => 'expiry',
-                'provider_id' => $document->provider_id,
-                'title' => 'Document expiring: '.$document->title,
-            ],
-            [
-                'description' => 'Expires on '.$document->expiry_date->format('m/d/Y'),
-                'credentialing_case_id' => $document->credentialing_case_id,
-                'assigned_admin_id' => Auth::guard('admin')->id(),
-                'created_by_admin_id' => Auth::guard('admin')->id(),
-                'due_date' => $document->expiry_date,
-            ]
-        );
+        $automationKey = 'expiry:'.$document->id;
+
+        if (Task::where('automation_key', $automationKey)->exists()) {
+            return;
+        }
+
+        Task::create([
+            'automation_key' => $automationKey,
+            'task_type' => 'expiry',
+            'provider_id' => $document->provider_id,
+            'title' => 'Document expiring: '.$document->title,
+            'description' => 'Expires on '.$document->expiry_date->format('m/d/Y'),
+            'credentialing_case_id' => $document->credentialing_case_id,
+            'assigned_admin_id' => Auth::guard('admin')->id(),
+            'created_by_admin_id' => Auth::guard('admin')->id(),
+            'due_date' => $document->expiry_date,
+        ]);
     }
 
     private function normalizeEmptyIds(): void

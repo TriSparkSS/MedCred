@@ -6,8 +6,11 @@ use App\Models\AuditLog;
 use App\Models\CredentialingCase;
 use App\Models\Document;
 use App\Models\EmailMessage;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -88,17 +91,36 @@ class ReportExportService
         ];
     }
 
-    public function export(string $type): StreamedResponse
+    public function export(string $type, string $format = 'csv', array $filters = []): StreamedResponse
     {
         if (! array_key_exists($type, self::definitions())) {
             abort(404, 'Report not found.');
         }
 
-        AuditLog::record('report.exported', null, auth('admin')->id(), ['report_type' => $type]);
+        $normalizedFormat = strtolower(trim($format ?: 'csv'));
+        if ($normalizedFormat === 'excel') {
+            $normalizedFormat = 'xlsx';
+        }
+        if (! in_array($normalizedFormat, ['csv', 'xlsx', 'pdf'], true)) {
+            $normalizedFormat = 'csv';
+        }
+
+        AuditLog::record('report.exported', null, auth('admin')->id(), [
+            'report_type' => $type,
+            'format' => $normalizedFormat,
+        ]);
+
+        if ($normalizedFormat === 'xlsx') {
+            return $this->exportXlsx($type, $filters);
+        }
+
+        if ($normalizedFormat === 'pdf') {
+            return $this->exportPdf($type, $filters);
+        }
 
         return match ($type) {
             'open_applications' => $this->exportOpenApplications(),
-            'practice_credentialing_status' => $this->exportPracticeCredentialingStatus(),
+            'practice_credentialing_status' => $this->exportPracticeCredentialingStatus($filters),
             'document_compliance' => $this->exportDocumentCompliance(),
             'case_aging' => $this->exportCaseAging(),
             'expiring_documents' => $this->exportExpiringDocuments(),
@@ -111,6 +133,51 @@ class ReportExportService
             'panel_closed_summary' => $this->exportPanelClosedSummary(),
             default => abort(404, 'Report not found.'),
         };
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function exportXlsx(string $type, array $filters = []): StreamedResponse
+    {
+        if (! array_key_exists($type, self::definitions())) {
+            abort(404, 'Report not found.');
+        }
+
+        if ($type === 'practice_credentialing_status') {
+            $filename = 'total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx';
+            $contents = $this->buildPracticeCredentialingSpreadsheet($filters);
+        } else {
+            $data = $this->rowsFor($type, $filters);
+            $filename = preg_replace('/\.csv$/i', '.xlsx', $data['filename']) ?: ($type.'_'.now()->format('Ymd').'.xlsx');
+            $contents = $this->buildGenericSpreadsheet($type, $data);
+        }
+
+        return response()->streamDownload(function () use ($contents) {
+            echo $contents;
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function exportPdf(string $type, array $filters = []): StreamedResponse
+    {
+        if (! array_key_exists($type, self::definitions())) {
+            abort(404, 'Report not found.');
+        }
+
+        $data = $this->rowsFor($type, $filters);
+        $filename = preg_replace('/\.csv$/i', '.pdf', $data['filename']) ?: ($type.'_'.now()->format('Ymd').'.pdf');
+        $contents = $this->pdfContents($type, $filters);
+
+        return response()->streamDownload(function () use ($contents) {
+            echo $contents;
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     /**
@@ -132,7 +199,7 @@ class ReportExportService
             'delay_ownership' => $this->delayOwnershipData(),
             'approval_denial_trends' => $this->approvalDenialTrendsData(),
             'panel_closed_summary' => $this->panelClosedSummaryData(),
-            default => throw new \InvalidArgumentException("CSV email is not supported for report [{$type}]."),
+            default => throw new \InvalidArgumentException("Export is not supported for report [{$type}]."),
         };
     }
 
@@ -166,11 +233,162 @@ class ReportExportService
      */
     public function xlsxContents(string $type, array $filters = []): string
     {
-        if ($type !== 'practice_credentialing_status') {
+        if (! array_key_exists($type, self::definitions())) {
             throw new \InvalidArgumentException("Excel export is not supported for report [{$type}].");
         }
 
-        return $this->buildPracticeCredentialingSpreadsheet($filters);
+        if ($type === 'practice_credentialing_status') {
+            return $this->buildPracticeCredentialingSpreadsheet($filters);
+        }
+
+        $data = $this->rowsFor($type, $filters);
+
+        return $this->buildGenericSpreadsheet($type, $data);
+    }
+
+    /**
+     * @param  array{practice_id?: string|int|null, payer_id?: string|int|null, provider_id?: string|int|null, state?: string|null, date_from?: string|null, date_to?: string|null}  $filters
+     */
+    public function pdfContents(string $type, array $filters = []): string
+    {
+        if (! array_key_exists($type, self::definitions())) {
+            throw new \InvalidArgumentException("PDF export is not supported for report [{$type}].");
+        }
+
+        $meta = self::definitions()[$type];
+        $data = $this->rowsFor($type, $filters);
+
+        $title = e((string) ($meta['name'] ?? $type));
+        $description = e((string) ($meta['description'] ?? ''));
+        $generatedAt = e(now()->timezone('America/New_York')->format('M j, Y g:i A').' ET');
+
+        $headerCells = '';
+        foreach ($data['headers'] as $header) {
+            $headerCells .= '<th>'.e((string) $header).'</th>';
+        }
+
+        $bodyRows = '';
+        foreach ($data['rows'] as $rowIndex => $row) {
+            $bg = $rowIndex % 2 === 1 ? '#f5f7fa' : '#ffffff';
+            $bodyRows .= "<tr style=\"background-color: {$bg};\">";
+            foreach ($row as $cell) {
+                $bodyRows .= '<td>'.e((string) ($cell ?? '')).'</td>';
+            }
+            $bodyRows .= '</tr>';
+        }
+
+        if ($bodyRows === '') {
+            $colCount = max(1, count($data['headers']));
+            $bodyRows = "<tr><td colspan=\"{$colCount}\" style=\"text-align: center; color: #6b7280;\">No records found for this report.</td></tr>";
+        }
+
+        $html = <<<HTML
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{$title}</title>
+            <style>
+                body { font-family: DejaVu Sans, sans-serif; font-size: 9px; color: #1f2937; margin: 16px; }
+                .header { background-color: #163b65; color: #ffffff; padding: 12px 16px; margin-bottom: 10px; }
+                .header h1 { margin: 0 0 4px 0; font-size: 16px; }
+                .header p { margin: 0; font-size: 9px; color: #dbeafe; }
+                table { width: 100%; border-collapse: collapse; }
+                th { background-color: #163b65; color: #ffffff; text-align: left; padding: 6px 8px; font-size: 8.5px; border: 1px solid #cbd5e1; }
+                td { padding: 5px 8px; border: 1px solid #e2e8f0; vertical-align: top; word-wrap: break-word; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>{$title}</h1>
+                <p>{$description} | Generated {$generatedAt}</p>
+            </div>
+            <table>
+                <thead><tr>{$headerCells}</tr></thead>
+                <tbody>{$bodyRows}</tbody>
+            </table>
+        </body>
+        </html>
+        HTML;
+
+        $options = new Options;
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+
+        return $dompdf->output() ?: '';
+    }
+
+    /**
+     * @param  array{filename: string, headers: array<int, string>, rows: array<int, array<int, mixed>>}  $data
+     */
+    protected function buildGenericSpreadsheet(string $type, array $data): string
+    {
+        $meta = self::definitions()[$type] ?? ['name' => $type, 'description' => ''];
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle(substr(preg_replace('/[\\\\\/\?\*\:\[\]]/', '', (string) ($meta['name'] ?? 'Report')), 0, 31) ?: 'Report');
+
+        $colCount = max(1, count($data['headers']));
+        $lastCol = Coordinate::stringFromColumnIndex($colCount);
+        $navy = $this->excelTitleFillColor();
+        $zebra = $this->excelZebraFillColor();
+
+        $sheet->mergeCells("A1:{$lastCol}1");
+        $sheet->setCellValue('A1', (string) ($meta['name'] ?? $type));
+        $sheet->getStyle("A1:{$lastCol}1")->applyFromArray([
+            'font' => ['bold' => true, 'size' => 14, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $navy]],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(26);
+
+        $sheet->mergeCells("A2:{$lastCol}2");
+        $sheet->setCellValue('A2', ((string) ($meta['description'] ?? '')).' | Generated '.now()->timezone('America/New_York')->format('M j, Y g:i A').' ET');
+        $sheet->getStyle("A2:{$lastCol}2")->applyFromArray([
+            'font' => ['size' => 9, 'color' => ['rgb' => '4B5563']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $this->excelSubtitleFillColor()]],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension(2)->setRowHeight(18);
+
+        $headerRow = 4;
+        $sheet->fromArray($this->sanitizeCsvRow($data['headers']), null, "A{$headerRow}");
+        $sheet->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->applyFromArray([
+            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $navy]],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        ]);
+        $sheet->getRowDimension($headerRow)->setRowHeight(24);
+
+        $rowNum = $headerRow + 1;
+        foreach (array_values($data['rows']) as $idx => $rowValues) {
+            $rowArray = is_array($rowValues) ? array_values($rowValues) : $rowValues->values()->all();
+            $sheet->fromArray([$this->sanitizeCsvRow($rowArray)], null, "A{$rowNum}");
+            $rowFill = $idx % 2 === 1 ? $zebra : 'FFFFFF';
+            $sheet->getStyle("A{$rowNum}:{$lastCol}{$rowNum}")->applyFromArray([
+                'font' => ['size' => 9, 'color' => ['rgb' => '1F2937']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $rowFill]],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ]);
+            $rowNum++;
+        }
+
+        for ($i = 1; $i <= $colCount; $i++) {
+            $colLetter = Coordinate::stringFromColumnIndex($i);
+            $sheet->getColumnDimension($colLetter)->setWidth(20);
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'rptxlsx');
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($path);
+        $contents = file_get_contents($path) ?: '';
+        @unlink($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return $contents;
     }
 
     /**
@@ -178,7 +396,7 @@ class ReportExportService
      */
     public function streamPracticeCredentialingXlsx(array $filters = []): StreamedResponse
     {
-        AuditLog::record('report.exported', null, auth('admin')->id(), ['report_type' => 'practice_credentialing_xlsx']);
+        AuditLog::record('report.exported', null, auth('admin')->id(), ['report_type' => 'practice_credentialing_xlsx', 'format' => 'xlsx']);
 
         $filename = 'total_credentialing_report_by_practice_'.now()->format('Ymd').'.xlsx';
         $contents = $this->buildPracticeCredentialingSpreadsheet($filters);
@@ -251,9 +469,9 @@ class ReportExportService
         return $this->excelStatusChipStyle('', $bucket)[0];
     }
 
-    protected function exportPracticeCredentialingStatus(): StreamedResponse
+    protected function exportPracticeCredentialingStatus(array $filters = []): StreamedResponse
     {
-        $data = $this->practiceCredentialingStatusData();
+        $data = $this->practiceCredentialingStatusData($filters);
 
         return $this->streamCsv($data['filename'], $data['headers'], $data['rows']);
     }

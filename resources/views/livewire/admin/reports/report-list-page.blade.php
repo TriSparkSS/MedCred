@@ -3,7 +3,7 @@
         <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
             <div>
                 <h3 class="fw-bold text-primary mb-2">Reports</h3>
-                <p class="text-muted mb-0">View interactive operational, compliance, and analytics reports on screen or export as CSV.</p>
+                <p class="text-muted mb-0">View interactive operational, compliance, and analytics reports on screen or export as CSV, Excel, or PDF.</p>
             </div>
         </div>
     </div>
@@ -21,7 +21,7 @@
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
                     <p class="text-uppercase text-muted small mb-1">Export Format</p>
-                    <h3 class="fw-bold mb-0">Screen &amp; CSV</h3>
+                    <h3 class="fw-bold mb-0">Screen, CSV, Excel &amp; PDF</h3>
                 </div>
             </div>
         </div>
@@ -166,8 +166,14 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     @if ($canExport ?? false)
-                        <a href="{{ route('admin.reports.export', $activeReport) }}" class="btn btn-sm btn-primary">
+                        <a href="{{ route('admin.reports.export', ['type' => $activeReport, 'format' => 'csv']) }}" class="btn btn-sm btn-primary">
                             <i class="ti tabler-download me-1"></i>Download CSV
+                        </a>
+                        <a href="{{ route('admin.reports.export', ['type' => $activeReport, 'format' => 'xlsx']) }}" class="btn btn-sm btn-outline-success">
+                            <i class="ti tabler-file-spreadsheet me-1"></i>Excel
+                        </a>
+                        <a href="{{ route('admin.reports.export', ['type' => $activeReport, 'format' => 'pdf']) }}" class="btn btn-sm btn-outline-danger">
+                            <i class="ti tabler-file-type-pdf me-1"></i>PDF
                         </a>
                     @endif
                     <button type="button" wire:click="closeReport" class="btn btn-sm btn-outline-secondary">
@@ -241,9 +247,17 @@
                                             <i class="ti tabler-eye me-1"></i>View Screen
                                         </button>
                                         @if ($canExport ?? false)
-                                            <a href="{{ route('admin.reports.export', $key) }}"
+                                            <a href="{{ route('admin.reports.export', ['type' => $key, 'format' => 'csv']) }}"
                                                 class="btn btn-sm btn-primary">
                                                 <i class="ti tabler-download me-1"></i>Download CSV
+                                            </a>
+                                            <a href="{{ route('admin.reports.export', ['type' => $key, 'format' => 'xlsx']) }}"
+                                                class="btn btn-sm btn-outline-success">
+                                                <i class="ti tabler-file-spreadsheet me-1"></i>Excel
+                                            </a>
+                                            <a href="{{ route('admin.reports.export', ['type' => $key, 'format' => 'pdf']) }}"
+                                                class="btn btn-sm btn-outline-danger">
+                                                <i class="ti tabler-file-type-pdf me-1"></i>PDF
                                             </a>
                                         @endif
                                         @if (!empty($report['link']))

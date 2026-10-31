@@ -91,7 +91,13 @@ class ProviderApiController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Str::random(24),
+            'status' => 1,
         ]);
+
+        try {
+            $portalUser->assignRole('provider');
+        } catch (\Throwable) {
+        }
 
         $provider = ProviderDetails::create([
             'user_id' => $portalUser->id,
@@ -115,12 +121,23 @@ class ProviderApiController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Provider not found.'], 404);
         }
 
-        if (! $this->canAccessProvider($request->user(), $provider)) {
+        $user = $request->user();
+
+        if (! $this->canAccessProvider($user, $provider)) {
             return response()->json(['status' => 'error', 'message' => 'Forbidden.'], 403);
         }
 
-        $cases = CredentialingCase::where('provider_id', $provider->id)
-            ->with(['payer:id,name', 'status:id,name,dashboard_category'])
+        $query = CredentialingCase::where('provider_id', $provider->id)
+            ->with(['payer:id,name', 'status:id,name,dashboard_category']);
+
+        if ($user instanceof Admin) {
+            app(AdminScopeService::class)->scopeCredentialingCases($query, $user);
+        } elseif ($user instanceof User && (int) $provider->user_id !== (int) $user->id) {
+            $practiceId = (int) ($user->practice_id ?? $user->practice?->id ?? 0);
+            $query->where('practice_id', $practiceId);
+        }
+
+        $cases = $query
             ->latest()
             ->get()
             ->map(fn ($case) => [
@@ -144,12 +161,40 @@ class ProviderApiController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Provider not found.'], 404);
         }
 
-        if (! $this->canAccessProvider($request->user(), $provider)) {
+        $user = $request->user();
+
+        if (! $this->canAccessProvider($user, $provider)) {
             return response()->json(['status' => 'error', 'message' => 'Forbidden.'], 403);
         }
 
-        $documents = Document::where('provider_id', $provider->id)
-            ->with('documentType:id,name')
+        $query = Document::where('provider_id', $provider->id)
+            ->with('documentType:id,name');
+
+        if ($user instanceof Admin) {
+            app(AdminScopeService::class)->scopeDocuments($query, $user);
+        } elseif ($user instanceof User) {
+            $query->where(function ($q) {
+                $q->whereNull('visibility')
+                    ->orWhereNotIn('visibility', ['restricted', 'internal']);
+            });
+
+            if ((int) $provider->user_id !== (int) $user->id) {
+                $practiceId = (int) ($user->practice_id ?? $user->practice?->id ?? 0);
+                $query->where(function ($q) use ($practiceId) {
+                    $q->where('practice_id', $practiceId)
+                        ->orWhere(function ($sq) use ($practiceId) {
+                            $sq->whereNull('practice_id')
+                                ->whereHas('credentialingCase', fn ($cq) => $cq->where('practice_id', $practiceId));
+                        })
+                        ->orWhere(function ($sq) {
+                            $sq->whereNull('practice_id')
+                                ->whereNull('credentialing_case_id');
+                        });
+                });
+            }
+        }
+
+        $documents = $query
             ->latest()
             ->get()
             ->map(fn ($doc) => [
@@ -171,18 +216,63 @@ class ProviderApiController extends Controller
         $validated = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
+            'guard' => 'nullable|string|in:admin,web,portal',
             'token_name' => 'nullable|string|max:255',
             'device_name' => 'nullable|string|max:255',
         ]);
 
-        $account = User::where('email', $validated['email'])->first()
-            ?? Admin::where('email', $validated['email'])->first();
+        $requestedGuard = $validated['guard'] ?? null;
+        if ($requestedGuard === 'admin') {
+            $account = Admin::where('email', $validated['email'])->first();
+        } elseif (in_array($requestedGuard, ['web', 'portal'], true)) {
+            $account = User::where('email', $validated['email'])->first();
+        } else {
+            $account = User::where('email', $validated['email'])->first()
+                ?? Admin::where('email', $validated['email'])->first();
+        }
 
-        if (! $account || ! Hash::check($validated['password'], $account->password) || ! $this->isActiveAccount($account)) {
+        if ($account instanceof Admin && $account->isLockedOut()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Account is locked due to multiple failed login attempts.',
+            ], 403);
+        }
+
+        if (! $account || ! Hash::check($validated['password'], $account->password)) {
+            if ($account instanceof Admin) {
+                $attempts = ((int) $account->failed_login_attempts) + 1;
+                $updates = ['failed_login_attempts' => $attempts];
+                if ($attempts >= 5) {
+                    $updates['locked_until'] = now()->addMinutes(15);
+                }
+                $account->update($updates);
+            }
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'The provided credentials are incorrect or the account is inactive.',
             ], 401);
+        }
+
+        if (! $this->isActiveAccount($account)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'The provided credentials are incorrect or the account is inactive.',
+            ], 401);
+        }
+
+        if ($account instanceof Admin) {
+            if ($account->is_two_factor) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Two-factor authentication is required for this admin account.',
+                ], 403);
+            }
+
+            $account->update([
+                'failed_login_attempts' => 0,
+                'locked_until' => null,
+            ]);
         }
 
         $tokenName = $validated['token_name'] ?? $validated['device_name'] ?? 'api-token';

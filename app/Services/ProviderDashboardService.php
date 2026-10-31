@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Admin;
 use App\Models\CredentialingCase;
 use App\Models\ProviderDetails;
-use App\Models\Task;
 use Illuminate\Support\Collection;
 
 class ProviderDashboardService
@@ -18,7 +16,10 @@ class ProviderDashboardService
             'active_cases' => (clone $cases)->active()->count(),
             'pending_action' => (clone $cases)->filterCategory('provider')->count(),
             'approved' => (clone $cases)->whereHas('status', fn ($q) => $q->where('dashboard_category', 'approved'))->count(),
-            'documents_expiring' => $provider->documents()->expiringSoon(30)->count(),
+            'documents_expiring' => $provider->documents()
+                ->where(fn ($q) => $q->whereNull('visibility')->orWhereNotIn('visibility', ['restricted', 'internal']))
+                ->expiringSoon(30)
+                ->count(),
             'checklist_pending' => $this->pendingChecklistCount($provider),
         ];
     }

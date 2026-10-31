@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Provider;
 
+use App\Models\Address;
 use App\Models\Location;
 use App\Models\Practice;
 use App\Models\ProviderDetails;
@@ -50,7 +51,7 @@ class ProviderLocationsSection extends Component
                     $raw = (string) $value;
                     if (str_starts_with($raw, 'address:')) {
                         $addrId = (int) substr($raw, strlen('address:'));
-                        $exists = \App\Models\Address::query()
+                        $exists = Address::query()
                             ->whereKey($addrId)
                             ->where('addressable_type', Practice::class)
                             ->where('addressable_id', (int) ($this->formData['practice_id'] ?? 0))
@@ -86,7 +87,13 @@ class ProviderLocationsSection extends Component
         abort_unless($this->canEdit, 403);
         $this->authorizeProvider();
         $this->resetForm();
-        $practice = $this->provider()->primaryPractice();
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+        $practices = $this->provider()->practices;
+        if ($admin) {
+            $practices = $practices->filter(fn (Practice $p) => $scope->canAccessPractice($admin, (int) $p->id));
+        }
+        $practice = $practices->sortByDesc(fn (Practice $p) => (int) ($p->pivot->primary_flag ?? 0))->first();
         if ($practice) {
             $this->formData['practice_id'] = (string) $practice->id;
             $this->loadLocationsForPractice($practice->id);

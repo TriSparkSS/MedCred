@@ -9,6 +9,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('users', function (Blueprint $table) {
+            if (! Schema::hasColumn('users', 'status')) {
+                $table->tinyInteger('status')->default(1)->after('role');
+            }
+        });
+
         Schema::table('admins', function (Blueprint $table) {
             if (! Schema::hasColumn('admins', 'two_factor_code')) {
                 $table->string('two_factor_code', 20)->nullable()->after('is_two_factor');
@@ -46,7 +52,7 @@ return new class extends Migration
             Schema::table('sla_rules_admin', function (Blueprint $table) {
                 $table->dropUnique(['rule_key']);
             });
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Unique index may already be dropped
         }
 
@@ -54,7 +60,7 @@ return new class extends Migration
             Schema::table('sla_rules_admin', function (Blueprint $table) {
                 $table->index('rule_key');
             });
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Index may already exist
         }
 
@@ -86,7 +92,7 @@ return new class extends Migration
         });
 
         DB::statement('DROP VIEW IF EXISTS vw_credentialing_case_summary');
-        DB::statement("
+        DB::statement('
             CREATE VIEW vw_credentialing_case_summary AS
             SELECT
                 c.id AS case_id,
@@ -124,7 +130,7 @@ return new class extends Migration
             LEFT JOIN delay_owners d_o ON d_o.id = c.delay_owner_id
             LEFT JOIN admins a ON a.id = c.assigned_admin_id
             WHERE c.deleted_at IS NULL
-        ");
+        ');
 
         DB::statement('DROP VIEW IF EXISTS vw_delay_ownership_summary');
         DB::statement("
@@ -152,7 +158,7 @@ return new class extends Migration
         ");
 
         DB::statement('DROP VIEW IF EXISTS vw_provider_compliance_summary');
-        DB::statement("
+        DB::statement('
             CREATE VIEW vw_provider_compliance_summary AS
             SELECT
                 pd.id AS provider_id,
@@ -165,7 +171,7 @@ return new class extends Migration
             FROM provider_details pd
             LEFT JOIN users u ON u.id = pd.user_id
             WHERE pd.deleted_at IS NULL
-        ");
+        ');
     }
 
     public function down(): void
@@ -219,6 +225,12 @@ return new class extends Migration
             );
             if ($cols !== []) {
                 $table->dropColumn($cols);
+            }
+        });
+
+        Schema::table('users', function (Blueprint $table) {
+            if (Schema::hasColumn('users', 'status')) {
+                $table->dropColumn('status');
             }
         });
     }

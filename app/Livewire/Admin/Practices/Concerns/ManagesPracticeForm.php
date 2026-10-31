@@ -8,6 +8,7 @@ use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Practice;
 use App\Services\DocumentService;
+use App\Services\FileMalwareScanner;
 use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -145,6 +146,8 @@ trait ManagesPracticeForm
             ];
         }
 
+        app(FileMalwareScanner::class)->assertClean($document, Auth::guard('admin')->id());
+
         if ($existingPath) {
             Storage::disk('public')->delete($existingPath);
         }
@@ -191,6 +194,10 @@ trait ManagesPracticeForm
 
         if ($file) {
             $service = app(DocumentService::class);
+
+            if ($existing) {
+                return $service->update($existing, $payload, $file, $adminId);
+            }
 
             return $service->upload($payload, $file, $adminId);
         }

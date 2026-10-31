@@ -12,6 +12,8 @@ use App\Models\ProviderDetails;
 use App\Models\Status;
 use App\Services\AdminScopeService;
 use App\Services\CredentialingCaseService;
+use App\Services\TaskService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -21,7 +23,7 @@ use Livewire\WithPagination;
 #[Layout('layouts::admin', ['title' => 'Credentialing Tracker'])]
 class CredentialListPage extends Component
 {
-    use WithPagination;
+    use AuthorizesRequests, WithPagination;
 
     #[Url(as: 'search', history: true)]
     public string $caseSearch = '';
@@ -61,6 +63,10 @@ class CredentialListPage extends Component
 
     public string $bulkAssigneeId = '';
 
+    public bool $showTaskModal = false;
+
+    public array $taskForm = [];
+
     public function updated($propertyName): void
     {
         if (in_array($propertyName, [
@@ -90,10 +96,20 @@ class CredentialListPage extends Component
             return;
         }
 
-        $practice = ProviderDetails::find($value)?->primaryPractice();
-        if ($practice) {
-            $this->filterPracticeId = (string) $practice->id;
+        $provider = ProviderDetails::with('practices')->find($value);
+        if (! $provider) {
+            return;
         }
+
+        $admin = Auth::guard('admin')->user();
+        $scope = app(AdminScopeService::class);
+        $practices = $provider->practices;
+        if ($admin) {
+            $practices = $practices->filter(fn (Practice $p) => $scope->canAccessPractice($admin, (int) $p->id));
+        }
+
+        $practice = $practices->sortByDesc(fn (Practice $p) => (int) ($p->pivot->primary_flag ?? 0))->first();
+        $this->filterPracticeId = $practice ? (string) $practice->id : '';
     }
 
     public function clearFilters(): void
@@ -224,6 +240,58 @@ class CredentialListPage extends Component
         flash()->success($updated === 1 ? 'Assigned 1 case.' : "Assigned {$updated} cases.");
     }
 
+    public function openCreateTaskModal(?int $caseId = null, ?int $providerId = null): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
+
+        $case = null;
+        if ($caseId) {
+            $case = CredentialingCase::findOrFail($caseId);
+            $this->authorizeCaseScope($case);
+        }
+
+        $this->taskForm = [
+            'title' => '',
+            'description' => '',
+            'credentialing_case_id' => $case?->id,
+            'provider_id' => $case?->provider_id ?? $providerId,
+            'payer_id' => $case?->payer_id,
+            'assigned_admin_id' => $case?->assigned_admin_id ?? Auth::guard('admin')->id(),
+            'due_date' => now()->addDays(3)->toDateString(),
+            'task_type' => 'manual',
+        ];
+        $this->showTaskModal = true;
+    }
+
+    public function saveTask(TaskService $taskService): void
+    {
+        abort_unless(Auth::guard('admin')->user()?->can('admin.tasks.manage'), 403);
+
+        $this->validate([
+            'taskForm.title' => 'required|string|max:255',
+            'taskForm.description' => 'nullable|string|max:2000',
+            'taskForm.credentialing_case_id' => 'nullable|exists:credentialing_cases,id',
+            'taskForm.provider_id' => 'nullable|exists:provider_details,id',
+            'taskForm.assigned_admin_id' => 'nullable|exists:admins,id',
+            'taskForm.due_date' => 'nullable|date',
+        ]);
+
+        $payload = $this->taskForm;
+        if (! empty($payload['credentialing_case_id'])) {
+            $case = CredentialingCase::findOrFail((int) $payload['credentialing_case_id']);
+            $this->authorizeCaseScope($case);
+            $payload['credentialing_case_id'] = $case->id;
+            $payload['provider_id'] = $payload['provider_id'] ?: $case->provider_id;
+            $payload['payer_id'] = $payload['payer_id'] ?? $case->payer_id;
+        } else {
+            $payload['credentialing_case_id'] = null;
+        }
+
+        $taskService->create($payload, Auth::guard('admin')->id());
+        $this->showTaskModal = false;
+        flash()->success('Task created.');
+    }
+
     protected function authorizeCaseScope(CredentialingCase $case): void
     {
         $admin = Auth::guard('admin')->user();
@@ -271,12 +339,9 @@ class CredentialListPage extends Component
             $query->where('state', $this->filterState);
         }
 
-        if ($this->filterRevalidation === '30') {
-            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(30)]);
-        } elseif ($this->filterRevalidation === '60') {
-            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(60)]);
-        } elseif ($this->filterRevalidation === '90') {
-            $query->whereBetween('revalidation_due_date', [now(), now()->addDays(90)]);
+        if (in_array($this->filterRevalidation, ['30', '60', '90'], true)) {
+            $days = (int) $this->filterRevalidation;
+            $query->whereBetween('revalidation_due_date', [now()->toDateString(), now()->addDays($days)->toDateString()]);
         }
 
         if ($this->filterRecentlySubmitted) {
@@ -353,6 +418,7 @@ class CredentialListPage extends Component
             'canAssignCredentials' => $admin?->can('admin.credentials.assign') ?? false,
             'canOverrideDelay' => $admin?->can('admin.delay.override') ?? false,
             'canEscalateTasks' => $admin?->can('admin.tasks.escalate') ?? false,
+            'canManageTasks' => $admin?->can('admin.tasks.manage') ?? false,
         ]);
     }
 }

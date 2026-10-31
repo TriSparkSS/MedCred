@@ -240,9 +240,68 @@ class DocumentService
         return $document->fresh();
     }
 
+    public function encryptionEnabled(): bool
+    {
+        $fromSetting = Setting::whereIn('key', ['encrypt_documents_at_rest', 'documents.encrypt_at_rest'])
+            ->pluck('value')
+            ->contains(fn ($v) => filter_var($v, FILTER_VALIDATE_BOOLEAN));
+
+        return $fromSetting
+            || (bool) config('credentialing.documents.encrypt_at_rest', false)
+            || (bool) config('SysConfig.document_encryption_enabled', false);
+    }
+
+    public function uploadVersion(Document $document, UploadedFile $file, ?int $adminId = null, ?string $notes = null, ?int $userId = null): DocumentVersion
+    {
+        app(FileMalwareScanner::class)->assertClean($file, $adminId);
+
+        $version = $document->addVersion($file, $adminId, $notes, $userId);
+        $this->encryptVersionIfEnabled($version, false);
+
+        return $version->fresh();
+    }
+
+    public function getDecryptedContents(Document $document, ?DocumentVersion $version = null): ?string
+    {
+        $version ??= $document->currentVersion ?? $document->versions()->where('is_current', true)->first() ?? $document->versions()->first();
+        if (! $version || ! $version->file_path) {
+            return null;
+        }
+
+        $disk = Storage::disk('public');
+        if (! $disk->exists($version->file_path)) {
+            $localDisk = Storage::disk('local');
+            if (! $localDisk->exists($version->file_path)) {
+                return null;
+            }
+            $disk = $localDisk;
+        }
+
+        $raw = $disk->get($version->file_path);
+        if ($raw === null) {
+            return null;
+        }
+
+        if ($version->is_encrypted) {
+            return Crypt::decryptString($raw);
+        }
+
+        return $raw;
+    }
+
     protected function encryptVersionIfEnabled(DocumentVersion $version, bool $forceEncrypt = false): void
     {
-        $shouldEncrypt = $forceEncrypt || (bool) Setting::where('key', 'encrypt_documents_at_rest')->value('value');
+        if ($version->is_encrypted) {
+            return;
+        }
+
+        $shouldEncrypt = $forceEncrypt
+            || $this->encryptionEnabled()
+            || DocumentVersion::where('document_id', $version->document_id)
+                ->where('id', '!=', $version->id)
+                ->where('is_encrypted', true)
+                ->exists();
+
         if (! $shouldEncrypt || ! $version->file_path) {
             return;
         }
@@ -263,6 +322,11 @@ class DocumentService
      */
     protected function normalizePayload(array $data): array
     {
+        if (isset($data['access_level']) && ! isset($data['visibility'])) {
+            $data['visibility'] = $data['access_level'];
+        }
+        unset($data['access_level']);
+
         foreach (['effective_date', 'expiry_date'] as $field) {
             if (($data[$field] ?? null) === '') {
                 $data[$field] = null;

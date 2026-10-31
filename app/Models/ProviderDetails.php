@@ -5,10 +5,13 @@ namespace App\Models;
 use App\Enums\ProviderStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['user_id', 'dob', 'ssn', 'specialty_id', 'degree', 'provider_type', 'status', 'status_remarks', 'npi', 'caqh_id', 'license_number', 'license_state', 'dea', 'taxonomy_code', 'pecos_id', 'pecos_enrolled', 'malpractice_carrier', 'malpractice_policy_number', 'malpractice_expiry', 'malpractice_coverage_each_occurrence', 'malpractice_coverage_aggregate', 'malpractice_effective_date', 'board_certification', 'board_cert_expiry', 'cds_number', 'cds_state', 'work_history', 'licensed_states', 'practice', 'address', 'city', 'state', 'zip', 'home_address', 'home_city', 'home_state', 'home_zip'])]
 class ProviderDetails extends Model
 {
+    use SoftDeletes;
+
     protected $casts = [
         'dob' => 'date',
         'status' => ProviderStatus::class,
@@ -24,8 +27,10 @@ class ProviderDetails extends Model
     protected static function booted(): void
     {
         static::deleting(function (ProviderDetails $provider) {
-            $provider->addresses()->delete();
-            $provider->portalLogins()->delete();
+            if ($provider->isForceDeleting()) {
+                $provider->addresses()->delete();
+                $provider->portalLogins()->delete();
+            }
         });
     }
 

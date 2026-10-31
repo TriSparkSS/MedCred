@@ -22,9 +22,12 @@
                             <input type="password" wire:model="password" class="form-control @error('password') is-invalid @enderror">
                             @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="mb-4 form-check">
-                            <input type="checkbox" wire:model="remember" class="form-check-input" id="remember">
-                            <label class="form-check-label" for="remember">Remember me</label>
+                        <div class="mb-4 d-flex justify-content-between align-items-center">
+                            <div class="form-check mb-0">
+                                <input type="checkbox" wire:model="remember" class="form-check-input" id="remember">
+                                <label class="form-check-label" for="remember">Remember me</label>
+                            </div>
+                            <a href="{{ route('portal.password.request') }}" class="small">Forgot Password?</a>
                         </div>
                         <button type="submit" class="btn btn-primary w-100" wire:loading.attr="disabled">Sign In</button>
                     </form>

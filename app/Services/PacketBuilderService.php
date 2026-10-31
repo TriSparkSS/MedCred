@@ -13,8 +13,7 @@ class PacketBuilderService
 {
     public function __construct(
         protected CredentialingPacketService $legacyPacket,
-    ) {
-    }
+    ) {}
 
     public function validateCompleteness(CredentialingCase $case, ?FormTemplate $template = null): array
     {
@@ -132,8 +131,8 @@ class PacketBuilderService
         $dompdf->render();
 
         $safeCaseNumber = preg_replace('/[^A-Za-z0-9._\-]/', '_', (string) $case->case_number);
-        $filename = "packets/{$safeCaseNumber}_" . now()->format('YmdHis') . '.pdf';
-        Storage::disk('public')->put($filename, $dompdf->output());
+        $filename = "packets/{$safeCaseNumber}_".now()->format('YmdHis').'.pdf';
+        Storage::disk('local')->put($filename, $dompdf->output());
 
         return $filename;
     }

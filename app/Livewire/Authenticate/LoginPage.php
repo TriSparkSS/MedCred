@@ -5,12 +5,14 @@ namespace App\Livewire\Authenticate;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\LoginLog;
+use App\Services\MailSettingsService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
@@ -27,6 +29,7 @@ class LoginPage extends Component
 
     public bool $awaitingTwoFactor = false;
 
+    #[Locked]
     public ?int $pendingAdminId = null;
 
     public string $twoFactorCode = '';
@@ -56,7 +59,7 @@ class LoginPage extends Component
         ]);
 
         $login = trim($this->login);
-        $throttleKey = 'admin-login:' . Str::lower($login) . '|' . request()->ip();
+        $throttleKey = 'admin-login:'.Str::lower($login).'|'.request()->ip();
 
         $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
         $admin = Admin::query()->where($field, $login)->first();
@@ -139,6 +142,7 @@ class LoginPage extends Component
 
             try {
                 if (filled($admin->email)) {
+                    app(MailSettingsService::class)->applyRuntimeConfig();
                     Mail::raw(
                         "Your Revantage CRM two-factor verification code is: {$code}. It expires in 10 minutes.",
                         function ($message) use ($admin) {
@@ -180,7 +184,7 @@ class LoginPage extends Component
             'ip' => request()->ip(),
         ]);
 
-        flash()->success('Welcome back, ' . $admin->name . '.');
+        flash()->success('Welcome back, '.$admin->name.'.');
 
         return $this->redirectRoute('admin.dashboard');
     }
@@ -191,7 +195,24 @@ class LoginPage extends Component
             'twoFactorCode' => 'required|digits:6',
         ]);
 
+        $throttleKey = 'admin-2fa:'.($this->pendingAdminId ?? 'none').'|'.request()->ip();
         $admin = $this->pendingAdminId ? Admin::find($this->pendingAdminId) : null;
+
+        if ($admin && $admin->isLockedOut()) {
+            $this->awaitingTwoFactor = false;
+            $this->pendingAdminId = null;
+            $this->twoFactorCode = '';
+            $this->addError('twoFactorCode', 'Account is locked due to multiple failed verification attempts.');
+
+            return null;
+        }
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('twoFactorCode', "Too many verification attempts. Please try again in {$seconds} seconds.");
+
+            return null;
+        }
 
         if (
             ! $admin
@@ -200,14 +221,44 @@ class LoginPage extends Component
             || ! $admin->two_factor_expires_at
             || ! $admin->two_factor_expires_at->isFuture()
         ) {
+            RateLimiter::hit($throttleKey, 60);
+
+            if ($admin) {
+                $attempts = ((int) $admin->failed_login_attempts) + 1;
+                $updates = ['failed_login_attempts' => $attempts];
+
+                if ($attempts >= 5) {
+                    $updates['locked_until'] = now()->addMinutes(15);
+                    $updates['two_factor_code'] = null;
+                    $updates['two_factor_expires_at'] = null;
+                }
+
+                $admin->update($updates);
+
+                if ($attempts >= 5) {
+                    AuditLog::record('admin.locked_out', $admin, $admin->id, [
+                        'failed_login_attempts' => $attempts,
+                        'ip' => request()->ip(),
+                        'reason' => '2fa_failed',
+                    ]);
+                    $this->awaitingTwoFactor = false;
+                    $this->pendingAdminId = null;
+                    $this->twoFactorCode = '';
+                }
+            }
+
             $this->addError('twoFactorCode', 'Invalid or expired verification code.');
 
             return null;
         }
 
+        RateLimiter::clear($throttleKey);
+
         $admin->update([
             'two_factor_code' => null,
             'two_factor_expires_at' => null,
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
         ]);
 
         $this->awaitingTwoFactor = false;
@@ -233,7 +284,7 @@ class LoginPage extends Component
             'ip' => request()->ip(),
         ]);
 
-        flash()->success('Welcome back, ' . $admin->name . '.');
+        flash()->success('Welcome back, '.$admin->name.'.');
 
         return $this->redirectRoute('admin.dashboard');
     }
