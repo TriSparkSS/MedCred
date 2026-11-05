@@ -184,6 +184,11 @@ class CredentialingCase extends Model
         return $this->hasMany(DelayOwnerHistory::class);
     }
 
+    public function latestDelayOwnerHistory(): HasOne
+    {
+        return $this->hasOne(DelayOwnerHistory::class)->latestOfMany('id');
+    }
+
     public function packetGenerations(): HasMany
     {
         return $this->hasMany(PacketGeneration::class);
@@ -192,6 +197,11 @@ class CredentialingCase extends Model
     public function statusHistories(): HasMany
     {
         return $this->hasMany(CaseStatusHistory::class)->latest();
+    }
+
+    public function latestStatusHistory(): HasOne
+    {
+        return $this->hasOne(CaseStatusHistory::class)->latestOfMany('id');
     }
 
     public function activities(): HasMany
@@ -307,7 +317,40 @@ class CredentialingCase extends Model
     {
         $start = $this->submission_date ?? $this->intake_date;
 
-        return $start ? $start->diffInDays(now()) : 0;
+        return $start ? (int) $start->diffInDays(now()) : 0;
+    }
+
+    public function getTotalAgeDaysAttribute(): int
+    {
+        return $this->aging_days;
+    }
+
+    public function getCurrentWaitingDaysAttribute(): int
+    {
+        $latestDelay = $this->relationLoaded('latestDelayOwnerHistory')
+            ? $this->latestDelayOwnerHistory
+            : $this->latestDelayOwnerHistory()->first();
+
+        $latestStatus = $this->relationLoaded('latestStatusHistory')
+            ? $this->latestStatusHistory
+            : $this->latestStatusHistory()->first();
+
+        $waitStart = null;
+        if ($latestDelay?->created_at && $latestStatus?->created_at) {
+            $waitStart = $latestDelay->created_at->gt($latestStatus->created_at)
+                ? $latestDelay->created_at
+                : $latestStatus->created_at;
+        } else {
+            $waitStart = $latestDelay?->created_at ?? $latestStatus?->created_at;
+        }
+
+        $waitStart ??= $this->submission_date ?? $this->intake_date ?? $this->created_at;
+
+        if (! $waitStart) {
+            return 0;
+        }
+
+        return max(0, (int) $waitStart->copy()->startOfDay()->diffInDays(now()->startOfDay()));
     }
 
     public function isOverdue(): bool

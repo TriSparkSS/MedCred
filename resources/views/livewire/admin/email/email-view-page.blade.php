@@ -369,6 +369,14 @@
                                                             title="Download {{ $attachment['name'] }}">
                                                             Download
                                                         </a>
+                                                        @if ($canIngestAttachment ?? false)
+                                                            <button type="button"
+                                                                class="btn btn-sm btn-outline-primary"
+                                                                wire:click="openSaveAttachmentModal({{ json_encode($encodedMsg) }}, {{ json_encode($encodedAttach) }}, {{ json_encode((string) ($attachment['name'] ?? 'attachment')) }}, {{ json_encode((string) ($msgCaseId ?? $primaryCaseId ?? '')) }})"
+                                                                title="Save {{ $attachment['name'] }} to Document Repository">
+                                                                <i class="ti tabler-file-import me-1"></i>Save to Documents
+                                                            </button>
+                                                        @endif
                                                         @endif
                                                     </div>
                                                 @endif
@@ -408,4 +416,5 @@
 
     @include('livewire.admin.email.partials.compose-modal')
     @include('livewire.admin.email.partials.link-modal')
+    @include('livewire.admin.email.partials.save-attachment-modal')
 </div>

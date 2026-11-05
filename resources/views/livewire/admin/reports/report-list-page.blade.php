@@ -107,6 +107,10 @@
                         class="btn {{ $delayDimension === 'by_payer' ? 'btn-primary' : 'btn-outline-primary' }}">
                         By Payer
                     </button>
+                    <button type="button" wire:click="setDelayDimension('by_practice')"
+                        class="btn {{ $delayDimension === 'by_practice' ? 'btn-primary' : 'btn-outline-primary' }}">
+                        By Practice
+                    </button>
                 </div>
             </div>
 
@@ -120,18 +124,32 @@
                             <th>Dimension</th>
                             <th class="text-end">Active Cases</th>
                             <th style="min-width: 220px;">Share of Delayed Cases</th>
+                            <th class="text-end">Avg Waiting Days</th>
                             <th class="text-end">Avg Aging Days</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($currentDelayRows as $item)
+                            @php
+                                $avgAging = (int) ($item['avg_aging_days'] ?? 0);
+                                $avgWaiting = (int) ($item['avg_waiting_days'] ?? $avgAging);
+                                $agingBadgeClass = $avgAging >= 60
+                                    ? 'bg-label-danger'
+                                    : ($avgAging >= 30 ? 'bg-label-warning' : 'bg-label-success');
+                                $waitingBadgeClass = $avgWaiting >= 60
+                                    ? 'bg-label-danger'
+                                    : ($avgWaiting >= 30 ? 'bg-label-warning' : 'bg-label-info');
+                                $barColorClass = $avgAging >= 60
+                                    ? 'bg-danger'
+                                    : ($avgAging >= 30 ? 'bg-warning' : 'bg-primary');
+                            @endphp
                             <tr>
                                 <td class="fw-semibold">{{ $item['label'] }}</td>
                                 <td class="text-end fw-semibold">{{ $item['count'] }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height: 8px;">
-                                            <div class="progress-bar bg-primary" role="progressbar"
+                                            <div class="progress-bar {{ $barColorClass }}" role="progressbar"
                                                 style="width: {{ min(100, (float) $item['percent']) }}%"
                                                 aria-valuenow="{{ $item['percent'] }}" aria-valuemin="0" aria-valuemax="100"></div>
                                         </div>
@@ -139,12 +157,15 @@
                                     </div>
                                 </td>
                                 <td class="text-end">
-                                    <span class="badge bg-label-secondary">{{ $item['avg_aging_days'] }} days</span>
+                                    <span class="badge {{ $waitingBadgeClass }}">{{ $avgWaiting }} days</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="badge {{ $agingBadgeClass }}">{{ $avgAging }} days</span>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-3">No active delayed cases found.</td>
+                                <td colspan="5" class="text-center text-muted py-3">No active delayed cases found.</td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -33,7 +33,7 @@ class ReportListPage extends Component
 
     public function setDelayDimension(string $dim): void
     {
-        if (in_array($dim, ['by_owner', 'by_team', 'by_provider', 'by_payer'], true)) {
+        if (in_array($dim, ['by_owner', 'by_team', 'by_provider', 'by_payer', 'by_practice'], true)) {
             $this->delayDimension = $dim;
         }
     }

@@ -1,15 +1,23 @@
 <?php
 
+use App\Data\MailMessageDto;
 use App\Livewire\Admin\Credential\CredentialDetailsPage;
 use App\Livewire\Admin\Credential\CredentialListPage;
+use App\Livewire\Admin\Email\EmailViewPage;
 use App\Livewire\Admin\Provider\ProviderDetailsPage;
 use App\Livewire\Admin\Reports\PracticeCredentialingReportPage;
+use App\Livewire\Admin\Reports\ReportListPage;
 use App\Livewire\Authenticate\ForgotPasswordPage;
 use App\Livewire\Authenticate\ResetPasswordPage;
 use App\Models\Admin;
 use App\Models\AuditLog;
 use App\Models\CaseActivity;
 use App\Models\CredentialingCase;
+use App\Models\DelayOwner;
+use App\Models\DelayOwnerHistory;
+use App\Models\Document;
+use App\Models\DocumentType;
+use App\Models\EmailAttachment;
 use App\Models\EmailCaseLink;
 use App\Models\EmailMessage;
 use App\Models\Payer;
@@ -20,6 +28,8 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\DashboardService;
 use App\Services\FollowUpEngine;
+use App\Services\GraphMailboxService;
+use App\Services\ReportExportService;
 use Database\Seeders\AdminPermissionSeeder;
 use Database\Seeders\AdminSeeder;
 use Database\Seeders\MasterDataSeeder;
@@ -28,6 +38,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -463,4 +474,200 @@ test('S3-08: ReportExportService and ReportExportController export CSV, Excel (.
         ->assertFileDownloaded();
 
     expect(AuditLog::where('action', 'report.exported')->count())->toBe($beforeExportAuditCount + 2);
+});
+
+test('S3-04: EmailViewPage saves inbound email attachments into Document Repository with classification, version history, and audit logging', function () {
+    Storage::fake('public');
+
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = createSprintTestPractice('Attachment Ingest Practice', 'AIP');
+    $provider = createSprintTestProvider('Dr. Ingest Provider', '1554433221', $practice);
+    $payer = Payer::create(['name' => 'Ingest Payer', 'is_active' => true]);
+    $status = Status::where('name', 'Documents Requested from Provider')->firstOrFail();
+    $docType = DocumentType::firstOrCreate(
+        ['name' => 'State License'],
+        ['slug' => 'state-license', 'is_active' => true, 'is_state_specific' => true]
+    );
+
+    $case = CredentialingCase::create([
+        'practice_id' => $practice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $payer->id,
+        'status_id' => $status->id,
+        'state' => 'TX',
+    ]);
+
+    $emailMessage = EmailMessage::create([
+        'provider_id' => $provider->id,
+        'credentialing_case_id' => $case->id,
+        'external_message_id' => 'graph-msg-ingest-1',
+        'message_id' => '<ingest-1@example.com>',
+        'direction' => 'inbound',
+        'from_address' => 'provider@example.com',
+        'to_address' => 'credentialing@revantagehbs.com',
+        'subject' => 'Attached State License PDF',
+        'body' => 'Here is my renewed TX license.',
+        'status' => 'received',
+        'has_pending_attachments' => true,
+        'received_at' => now(),
+    ]);
+
+    $emailAttachment = EmailAttachment::create([
+        'email_message_id' => $emailMessage->id,
+        'original_name' => 'tx_license_2026.pdf',
+        'file_path' => '',
+        'file_size' => 1024,
+        'mime_type' => 'application/pdf',
+    ]);
+
+    $encodedMsgId = EmailViewPage::encodeId('graph-msg-ingest-1');
+    $encodedAttId = EmailViewPage::encodeId('graph-att-ingest-1');
+
+    $dto = new MailMessageDto(
+        id: 'graph-msg-ingest-1',
+        folder: 'inbox',
+        direction: 'inbound',
+        internetMessageId: '<ingest-1@example.com>',
+        conversationId: 'conv-ingest-1',
+        inReplyTo: null,
+        references: null,
+        subject: 'Attached State License PDF',
+        fromAddress: 'provider@example.com',
+        fromName: 'Dr. Ingest Provider',
+        toAddress: 'credentialing@revantagehbs.com',
+        ccAddress: null,
+        bodyHtml: '<p>Here is my renewed TX license.</p>',
+        bodyText: 'Here is my renewed TX license.',
+        hasAttachments: true,
+        attachments: [[
+            'id' => 'graph-att-ingest-1',
+            'name' => 'tx_license_2026.pdf',
+            'contentType' => 'application/pdf',
+            'size' => 1024,
+            'contentId' => null,
+            'isInline' => false,
+            'kind' => 'file',
+            'sourceUrl' => null,
+        ]],
+        date: now(),
+        isRead: true,
+    );
+
+    $this->mock(GraphMailboxService::class, function ($mock) use ($dto) {
+        $mock->shouldReceive('normalizeFolder')->andReturn('inbox');
+        $mock->shouldReceive('isConfigured')->andReturn(true);
+        $mock->shouldReceive('getMessage')->andReturn($dto);
+        $mock->shouldReceive('getConversation')->andReturn(collect([$dto]));
+        $mock->shouldReceive('downloadAttachment')
+            ->once()
+            ->with('graph-msg-ingest-1', 'graph-att-ingest-1')
+            ->andReturn([
+                'name' => 'tx_license_2026.pdf',
+                'contentType' => 'application/pdf',
+                'content' => '%PDF-1.4 Fake PDF content for state license',
+            ]);
+    });
+
+    $this->actingAs($admin, 'admin');
+
+    Livewire::test(EmailViewPage::class, ['folder' => 'inbox', 'messageId' => $encodedMsgId])
+        ->assertSee('Save to Documents')
+        ->call('openSaveAttachmentModal', $encodedMsgId, $encodedAttId, 'tx_license_2026.pdf', (string) $case->id)
+        ->assertSet('showSaveAttachmentModal', true)
+        ->assertSet('ingestCaseId', (string) $case->id)
+        ->assertSet('ingestProviderId', (string) $provider->id)
+        ->set('ingestDocumentTypeId', (string) $docType->id)
+        ->set('ingestTitle', 'TX Medical License 2026')
+        ->set('ingestExpiryDate', now()->addYear()->toDateString())
+        ->set('ingestNotes', 'Ingested from provider inbound email')
+        ->call('saveAttachmentToDocuments')
+        ->assertSet('showSaveAttachmentModal', false)
+        ->assertHasNoErrors();
+
+    $document = Document::where('credentialing_case_id', $case->id)
+        ->where('document_type_id', $docType->id)
+        ->first();
+
+    expect($document)->not->toBeNull()
+        ->and($document->title)->toBe('TX Medical License 2026')
+        ->and($document->provider_id)->toBe($provider->id)
+        ->and($document->practice_id)->toBe($practice->id)
+        ->and($document->versions()->count())->toBe(1)
+        ->and($document->versions()->first()->notes)->toBe('Ingested from provider inbound email');
+
+    expect($emailAttachment->fresh()->document_id)->toBe($document->id);
+    expect($emailMessage->fresh()->has_pending_attachments)->toBeFalse();
+    expect(AuditLog::where('action', 'email.attachment_ingested')->where('auditable_id', $document->id)->exists())->toBeTrue();
+});
+
+test('S3-06 & S3-07: CredentialingCase tracks total age vs current waiting age, and Delay Breakdown supports By Practice dimension and color-coded aging badges', function () {
+    $admin = Admin::where('username', 'superadmin')->firstOrFail();
+    $practice = createSprintTestPractice('Delay Analytics Practice', 'DAP');
+    $provider = createSprintTestProvider('Dr. Delay Provider', '1887766554', $practice);
+    $payer = Payer::create(['name' => 'Delay Payer', 'is_active' => true]);
+    $status = Status::where('name', 'At Payer')->firstOrFail();
+    $payerOwner = DelayOwner::where('name', 'Payer')->firstOrFail();
+
+    $case = CredentialingCase::create([
+        'practice_id' => $practice->id,
+        'provider_id' => $provider->id,
+        'payer_id' => $payer->id,
+        'status_id' => $status->id,
+        'delay_owner_id' => $payerOwner->id,
+        'assigned_admin_id' => $admin->id,
+        'state' => 'TX',
+        'intake_date' => now()->subDays(65)->toDateString(),
+        'submission_date' => now()->subDays(60)->toDateString(),
+    ]);
+
+    $history = DelayOwnerHistory::create([
+        'credentialing_case_id' => $case->id,
+        'delay_owner_id' => $payerOwner->id,
+        'source' => 'status_map',
+        'reason' => 'Moved to At Payer',
+        'changed_by_admin_id' => $admin->id,
+    ]);
+    DB::table('delay_owner_histories')
+        ->where('id', $history->id)
+        ->update([
+            'created_at' => now()->subDays(12),
+            'updated_at' => now()->subDays(12),
+        ]);
+
+    $case->refresh();
+
+    expect($case->aging_days)->toBe(60)
+        ->and($case->total_age_days)->toBe(60)
+        ->and($case->current_waiting_days)->toBe(12);
+
+    $this->actingAs($admin, 'admin');
+
+    // Tracker list page shows both total aging and current waiting days
+    Livewire::test(CredentialListPage::class)
+        ->assertSee('60d')
+        ->assertSee('Wait: 12d');
+
+    // Case details page shows both total aging and current waiting days
+    Livewire::test(CredentialDetailsPage::class, ['case' => $case])
+        ->assertSee('Waiting: 12 days in current stage');
+
+    // ReportExportService includes by_practice dimension and avg_waiting_days
+    $exportService = app(ReportExportService::class);
+    $breakdown = $exportService->delayManagementBreakdown();
+
+    expect($breakdown)->toHaveKeys(['total_active', 'by_owner', 'by_team', 'by_provider', 'by_payer', 'by_practice']);
+
+    $practiceRow = collect($breakdown['by_practice'])->firstWhere('label', 'Delay Analytics Practice');
+    expect($practiceRow)->not->toBeNull()
+        ->and($practiceRow['count'])->toBe(1)
+        ->and($practiceRow['avg_aging_days'])->toBe(60)
+        ->and($practiceRow['avg_waiting_days'])->toBe(12);
+
+    // ReportListPage supports switching to by_practice tab and renders color-coded badge
+    Livewire::test(ReportListPage::class)
+        ->assertSee('By Practice')
+        ->call('setDelayDimension', 'by_practice')
+        ->assertSet('delayDimension', 'by_practice')
+        ->assertSee('Delay Analytics Practice')
+        ->assertSee('bg-label-danger', false);
 });

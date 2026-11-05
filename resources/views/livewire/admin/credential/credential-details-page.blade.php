@@ -127,6 +127,7 @@
                 <div class="card-body">
                     <p class="text-uppercase text-muted small mb-1">Aging</p>
                     <h4 class="fw-bold mb-0 {{ $agingTone }}">{{ $case->aging_days }} <span class="fs-6 fw-semibold">days</span></h4>
+                    <small class="text-muted">Waiting: {{ $case->current_waiting_days }} days in current stage</small>
                 </div>
             </div>
         </div>

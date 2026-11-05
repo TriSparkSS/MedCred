@@ -365,6 +365,7 @@ class CredentialListPage extends Component
 
         $query = CredentialingCase::with([
             'provider.user', 'payer', 'practice', 'status', 'delayOwner', 'assignedAdmin', 'priority',
+            'latestDelayOwnerHistory', 'latestStatusHistory',
         ])->withCount(['tasks as open_tasks_count' => fn ($q) => $q->open()]);
 
         if ($admin) {

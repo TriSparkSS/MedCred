@@ -971,7 +971,10 @@ class ReportExportService
     public function delayManagementBreakdown(): array
     {
         $query = CredentialingCase::active()
-            ->with(['delayOwner', 'assignedAdmin', 'provider.user', 'payer', 'status']);
+            ->with([
+                'delayOwner', 'assignedAdmin', 'provider.user', 'payer', 'practice', 'status',
+                'latestDelayOwnerHistory', 'latestStatusHistory',
+            ]);
         $this->applyAdminScope($query);
         $cases = $query->get();
 
@@ -991,6 +994,9 @@ class ReportExportService
                 $avgAging = $count > 0
                     ? (int) round($groupCases->avg(fn (CredentialingCase $c) => $c->aging_days))
                     : 0;
+                $avgWaiting = $count > 0
+                    ? (int) round($groupCases->avg(fn (CredentialingCase $c) => $c->current_waiting_days))
+                    : 0;
 
                 return [
                     'label' => $label,
@@ -998,6 +1004,7 @@ class ReportExportService
                     'percent' => $percent,
                     'share_percent' => $percent,
                     'avg_aging_days' => $avgAging,
+                    'avg_waiting_days' => $avgWaiting,
                 ];
             })
                 ->sortByDesc('count')
@@ -1023,6 +1030,7 @@ class ReportExportService
         $byTeamGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->assignedAdmin->name ?? 'Unassigned'));
         $byProviderGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->provider->user->name ?? 'Unknown'));
         $byPayerGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->payer->name ?? 'Unknown'));
+        $byPracticeGrouped = $cases->groupBy(fn (CredentialingCase $case) => (string) ($case->practice->legal_name ?? 'Unknown'));
 
         return [
             'total_active' => $totalActive,
@@ -1030,6 +1038,7 @@ class ReportExportService
             'by_team' => $buildDimension($byTeamGrouped),
             'by_provider' => $buildDimension($byProviderGrouped),
             'by_payer' => $buildDimension($byPayerGrouped),
+            'by_practice' => $buildDimension($byPracticeGrouped),
         ];
     }
 
@@ -1184,7 +1193,7 @@ class ReportExportService
     protected function caseAgingData(): array
     {
         $cases = CredentialingCase::active()
-            ->with(['provider.user', 'payer', 'status'])
+            ->with(['provider.user', 'payer', 'status', 'latestDelayOwnerHistory', 'latestStatusHistory'])
             ->orderByDesc('intake_date');
         $this->applyAdminScope($cases);
         $cases = $cases->get();
@@ -1192,7 +1201,7 @@ class ReportExportService
         return [
             'filename' => 'case_aging_'.now()->format('Ymd').'.csv',
             'headers' => [
-                'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days',
+                'Case Number', 'Provider', 'Payer', 'Status', 'Intake Date', 'Submission Date', 'Aging Days', 'Current Waiting Days',
             ],
             'rows' => $cases->map(fn ($case) => [
                 $case->case_number,
@@ -1202,6 +1211,7 @@ class ReportExportService
                 $case->intake_date?->format('Y-m-d') ?? '',
                 $case->submission_date?->format('Y-m-d') ?? '',
                 $case->aging_days,
+                $case->current_waiting_days,
             ])->values()->all(),
         ];
     }
@@ -1368,7 +1378,10 @@ class ReportExportService
     protected function delayOwnershipData(): array
     {
         $cases = CredentialingCase::active()
-            ->with(['provider.user', 'payer', 'status', 'delayOwner', 'assignedAdmin', 'practice'])
+            ->with([
+                'provider.user', 'payer', 'status', 'delayOwner', 'assignedAdmin', 'practice',
+                'latestDelayOwnerHistory', 'latestStatusHistory',
+            ])
             ->orderBy('case_number');
         $this->applyAdminScope($cases);
         $cases = $cases->get();
@@ -1376,7 +1389,7 @@ class ReportExportService
         return [
             'filename' => 'delay_ownership_'.now()->format('Ymd').'.csv',
             'headers' => [
-                'Case Number', 'Practice', 'Provider', 'Payer', 'Status', 'Delay Owner', 'Assigned Executive', 'Aging Days',
+                'Case Number', 'Practice', 'Provider', 'Payer', 'Status', 'Delay Owner', 'Assigned Executive', 'Aging Days', 'Current Waiting Days',
             ],
             'rows' => $cases->map(fn ($case) => [
                 $case->case_number,
@@ -1387,6 +1400,7 @@ class ReportExportService
                 $case->delayOwner->name ?? 'Unassigned',
                 $case->assignedAdmin->name ?? '',
                 $case->aging_days,
+                $case->current_waiting_days,
             ])->values()->all(),
         ];
     }

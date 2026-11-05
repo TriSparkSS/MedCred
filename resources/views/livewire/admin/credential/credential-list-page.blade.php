@@ -320,7 +320,10 @@
                                         <span class="small text-muted">{{ $case->delayOwner?->name ?? '—' }}</span>
                                     @endif
                                 </td>
-                                <td><span class="fw-semibold">{{ $case->aging_days }}d</span></td>
+                                <td>
+                                    <span class="fw-semibold">{{ $case->aging_days }}d</span>
+                                    <small class="text-muted d-block" title="Days waiting in current stage / delay owner">Wait: {{ $case->current_waiting_days }}d</small>
+                                </td>
                                 <td>
                                     @if($case->last_action_at)
                                         <small>{{ $case->last_action_at->format('m/d/Y') }}</small>
