@@ -325,7 +325,7 @@
                 <div class="col-md-6">
                     <div class="border rounded-3 p-3 h-100">
                         <p class="fw-semibold mb-1">Delay Ownership &amp; Management Breakdown</p>
-                        <small class="text-muted">Share of delayed cases across Provider/Practice, Revantage Team, Payer, executives, and providers.</small>
+                        <small class="text-muted">Share of delayed cases across Provider/Practice, MedCred Team, Payer, executives, and providers.</small>
                     </div>
                 </div>
                 <div class="col-md-6">

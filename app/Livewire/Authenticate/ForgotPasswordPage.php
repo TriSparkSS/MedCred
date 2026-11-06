@@ -100,10 +100,10 @@ class ForgotPasswordPage extends Component
             try {
                 app(MailSettingsService::class)->applyRuntimeConfig();
                 Mail::raw(
-                    "You requested a password reset for your Revantage CRM account. Reset your password using this link: {$resetUrl}",
+                    "You requested a password reset for your MedCred account. Reset your password using this link: {$resetUrl}",
                     function ($message) use ($account) {
                         $message->to($account->email)
-                            ->subject('Reset Your Revantage CRM Password');
+                            ->subject('Reset Your MedCred Password');
                     }
                 );
             } catch (\Throwable) {

@@ -26,6 +26,7 @@ use Database\Seeders\AdminPermissionSeeder;
 use Database\Seeders\AdminSeeder;
 use Database\Seeders\MasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -124,7 +125,7 @@ test('BRD #21: EmailMatchingService matches by CAQH ID, Practice Tax ID, Provide
     $domainMatch = $matching->match(
         'Provider file review for Elena Vance M21',
         'We need an updated W-9 for Elena Vance M21.',
-        "rep@cigna-M21.com"
+        'rep@cigna-M21.com'
     );
     expect($domainMatch['confidence'])->toBe('medium')
         ->and($domainMatch['case']?->id)->toBe($case->id)
@@ -189,7 +190,7 @@ test('BRD #22: CredentialingEmailService saves outbound EmailMessage rows on sen
     ]);
     Cache::flush();
 
-    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+    Http::fake(function (Request $request) {
         $url = $request->url();
         if (str_contains($url, 'login.microsoftonline.com')) {
             return Http::response(['access_token' => 'fake-token', 'expires_in' => 3600], 200);
@@ -237,7 +238,7 @@ test('BRD #23: EmailDashboardPage filters unread, unlinked, and bounced queues a
     ]);
     Cache::flush();
 
-    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($case) {
+    Http::fake(function (Request $request) {
         $url = $request->url();
         if (str_contains($url, 'login.microsoftonline.com')) {
             return Http::response(['access_token' => 'fake-token', 'expires_in' => 3600], 200);
@@ -297,7 +298,7 @@ test('BRD #23: EmailDashboardPage filters unread, unlinked, and bounced queues a
         ->assertSee('Unread Priority')
         ->assertSee('Unlinked')
         ->assertSee('Bounced / Failed')
-        ->assertSee('Suggested: ' . $case->case_number);
+        ->assertSee('Suggested: '.$case->case_number);
 
     // Filter: Unread Priority
     $component->call('setFilter', 'unread')
@@ -425,7 +426,7 @@ test('BRD #25: SlaEngineService respects automation_paused, manual delay overrid
 
     // 2. Manual delay override to a different delay owner category skips provider reminder
     $case->update(['automation_paused' => false, 'automation_pause_reason' => null]);
-    $internalOwner = DelayOwner::where('name', 'Revantage Team')->firstOrFail();
+    $internalOwner = DelayOwner::where('name', 'MedCred Team')->firstOrFail();
     app(DelayOwnershipService::class)->overrideDelayOwner($case, $internalOwner->id, 'Internal audit hold', $admin->id);
 
     $overrideTimer = CaseSlaTimer::create([

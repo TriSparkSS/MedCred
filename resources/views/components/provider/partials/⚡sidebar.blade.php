@@ -10,7 +10,7 @@ new class extends Component {};
         <div class="app-brand demo">
             <a href="{{ route('provider.dashboard') }}" class="app-brand-link">
                 <span class="app-brand-logo demo">
-                    <img src="{{ asset('assets/logo/login-logo.jpeg') }}" height="75" width="200" alt="Revantage">
+                    <img src="{{ asset('assets/logo/logo.jpeg') }}" alt="MedCred" style="height:60px;width:auto;max-width:180px;object-fit:contain;">
                 </span>
             </a>
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">

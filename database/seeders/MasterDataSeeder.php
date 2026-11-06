@@ -14,7 +14,7 @@ class MasterDataSeeder extends Seeder
     public function run(): void
     {
         $delayOwners = [
-            'Revantage Team' => 'Internal',
+            'MedCred Team' => 'Internal',
             'Provider/Practice' => 'Provider',
             'Payer' => 'Payer',
             'No Delay / Closed' => 'Regulatory Body',
@@ -33,15 +33,15 @@ class MasterDataSeeder extends Seeder
 
         $statuses = [
             ['name' => 'Not Started', 'sort_order' => 1, 'dashboard_category' => 'not_started', 'delay_owner' => null],
-            ['name' => 'Pending Internal Review', 'sort_order' => 2, 'dashboard_category' => 'internal', 'delay_owner' => 'Revantage Team'],
+            ['name' => 'Pending Internal Review', 'sort_order' => 2, 'dashboard_category' => 'internal', 'delay_owner' => 'MedCred Team'],
             ['name' => 'Documents Requested from Provider', 'sort_order' => 3, 'dashboard_category' => 'provider', 'delay_owner' => 'Provider/Practice'],
-            ['name' => 'Received - Under Review', 'sort_order' => 4, 'dashboard_category' => 'internal', 'delay_owner' => 'Revantage Team'],
+            ['name' => 'Received - Under Review', 'sort_order' => 4, 'dashboard_category' => 'internal', 'delay_owner' => 'MedCred Team'],
             ['name' => 'Ready to File', 'sort_order' => 5, 'dashboard_category' => 'internal', 'delay_owner' => null],
             ['name' => 'Application Filed / Submitted', 'sort_order' => 6, 'dashboard_category' => 'payer', 'delay_owner' => 'Payer'],
             ['name' => 'At Payer', 'sort_order' => 7, 'dashboard_category' => 'payer', 'delay_owner' => 'Payer'],
             ['name' => 'Additional Information Requested by Payer', 'sort_order' => 8, 'dashboard_category' => 'payer', 'delay_owner' => 'Provider/Practice'],
             ['name' => 'Escalated to Payer', 'sort_order' => 9, 'dashboard_category' => 'payer', 'delay_owner' => 'Payer'],
-            ['name' => 'Follow-up in Progress', 'sort_order' => 10, 'dashboard_category' => 'internal', 'delay_owner' => 'Revantage Team'],
+            ['name' => 'Follow-up in Progress', 'sort_order' => 10, 'dashboard_category' => 'internal', 'delay_owner' => 'MedCred Team'],
             ['name' => 'Approved', 'sort_order' => 11, 'dashboard_category' => 'approved', 'delay_owner' => 'No Delay / Closed'],
             ['name' => 'Rejected / Denied', 'sort_order' => 12, 'dashboard_category' => 'closed', 'delay_owner' => 'No Delay / Closed'],
             ['name' => 'Panel Closed', 'sort_order' => 13, 'dashboard_category' => 'closed', 'delay_owner' => 'No Delay / Closed'],

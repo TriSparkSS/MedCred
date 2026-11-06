@@ -16,21 +16,21 @@ class Phase2Seeder extends Seeder
                 'template_key' => 'document_request',
                 'category' => 'request',
                 'subject' => 'Document request — Case {{case_number}}',
-                'body' => "Dear {{provider_name}},\n\nWe need additional documents for your credentialing application with {{payer_name}} (Case {{case_number}}).\n\nPlease upload the requested items at your earliest convenience.\n\nThank you,\nRevantage Credentialing Team",
+                'body' => "Dear {{provider_name}},\n\nWe need additional documents for your credentialing application with {{payer_name}} (Case {{case_number}}).\n\nPlease upload the requested items at your earliest convenience.\n\nThank you,\nMedCred Credentialing Team",
             ],
             [
                 'name' => 'Provider Reminder (3 Day)',
                 'template_key' => 'provider_reminder_1',
                 'category' => 'reminder',
                 'subject' => 'Reminder: Documents needed — {{case_number}}',
-                'body' => "Dear {{provider_name}},\n\nThis is a friendly reminder that we are still awaiting documents for case {{case_number}} with {{payer_name}}.\n\nPlease respond by {{next_follow_up_date}}.\n\nRevantage Credentialing",
+                'body' => "Dear {{provider_name}},\n\nThis is a friendly reminder that we are still awaiting documents for case {{case_number}} with {{payer_name}}.\n\nPlease respond by {{next_follow_up_date}}.\n\nMedCred Credentialing",
             ],
             [
                 'name' => 'Provider Reminder (7 Day)',
                 'template_key' => 'provider_reminder_2',
                 'category' => 'reminder',
                 'subject' => 'Second reminder: {{case_number}}',
-                'body' => "Dear {{provider_name}},\n\nWe have not yet received the requested documents for {{payer_name}} enrollment ({{case_number}}). Please submit as soon as possible to avoid delays.\n\nRevantage Credentialing",
+                'body' => "Dear {{provider_name}},\n\nWe have not yet received the requested documents for {{payer_name}} enrollment ({{case_number}}). Please submit as soon as possible to avoid delays.\n\nMedCred Credentialing",
             ],
             [
                 'name' => 'Manager Escalation',
@@ -51,7 +51,7 @@ class Phase2Seeder extends Seeder
                 'template_key' => 'revalidation',
                 'category' => 'revalidation',
                 'subject' => 'Revalidation due — {{provider_name}}',
-                'body' => "Dear {{provider_name}},\n\nYour credentialing with {{payer_name}} is due for revalidation. Case reference: {{case_number}}.\n\nRevantage Credentialing",
+                'body' => "Dear {{provider_name}},\n\nYour credentialing with {{payer_name}} is due for revalidation. Case reference: {{case_number}}.\n\nMedCred Credentialing",
             ],
         ];
 

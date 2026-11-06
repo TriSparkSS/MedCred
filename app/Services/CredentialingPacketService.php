@@ -97,7 +97,7 @@ class CredentialingPacketService
     protected function buildReadme(CredentialingCase $case): string
     {
         return implode("\n", [
-            'Revantage Credentialing Packet',
+            'MedCred Credentialing Packet',
             'Case Number: '.$case->case_number,
             'Provider: '.($case->provider->user->name ?? 'N/A'),
             'NPI: '.($case->provider->npi ?? 'N/A'),

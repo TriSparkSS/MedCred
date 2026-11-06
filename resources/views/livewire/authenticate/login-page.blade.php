@@ -6,8 +6,7 @@
                     <div class="app-brand justify-content-center mb-6">
                         <a href="{{ route('login') }}" class="app-brand-link">
                             <span class="app-brand-logo demo">
-                                <img src="{{ asset('assets/logo/login-logo.jpeg') }}" height="150" width="250"
-                                    alt="" srcset="">
+                                <img src="{{ asset('assets/logo/logo.jpeg') }}" alt="MedCred" style="height:140px;width:auto;max-width:100%;object-fit:contain;">
                             </span>
                         </a>
                     </div>
@@ -93,7 +92,7 @@
                             </p>
 
                             <p class="mb-0" style="font-size: 13px; color: #374151; line-height: 1.5;">
-                                This system is operated by <strong>Revantage Healthcare Business Solutions LLC</strong> and may contain
+                                This system is operated by <strong>MedCred</strong> and may contain
                                 <strong>Protected Health Information (PHI)</strong>. Access is strictly limited to authorized users.
                                 Unauthorized access, use, or disclosure is prohibited and may result in disciplinary action and legal consequences.
                                 All activities are monitored and audited in compliance with <strong>HIPAA</strong> and applicable security regulations.

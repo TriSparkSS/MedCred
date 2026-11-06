@@ -839,7 +839,7 @@
                                 <textarea wire:model="taskForm.description" rows="2" class="form-control"></textarea>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Assign To (Revantage Staff)</label>
+                                <label class="form-label">Assign To (MedCred Staff)</label>
                                 <select wire:model="taskForm.assigned_admin_id" class="form-select">
                                     <option value="">Unassigned</option>
                                     @foreach ($admins as $admin)

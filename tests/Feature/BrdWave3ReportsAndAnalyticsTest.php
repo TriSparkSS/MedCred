@@ -96,7 +96,7 @@ test('BRD #13: delayManagementBreakdown computes counts, share percentages, and 
 
     $payerOwner = DelayOwner::where('name', 'Payer')->firstOrFail();
     $providerOwner = DelayOwner::where('name', 'Provider/Practice')->firstOrFail();
-    $revantageOwner = DelayOwner::where('name', 'Revantage Team')->firstOrFail();
+    $revantageOwner = DelayOwner::where('name', 'MedCred Team')->firstOrFail();
 
     // 2 cases delayed by Payer (aging 20 and 40 days -> avg 30)
     CredentialingCase::create([
@@ -132,7 +132,7 @@ test('BRD #13: delayManagementBreakdown computes counts, share percentages, and 
         'intake_date' => now()->subDays(10)->toDateString(),
     ]);
 
-    // 1 case delayed by Revantage Team (aging 14 days)
+    // 1 case delayed by MedCred Team (aging 14 days)
     CredentialingCase::create([
         'practice_id' => $practice->id,
         'provider_id' => $providerB->id,
@@ -156,8 +156,8 @@ test('BRD #13: delayManagementBreakdown computes counts, share percentages, and 
         ->and($byOwner['Payer']['avg_aging_days'])->toBe(30)
         ->and($byOwner['Provider/Practice']['count'])->toBe(1)
         ->and($byOwner['Provider/Practice']['percent'])->toBe(25.0)
-        ->and($byOwner['Revantage Team']['count'])->toBe(1)
-        ->and($byOwner['Revantage Team']['percent'])->toBe(25.0);
+        ->and($byOwner['MedCred Team']['count'])->toBe(1)
+        ->and($byOwner['MedCred Team']['percent'])->toBe(25.0);
 
     $byTeam = collect($breakdown['by_team'])->keyBy('label');
     expect($byTeam['Executive Alice']['count'])->toBe(2)

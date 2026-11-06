@@ -6,7 +6,7 @@
                     <div class="app-brand justify-content-center mb-6">
                         <a href="{{ route('portal.login') }}" class="app-brand-link">
                             <span class="app-brand-logo demo">
-                                <img src="{{ asset('assets/logo/login-logo.jpeg') }}" height="150" width="250" alt="">
+                                <img src="{{ asset('assets/logo/logo.jpeg') }}" alt="MedCred" style="height:140px;width:auto;max-width:100%;object-fit:contain;">
                             </span>
                         </a>
                     </div>

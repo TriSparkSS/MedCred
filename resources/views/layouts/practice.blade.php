@@ -17,7 +17,7 @@
             --bs-link-hover-color: #0a5546;
         }
     </style>
-    <title>{{ $title ?? 'Practice Portal' }}</title>
+    <title>{{ ($title ?? 'Practice Portal').' | '.config('app.name') }}</title>
     @include('layouts.partials.admin-styles')
 </head>
 

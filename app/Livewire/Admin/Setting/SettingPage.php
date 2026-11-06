@@ -113,7 +113,7 @@ class SettingPage extends Component
             'counts' => $snapshot['counts'],
         ]);
 
-        $filename = 'revantage_backup_' . now()->format('Ymd') . '.json';
+        $filename = 'medcred_backup_'.now()->format('Ymd').'.json';
 
         return response()->streamDownload(function () use ($snapshot) {
             echo json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -154,8 +154,8 @@ class SettingPage extends Component
                 'label' => 'Database & SQL Reporting Views',
                 'passed' => $viewsExist,
                 'detail' => "Driver: {$defaultDriver}"
-                    . ($sqlsrvConfigured ? ' | SQL Server configured' : '')
-                    . ($viewsExist ? ' | 3/3 SQL views active' : ' | SQL views missing'),
+                    .($sqlsrvConfigured ? ' | SQL Server configured' : '')
+                    .($viewsExist ? ' | 3/3 SQL views active' : ' | SQL views missing'),
             ],
             [
                 'key' => 'debug',
@@ -185,7 +185,7 @@ class SettingPage extends Component
 
         $auditLogs = AuditLog::with('admin:id,name,username')
             ->when($this->auditSearch !== '', function ($q) {
-                $term = '%' . trim($this->auditSearch) . '%';
+                $term = '%'.trim($this->auditSearch).'%';
                 $q->where(function ($sub) use ($term) {
                     $sub->where('action', 'like', $term)
                         ->orWhere('auditable_type', 'like', $term)

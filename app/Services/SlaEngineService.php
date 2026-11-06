@@ -328,7 +328,7 @@ class SlaEngineService
         if (str_contains($name, 'payer')) {
             return 'payer';
         }
-        if (str_contains($name, 'revantage') || str_contains($name, 'internal') || str_contains($name, 'team')) {
+        if (str_contains($name, 'medcred') || str_contains($name, 'revantage') || str_contains($name, 'internal') || str_contains($name, 'team')) {
             return 'internal';
         }
 
@@ -396,7 +396,7 @@ class SlaEngineService
 
         app(DelayOwnershipService::class)->shiftToDelayOwnerByName(
             $case,
-            'Revantage Team',
+            'MedCred Team',
             'Internal follow-up after payer SLA',
         );
 
@@ -409,7 +409,7 @@ class SlaEngineService
         $ownerName = match ($category) {
             'provider' => 'Provider/Practice',
             'payer' => 'Payer',
-            default => 'Revantage Team',
+            default => 'MedCred Team',
         };
 
         app(DelayOwnershipService::class)->shiftToDelayOwnerByName(

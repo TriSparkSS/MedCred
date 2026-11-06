@@ -17,7 +17,7 @@
             --bs-link-hover-color: #685dd8;
         }
     </style>
-    <title>{{ $title ?? 'Provider Portal' }}</title>
+    <title>{{ ($title ?? 'Provider Portal').' | '.config('app.name') }}</title>
     @include('layouts.partials.admin-styles')
 </head>
 

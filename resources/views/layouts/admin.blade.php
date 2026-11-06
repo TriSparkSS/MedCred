@@ -39,7 +39,7 @@
         }
     </style>
 
-    <title>{{ $title ?? __('admin.dashboard') }}</title>
+    <title>{{ ($title ?? __('admin.dashboard')).' | '.config('app.name') }}</title>
     @include('layouts.partials.admin-styles')
 
 </head>

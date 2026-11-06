@@ -5,7 +5,8 @@
         z-index: 10000;
     }
 </style>
-<link rel="icon" type="image/x-icon" href="{{ asset('assets/img/favicon/favicon.ico') }}" />
+<link rel="icon" type="image/png" href="{{ asset('assets/img/favicon/medcred-favicon.png') }}" />
+<link rel="apple-touch-icon" href="{{ asset('assets/img/favicon/medcred-apple-touch.png') }}" />
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />

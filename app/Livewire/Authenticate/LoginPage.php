@@ -144,7 +144,7 @@ class LoginPage extends Component
                 if (filled($admin->email)) {
                     app(MailSettingsService::class)->applyRuntimeConfig();
                     Mail::raw(
-                        "Your Revantage CRM two-factor verification code is: {$code}. It expires in 10 minutes.",
+                        "Your MedCred two-factor verification code is: {$code}. It expires in 10 minutes.",
                         function ($message) use ($admin) {
                             $message->to($admin->email)
                                 ->subject('Your Two-Factor Verification Code');

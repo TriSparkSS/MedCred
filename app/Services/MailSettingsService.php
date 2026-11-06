@@ -59,7 +59,7 @@ class MailSettingsService
             'username' => 'credentialing@revantagehbs.com',
             'password' => '',
             'from_address' => 'credentialing@revantagehbs.com',
-            'from_name' => 'Revantage Credentialing',
+            'from_name' => 'MedCred Credentialing',
             'imap_enabled' => true,
             'imap_host' => 'outlook.office365.com',
             'imap_port' => 993,
@@ -140,7 +140,7 @@ class MailSettingsService
 
         $name = trim($settings['from_name'] ?? '');
 
-        return filled($name) ? $name : ($defaults['from_name'] ?? 'Revantage Credentialing');
+        return filled($name) ? $name : ($defaults['from_name'] ?? 'MedCred Credentialing');
     }
 
     public function saveSettings(array $data): void
@@ -387,8 +387,8 @@ class MailSettingsService
         return app(CredentialingEmailService::class)->send(
             null,
             $toAddress,
-            'Revantage CRM — SMTP Test',
-            'This is a test email from Revantage CRM. Your Office 365 SMTP settings are working correctly.',
+            'MedCred — SMTP Test',
+            'This is a test email from MedCred. Your Office 365 SMTP settings are working correctly.',
         );
     }
 }

@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\CredentialingCase;
 use App\Models\Document;
 use App\Models\EmailMessage;
+use App\Support\Branding;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Database\Eloquent\Builder;
@@ -282,6 +283,9 @@ class ReportExportService
             $bodyRows = "<tr><td colspan=\"{$colCount}\" style=\"text-align: center; color: #6b7280;\">No records found for this report.</td></tr>";
         }
 
+        $logo = Branding::pdfLogoDataUri();
+        $logoBlock = $logo !== '' ? "<div class=\"brand\"><img src=\"{$logo}\" alt=\"MedCred\"></div>" : '';
+
         $html = <<<HTML
         <!DOCTYPE html>
         <html>
@@ -290,6 +294,8 @@ class ReportExportService
             <title>{$title}</title>
             <style>
                 body { font-family: DejaVu Sans, sans-serif; font-size: 9px; color: #1f2937; margin: 16px; }
+                .brand { margin-bottom: 8px; }
+                .brand img { height: 42px; width: auto; }
                 .header { background-color: #163b65; color: #ffffff; padding: 12px 16px; margin-bottom: 10px; }
                 .header h1 { margin: 0 0 4px 0; font-size: 16px; }
                 .header p { margin: 0; font-size: 9px; color: #dbeafe; }
@@ -299,6 +305,7 @@ class ReportExportService
             </style>
         </head>
         <body>
+            {$logoBlock}
             <div class="header">
                 <h1>{$title}</h1>
                 <p>{$description} | Generated {$generatedAt}</p>
@@ -1021,7 +1028,7 @@ class ReportExportService
                 return 'Provider/Practice';
             }
             if ($raw === 'Internal') {
-                return 'Revantage Team';
+                return 'MedCred Team';
             }
 
             return $raw;
@@ -1034,7 +1041,7 @@ class ReportExportService
 
         return [
             'total_active' => $totalActive,
-            'by_owner' => $buildDimension($byOwnerGrouped, ['Provider/Practice', 'Revantage Team', 'Payer', 'Unassigned']),
+            'by_owner' => $buildDimension($byOwnerGrouped, ['Provider/Practice', 'MedCred Team', 'Payer', 'Unassigned']),
             'by_team' => $buildDimension($byTeamGrouped),
             'by_provider' => $buildDimension($byProviderGrouped),
             'by_payer' => $buildDimension($byPayerGrouped),

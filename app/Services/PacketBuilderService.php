@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CredentialingCase;
 use App\Models\FormTemplate;
 use App\Models\PacketGeneration;
+use App\Support\Branding;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Facades\Storage;
@@ -109,9 +110,13 @@ class PacketBuilderService
             ? "<h2>Documents</h2><table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" width=\"100%\"><thead><tr><th>Title</th><th>Type</th><th>Number</th><th>Issuing Authority</th><th>Verification Status</th></tr></thead><tbody>{$docRows}</tbody></table>"
             : '';
 
+        $logo = Branding::pdfLogoDataUri();
+        $logoBlock = $logo !== '' ? "<div style=\"margin-bottom:10px;\"><img src=\"{$logo}\" alt=\"MedCred\" style=\"height:48px;width:auto;\"></div>" : '';
+
         return <<<HTML
         <html><body>
-        <h1>Credentialing Packet — {$caseNumber}</h1>
+        {$logoBlock}
+        <h1>MedCred Credentialing Packet — {$caseNumber}</h1>
         <p>Provider: {$providerName} | NPI: {$npi} | Specialty: {$specialty}</p>
         <p>Practice: {$practiceName} | Tax ID: {$taxId} | Payer: {$payerName}</p>
         <p>Case Type: {$caseTypeName} | Priority: {$priorityName} | Status: {$statusName}</p>

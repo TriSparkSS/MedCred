@@ -39,7 +39,7 @@ class ReportCsvMail extends Mailable
         return new Content(
             htmlString: '<p>Please find the attached credentialing report: <strong>'
                 .e($this->reportName)
-                .'</strong>.</p><p>Generated from Revantage Cred App on '
+                .'</strong>.</p><p>Generated from MedCred on '
                 .now()->format('M j, Y g:i A')
                 .'.</p>',
         );

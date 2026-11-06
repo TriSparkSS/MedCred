@@ -6,10 +6,8 @@ use App\Models\Admin;
 use App\Models\AdminNotification;
 use App\Models\CaseActivity;
 use App\Models\CaseSlaTimer;
-use App\Models\CredentialingCase;
 use App\Models\DelayOwner;
 use App\Models\DelayOwnerHistory;
-use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\Location;
 use App\Models\Payer;
@@ -136,7 +134,7 @@ test('CredentialingCaseService::changeStatus creates 1 status_change CaseActivit
 
     expect(CaseActivity::where('credentialing_case_id', $case->id)->where('activity_type', 'status_change')->count())->toBe(2);
 
-    $internalOwner = DelayOwner::where('name', 'Revantage Team')->firstOrFail();
+    $internalOwner = DelayOwner::where('name', 'MedCred Team')->firstOrFail();
     app(DelayOwnershipService::class)->overrideDelayOwner($case->fresh(), $internalOwner->id, 'Internal QA needed', $admin->id);
 
     expect(DelayOwnerHistory::where('credentialing_case_id', $case->id)->where('delay_owner_id', $internalOwner->id)->exists())->toBeTrue()

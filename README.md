@@ -1,4 +1,4 @@
-# Revantage CRM
+# MedCred CRM
 
 Laravel + Livewire admin CRM for healthcare credentialing: practices, providers, payer applications, documents, tasks, reports, and a live Microsoft Graph Email Center.
 
@@ -163,4 +163,4 @@ php artisan test                 # Run Pest tests
 
 ## License
 
-Proprietary — Revantage / project owners. Laravel framework components remain under the [MIT license](https://opensource.org/licenses/MIT).
+Proprietary — MedCred / project owners. Laravel framework components remain under the [MIT license](https://opensource.org/licenses/MIT).

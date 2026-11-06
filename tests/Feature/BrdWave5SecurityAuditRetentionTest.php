@@ -271,7 +271,7 @@ test('BRD #1, #7, #8 & #26: SettingPage verifies SQL views in readiness checks, 
 
     // Download backup snapshot and verify audit log
     $component->call('downloadBackupSnapshot')
-        ->assertFileDownloaded('revantage_backup_' . now()->format('Ymd') . '.json');
+        ->assertFileDownloaded('medcred_backup_' . now()->format('Ymd') . '.json');
 
     expect(AuditLog::where('action', 'system.backup_downloaded')->exists())->toBeTrue();
 
