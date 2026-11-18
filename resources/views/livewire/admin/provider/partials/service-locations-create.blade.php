@@ -1,8 +1,8 @@
-{{-- Add Provider: multiple service locations (saved when the provider is created). --}}
+{{-- Add Provider: multiple facility locations (saved when the provider is created). --}}
 <div class="mb-3 pb-3 border-bottom d-flex justify-content-between align-items-center gap-3">
     <div>
         <h6 class="text-primary fw-semibold mb-1">
-            <i class="ti tabler-map-pins me-2"></i>Service Locations
+            <i class="ti tabler-map-pins me-2"></i>Facility Locations
         </h6>
         <p class="text-muted small mb-0">Every location this provider works at. Pick a practice address or facility, or enter a new address.</p>
     </div>
@@ -57,7 +57,7 @@
             @empty
                 <tr>
                     <td colspan="5" class="text-center text-muted py-3">
-                        No service locations added yet.
+                        No facility locations added yet.
                         @if (! $practiceId)
                             Select a practice first.
                         @endif
@@ -74,7 +74,7 @@
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content" wire:keydown.enter.prevent="addServiceLocation">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Service Location</h5>
+                    <h5 class="modal-title">Add Facility Location</h5>
                     <button type="button" class="btn-close" wire:click="closeLocationModal"></button>
                 </div>
                 <div class="modal-body">

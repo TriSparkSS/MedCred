@@ -125,7 +125,7 @@ test('item 2: add provider page allows adding multiple service locations from pr
 
     $component = Livewire::actingAs($admin, 'admin')
         ->test(ProviderCreatePage::class)
-        ->assertSee('Service Locations')
+        ->assertSee('Facility Locations')
         ->assertSee('Add Location')
         ->set('practiceId', (string) $practice->id)
         // Add 1st location: existing facility

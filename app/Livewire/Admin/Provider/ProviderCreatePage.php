@@ -7,6 +7,8 @@ use App\Enums\ProviderStatus;
 use App\Livewire\Admin\Provider\Concerns\ManagesProviderCredentialRows;
 use App\Livewire\Admin\Provider\Concerns\SelectsPracticeAddress;
 use App\Livewire\Concerns\LooksUpUsZip;
+use App\Livewire\Concerns\ManagesPendingDocuments;
+use App\Livewire\Concerns\ManagesPendingPortalLogins;
 use App\Models\DocumentType;
 use App\Models\Location;
 use App\Models\Practice;
@@ -21,14 +23,17 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Throwable;
 
 #[Layout('layouts::admin', ['title' => 'Add Provider'])]
 class ProviderCreatePage extends Component
 {
-    use LooksUpUsZip, ManagesProviderCredentialRows, WithFileUploads;
+    use LooksUpUsZip, ManagesPendingDocuments, ManagesPendingPortalLogins, ManagesProviderCredentialRows, WithFileUploads;
     use SelectsPracticeAddress {
         updatedPracticeId as protected selectPracticeAddress;
     }
@@ -36,6 +41,9 @@ class ProviderCreatePage extends Component
     public $formData = [];
 
     public $malpracticeDocument = null;
+
+    /** Additional provider documents (License & Documents), uploaded through DocumentService on save. */
+    public array $providerDocuments = [];
 
     /**
      * Service locations to link on save. Each row:
@@ -121,6 +129,18 @@ class ProviderCreatePage extends Component
         $this->specialties = Specialty::orderBy('name')->get();
         $this->credentialRows = [$this->emptyCredentialRow(true)];
         $this->resetLocationForm();
+    }
+
+    protected function pendingDocumentGroups(): array
+    {
+        return [
+            'providerDocuments' => ['locked_type' => null, 'state_aware' => true],
+        ];
+    }
+
+    protected function validationAttributes(): array
+    {
+        return array_merge($this->portalLoginRowAttributes(), $this->pendingDocumentAttributes());
     }
 
     public function updatedPracticeId($value): void
@@ -336,64 +356,84 @@ class ProviderCreatePage extends Component
     {
         $canManagePortalCredentials = Auth::guard('admin')->user()?->can('admin.portal-credentials.manage') ?? false;
 
-        $rules = $this->rules();
+        $rules = array_merge($this->rules(), $this->portalLoginRowRules(), $this->pendingDocumentRules());
 
         if (! $canManagePortalCredentials) {
             $rules['userData.password'] = 'nullable|string|min:6';
         }
 
+        $this->assertCanSavePendingPortalLogins();
+        $this->assertCanSavePendingDocuments();
+
         $this->validate($rules);
         $this->assertPracticeInScope((int) $this->practiceId);
+        $this->scanPendingDocuments();
 
         $password = $canManagePortalCredentials && filled($this->userData['password'])
             ? $this->userData['password']
             : Str::password(16);
 
         // One transaction so a failure (e.g. a duplicate location link) never leaves a half-created provider.
-        $provider = DB::transaction(function () use ($password) {
-            $user = User::create([
-                'name' => $this->userData['name'],
-                'email' => $this->userData['email'],
-                'phone' => $this->userData['phone'] ?? null,
-                'password' => $password,
-            ]);
+        try {
+            $provider = DB::transaction(function () use ($password) {
+                $user = User::create([
+                    'name' => $this->userData['name'],
+                    'email' => $this->userData['email'],
+                    'phone' => $this->userData['phone'] ?? null,
+                    'password' => $password,
+                ]);
 
-            if (method_exists($user, 'assignRole')) {
-                $user->assignRole('provider');
-            }
+                if (method_exists($user, 'assignRole')) {
+                    $user->assignRole('provider');
+                }
 
-            $providerData = $this->formData;
-            unset($providerData['practice_id']);
-            $providerData['user_id'] = $user->id;
-            $provider = ProviderDetails::create($this->normalizeMalpracticeFields($providerData));
+                $providerData = $this->formData;
+                unset($providerData['practice_id']);
+                $providerData['user_id'] = $user->id;
+                $provider = ProviderDetails::create($this->normalizeMalpracticeFields($providerData));
 
-            $provider->practices()->syncWithoutDetaching([
-                (int) $this->practiceId => ['primary_flag' => true],
-            ]);
+                $provider->practices()->syncWithoutDetaching([
+                    (int) $this->practiceId => ['primary_flag' => true],
+                ]);
 
-            $this->persistServiceLocations($provider);
-            $this->persistCredentialRows($provider, false);
+                $this->persistServiceLocations($provider);
+                $this->persistCredentialRows($provider, false);
+                $this->persistPendingPortalLogins($provider);
 
-            if ($this->malpracticeDocument) {
-                $malpracticeType = DocumentType::firstOrCreate(
-                    ['name' => 'Malpractice Insurance'],
-                    ['is_active' => true, 'is_state_specific' => false]
-                );
-                $carrier = trim((string) ($this->formData['malpractice_carrier'] ?? ''));
-                app(DocumentService::class)->upload([
-                    'title' => 'Malpractice Insurance'.($carrier !== '' ? ' - '.$carrier : ''),
-                    'document_number' => $this->formData['malpractice_policy_number'] ?? null,
-                    'effective_date' => ! empty($this->formData['malpractice_effective_date']) ? $this->formData['malpractice_effective_date'] : null,
-                    'expiry_date' => ! empty($this->formData['malpractice_expiry']) ? $this->formData['malpractice_expiry'] : null,
-                    'provider_id' => $provider->id,
-                    'practice_id' => $this->practiceId ? (int) $this->practiceId : null,
-                    'document_type_id' => $malpracticeType->id,
-                ], $this->malpracticeDocument, Auth::guard('admin')->id());
-                $this->malpracticeDocument = null;
-            }
+                // Files last: every database row above is already saved inside this transaction.
+                if ($this->malpracticeDocument) {
+                    $malpracticeType = DocumentType::firstOrCreate(
+                        ['name' => 'Malpractice Insurance'],
+                        ['is_active' => true, 'is_state_specific' => false]
+                    );
+                    $carrier = trim((string) ($this->formData['malpractice_carrier'] ?? ''));
+                    app(DocumentService::class)->upload([
+                        'title' => 'Malpractice Insurance'.($carrier !== '' ? ' - '.$carrier : ''),
+                        'document_number' => $this->formData['malpractice_policy_number'] ?? null,
+                        'effective_date' => ! empty($this->formData['malpractice_effective_date']) ? $this->formData['malpractice_effective_date'] : null,
+                        'expiry_date' => ! empty($this->formData['malpractice_expiry']) ? $this->formData['malpractice_expiry'] : null,
+                        'provider_id' => $provider->id,
+                        'practice_id' => $this->practiceId ? (int) $this->practiceId : null,
+                        'document_type_id' => $malpracticeType->id,
+                    ], $this->malpracticeDocument, Auth::guard('admin')->id());
+                }
 
-            return $provider;
-        });
+                $this->persistPendingDocuments(null, $provider->id);
+
+                return $provider;
+            });
+        } catch (ValidationException|HttpExceptionInterface $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            report($e);
+            $message = 'The provider could not be created, so nothing was saved. Please check the details and try again. If it keeps happening, contact support.';
+            $this->addError('save', $message);
+            flash()->error($message);
+
+            return null;
+        }
+
+        $this->malpracticeDocument = null;
 
         flash()->success('Provider and user created successfully!');
 
@@ -444,6 +484,9 @@ class ProviderCreatePage extends Component
             'specialtyOptions' => $this->filteredSpecialtyOptions(),
             'availableLocationOptions' => $this->availableLocationOptions(),
             'latestMalpracticeDoc' => null,
+            'canManagePortalLogins' => $this->canManagePendingPortalLogins(),
+            'canUploadDocuments' => $this->canUploadPendingDocuments(),
+            'documentTypes' => $this->pendingDocumentTypes(true),
         ]);
     }
 }

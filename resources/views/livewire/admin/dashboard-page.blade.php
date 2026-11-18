@@ -117,11 +117,11 @@
                     <div class="btn-group">
                         <button type="button" wire:click="setAssignmentFilter('open')"
                             class="btn btn-sm {{ $assignmentFilter === 'open' ? 'btn-primary' : 'btn-outline-secondary' }}">
-                            Open <span class="badge bg-label-{{ $assignmentFilter === 'open' ? 'light' : 'primary' }} ms-1">{{ $assignmentCounts['open'] }}</span>
+                            Open <span class="badge {{ $assignmentFilter === 'open' ? 'bg-white text-primary' : 'bg-label-primary' }} ms-1">{{ $assignmentCounts['open'] }}</span>
                         </button>
                         <button type="button" wire:click="setAssignmentFilter('closed')"
                             class="btn btn-sm {{ $assignmentFilter === 'closed' ? 'btn-primary' : 'btn-outline-secondary' }}">
-                            Closed <span class="badge bg-label-{{ $assignmentFilter === 'closed' ? 'light' : 'secondary' }} ms-1">{{ $assignmentCounts['closed'] }}</span>
+                            Closed <span class="badge {{ $assignmentFilter === 'closed' ? 'bg-white text-primary' : 'bg-label-secondary' }} ms-1">{{ $assignmentCounts['closed'] }}</span>
                         </button>
                     </div>
                 </div>

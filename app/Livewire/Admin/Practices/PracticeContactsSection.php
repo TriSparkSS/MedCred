@@ -4,6 +4,7 @@ namespace App\Livewire\Admin\Practices;
 
 use App\Models\PracticeContact;
 use App\Services\AdminScopeService;
+use App\Services\PracticeContactService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -41,15 +42,7 @@ class PracticeContactsSection extends Component
 
     protected function rules(): array
     {
-        return [
-            'formData.name' => 'required|string|max:255',
-            'formData.title' => 'nullable|string|max:255',
-            'formData.email' => 'nullable|email|max:255',
-            'formData.phone' => 'nullable|string|max:30',
-            'formData.fax' => 'nullable|string|max:30',
-            'formData.is_primary' => 'boolean',
-            'formData.notes' => 'nullable|string|max:1000',
-        ];
+        return PracticeContactService::rules('formData');
     }
 
     public function openCreateModal(): void
@@ -85,15 +78,16 @@ class PracticeContactsSection extends Component
 
         $this->validate();
 
-        if ($this->formData['is_primary'] ?? false) {
-            PracticeContact::where('practice_id', $this->practiceId)->update(['is_primary' => false]);
-        }
+        $service = app(PracticeContactService::class);
 
         if ($this->modalMode === 'create') {
-            PracticeContact::create([...$this->formData, 'practice_id' => $this->practiceId]);
+            $service->create((int) $this->practiceId, $this->formData);
             flash()->success('Contact added successfully!');
         } else {
-            PracticeContact::where('practice_id', $this->practiceId)->findOrFail($this->contactId)->update($this->formData);
+            $service->update(
+                PracticeContact::where('practice_id', $this->practiceId)->findOrFail($this->contactId),
+                $this->formData
+            );
             flash()->success('Contact updated successfully!');
         }
 

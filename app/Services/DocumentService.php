@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\DocumentVersion;
+use App\Models\Practice;
 use App\Models\Setting;
 use App\Support\UsStates;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +18,85 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentService
 {
+    public const FILE_RULES = 'file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240';
+
+    /**
+     * Metadata rules for one practice/provider document. $prefix is e.g. 'formData' or 'bankDocuments.*'.
+     * Shared by the Edit page section (EntityDocumentsSection) and the Add Practice / Add Provider pages.
+     */
+    public static function entityDocumentRules(string $prefix = 'formData'): array
+    {
+        return [
+            "{$prefix}.title" => 'required|string|max:255',
+            "{$prefix}.document_number" => 'nullable|string|max:100',
+            "{$prefix}.document_type_id" => 'nullable|exists:document_types,id',
+            "{$prefix}.effective_date" => 'nullable|date',
+            "{$prefix}.expiry_date" => 'nullable|date',
+        ];
+    }
+
+    /**
+     * Build the upload payload for a document owned by a practice or a provider
+     * (not a credentialing case), exactly as the Edit page section does.
+     */
+    public function entityPayload(array $formData, ?int $practiceId, ?int $providerId): array
+    {
+        $payload = $formData;
+        unset($payload['link_to_practice'], $payload['link_to_provider'], $payload['file']);
+
+        if ($providerId) {
+            $payload['provider_id'] = $providerId;
+        } else {
+            unset($payload['provider_id'], $payload['sync_credential'], $payload['state']);
+        }
+
+        if ($practiceId) {
+            $payload['practice_id'] = $practiceId;
+        } else {
+            unset($payload['practice_id']);
+        }
+
+        foreach (['document_type_id', 'effective_date', 'expiry_date'] as $key) {
+            if (($payload[$key] ?? '') === '') {
+                $payload[$key] = null;
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Upload one practice/provider document (malware scan + optional encryption via upload())
+     * and keep the practice license fields in sync when it is a practice license.
+     */
+    public function uploadForEntity(array $formData, UploadedFile $file, ?int $practiceId, ?int $providerId, ?int $adminId = null): Document
+    {
+        $document = $this->upload($this->entityPayload($formData, $practiceId, $providerId), $file, $adminId);
+
+        if ($practiceId) {
+            $this->syncPracticeLicenseFromDocument($document, $practiceId);
+        }
+
+        return $document;
+    }
+
+    /**
+     * When a practice license document is saved, copy its name/number/dates onto the practice.
+     */
+    public function syncPracticeLicenseFromDocument(Document $document, int $practiceId): void
+    {
+        if ($document->documentType?->name !== Practice::LICENSE_DOCUMENT_TYPE) {
+            return;
+        }
+
+        Practice::whereKey($practiceId)->update([
+            'license_name' => $document->title,
+            'license_number' => $document->document_number,
+            'license_effective_date' => $document->effective_date,
+            'license_expiry_date' => $document->expiry_date,
+        ]);
+    }
+
     public function upload(array $data, UploadedFile $file, ?int $adminId = null, ?int $userId = null): Document
     {
         app(FileMalwareScanner::class)->assertClean($file, $adminId);

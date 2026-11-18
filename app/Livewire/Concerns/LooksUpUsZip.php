@@ -14,6 +14,7 @@ trait LooksUpUsZip
      * $property is an array property on the component (e.g. 'formData').
      * The key arguments let one array hold several addresses, e.g. the
      * provider home address: lookupZip('formData', 'home_zip', 'home_city', 'home_state').
+     * Repeater rows use a dotted path to the row: lookupZip('facilityLocations.0').
      */
     public function lookupZip(
         string $property,
@@ -25,7 +26,15 @@ trait LooksUpUsZip
         // Keep the original message key for the default address so existing views keep working.
         $messageKey = $cityKey === 'city' ? $property : "{$property}.{$zipKey}";
 
-        $data = $this->{$property};
+        [$root, $path] = str_contains($property, '.')
+            ? explode('.', $property, 2)
+            : [$property, null];
+
+        if (! property_exists($this, $root)) {
+            return;
+        }
+
+        $data = $path === null ? $this->{$root} : data_get($this->{$root}, $path);
         $zip = is_array($data) ? ($data[$zipKey] ?? null) : null;
         $digits = preg_replace('/\D/', '', (string) $zip) ?? '';
 
@@ -59,6 +68,14 @@ trait LooksUpUsZip
             $data[$countyKey] = $result['county'];
         }
 
-        $this->{$property} = $data;
+        if ($path === null) {
+            $this->{$root} = $data;
+
+            return;
+        }
+
+        $rootData = $this->{$root};
+        data_set($rootData, $path, $data);
+        $this->{$root} = $rootData;
     }
 }

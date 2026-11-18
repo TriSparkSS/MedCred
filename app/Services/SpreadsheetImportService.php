@@ -11,8 +11,10 @@ use App\Models\ProviderDetails;
 use App\Models\Specialty;
 use App\Models\User;
 use App\Support\UsStates;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -278,7 +280,7 @@ class SpreadsheetImportService
                 $success++;
             } catch (Throwable $e) {
                 $failed++;
-                $errors[] = "Row {$rowNumber}: ".$e->getMessage();
+                $errors[] = "Row {$rowNumber}: ".$this->friendlyRowError($e);
             }
         }
 
@@ -335,6 +337,21 @@ class SpreadsheetImportService
         $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? $normalized;
 
         return trim($normalized, '_');
+    }
+
+    /**
+     * Validation / business-rule messages are shown as-is; raw database errors are logged
+     * and replaced with a short message so SQL is never shown to users.
+     */
+    protected function friendlyRowError(Throwable $e): string
+    {
+        if ($e instanceof QueryException) {
+            Log::error('Bulk import row failed', ['error' => $e->getMessage()]);
+
+            return 'Could not save this row because of a database error. Please contact support.';
+        }
+
+        return $e->getMessage();
     }
 
     protected function rowIsEmpty(array $data): bool

@@ -30,7 +30,9 @@ class ZipLookupService
             return null;
         }
 
-        Cache::put($cacheKey, $result ?? false, now()->addDay());
+        // A missing county is usually a temporary county-API failure: retry soon instead of caching it for a day.
+        $ttl = is_array($result) && empty($result['county']) ? now()->addMinutes(10) : now()->addDay();
+        Cache::put($cacheKey, $result ?? false, $ttl);
 
         return $result;
     }
@@ -81,6 +83,11 @@ class ZipLookupService
             return null;
         }
 
+        return $this->countyFromFcc($lat, $lng) ?? $this->countyFromCensus($lat, $lng);
+    }
+
+    private function countyFromFcc(mixed $lat, mixed $lng): ?string
+    {
         try {
             $fcc = Http::timeout(8)->acceptJson()->get('https://geo.fcc.gov/api/census/area', [
                 'lat' => $lat,
@@ -95,8 +102,37 @@ class ZipLookupService
             return null;
         }
 
-        return $fcc->json('County.name')
+        $county = $fcc->json('County.name')
             ?? $fcc->json('results.0.county_name')
             ?? $fcc->json('county_name');
+
+        return filled($county) ? (string) $county : null;
+    }
+
+    /**
+     * Fallback: US Census geocoder (free, no API key).
+     */
+    private function countyFromCensus(mixed $lat, mixed $lng): ?string
+    {
+        try {
+            $census = Http::timeout(8)->acceptJson()->get('https://geocoding.geo.census.gov/geocoder/geographies/coordinates', [
+                'x' => $lng,
+                'y' => $lat,
+                'benchmark' => 'Public_AR_Current',
+                'vintage' => 'Current_Current',
+                'layers' => 'Counties',
+                'format' => 'json',
+            ]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $census->successful()) {
+            return null;
+        }
+
+        $county = $census->json('result.geographies.Counties.0.NAME');
+
+        return filled($county) ? (string) $county : null;
     }
 }

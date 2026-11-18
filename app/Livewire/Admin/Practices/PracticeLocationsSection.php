@@ -5,9 +5,9 @@ namespace App\Livewire\Admin\Practices;
 use App\Livewire\Concerns\LooksUpUsZip;
 use App\Models\Location;
 use App\Services\AdminScopeService;
+use App\Services\PracticeFacilityLocationService;
 use App\Support\UsStates;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -46,22 +46,7 @@ class PracticeLocationsSection extends Component
 
     protected function rules(): array
     {
-        return [
-            'formData.name' => 'required|string|max:255',
-            'formData.address1' => 'required|string|max:255',
-            'formData.address2' => 'nullable|string|max:255',
-            'formData.city' => 'required|string|max:100',
-            'formData.state' => ['required', 'string', 'size:2', Rule::in(UsStates::codes())],
-            'formData.zip_code' => 'required|string|max:20',
-            'formData.county' => 'nullable|string|max:100',
-            'formData.country' => 'required|string|max:100',
-            'formData.phone' => 'nullable|string|max:30',
-            'formData.fax' => 'nullable|string|max:30',
-            'formData.taxonomy_code' => 'nullable|string|max:50',
-            'formData.npi' => 'nullable|string|max:50',
-            'formData.status' => 'required|in:active,inactive',
-            'formData.is_primary' => 'boolean',
-        ];
+        return PracticeFacilityLocationService::rules('formData');
     }
 
     public function openCreateModal(): void
@@ -109,18 +94,16 @@ class PracticeLocationsSection extends Component
 
         $this->validate();
 
-        if ($this->formData['is_primary'] ?? false) {
-            Location::where('practice_id', $this->practiceId)->update(['is_primary' => false]);
-        }
-
-        $payload = $this->formData;
-        $payload['state'] = UsStates::normalize($payload['state'] ?? null) ?? $payload['state'];
+        $service = app(PracticeFacilityLocationService::class);
 
         if ($this->modalMode === 'create') {
-            Location::create([...$payload, 'practice_id' => $this->practiceId]);
+            $service->create((int) $this->practiceId, $this->formData);
             flash()->success('Location added successfully!');
         } else {
-            Location::where('practice_id', $this->practiceId)->findOrFail($this->locationId)->update($payload);
+            $service->update(
+                Location::where('practice_id', $this->practiceId)->findOrFail($this->locationId),
+                $this->formData
+            );
             flash()->success('Location updated successfully!');
         }
 

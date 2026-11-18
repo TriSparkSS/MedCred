@@ -20,6 +20,12 @@
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
             <form wire:submit.prevent="save">
+                @error('save')
+                    <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+                        <i class="ti tabler-alert-circle mt-1"></i>
+                        <div>{{ $message }}</div>
+                    </div>
+                @enderror
 
                 {{-- Practice Details --}}
                 <div class="mb-3 pb-3 border-bottom">
@@ -231,6 +237,18 @@
                     </div>
                 </div>
 
+                @if ($canUploadDocuments)
+                    @include('livewire.admin.partials.pending-document-rows', [
+                        'group' => 'bankDocuments',
+                        'heading' => 'Bank Documents',
+                        'icon' => 'tabler-file-dollar',
+                        'description' => 'Voided checks, bank letters, and other banking documents.',
+                        'addLabel' => 'Add Bank Document',
+                        'lockedTypeName' => 'Bank Document',
+                        'documentTypes' => collect(),
+                    ])
+                @endif
+
                 {{-- License & Documents --}}
                 <div class="mb-3 pb-3 border-bottom">
                     <h6 class="text-primary fw-semibold mb-1">
@@ -276,13 +294,35 @@
                     </div>
                 </div>
 
+                @if ($canUploadDocuments)
+                    @include('livewire.admin.partials.pending-document-rows', [
+                        'group' => 'licenseDocuments',
+                        'heading' => 'Additional Documents',
+                        'icon' => 'tabler-files',
+                        'description' => 'Add more licenses, certificates, or other practice documents.',
+                        'addLabel' => 'Add Document',
+                        'lockedTypeName' => null,
+                        'documentTypes' => $documentTypes,
+                    ])
+                @endif
+
+                @if ($canManagePortalLogins)
+                    @include('livewire.admin.partials.pending-portal-logins', ['heading' => 'Practice logins'])
+                @endif
+
+                @if ($canManagePracticeRows)
+                    @include('livewire.admin.practices.partials.pending-contacts')
+                    @include('livewire.admin.practices.partials.pending-facility-locations')
+                @endif
+
                 {{-- Actions --}}
                 <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pt-3 border-top">
                     <p class="text-muted small mb-0"><span class="text-danger">*</span> Required fields</p>
                     <div class="d-flex gap-2">
                         <a href="{{ route('admin.practices') }}" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="ti tabler-check me-1"></i>Create Practice
+                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="save">
+                            <span wire:loading.remove wire:target="save"><i class="ti tabler-check me-1"></i>Create Practice</span>
+                            <span wire:loading wire:target="save"><span class="spinner-border spinner-border-sm me-1"></span>Saving...</span>
                         </button>
                     </div>
                 </div>
